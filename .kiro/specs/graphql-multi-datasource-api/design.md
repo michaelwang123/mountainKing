@@ -1,0 +1,1685 @@
+# 技术设计文档
+
+## 概述
+
+本设计文档描述一个基于 Go 语言和 gqlgen 框架的高性能 GraphQL API 服务的技术架构。该服务作为只读查询网关，统一接入 StarRocks（OLAP 分析型数据库，通过 MySQL 协议）和 Prometheus（时序数据库，通过 HTTP API）等多种数据源，通过 GraphQL 协议向客户端提供灵活的数据查询能力。
+
+核心设计目标：
+- 可扩展的数据源适配器架构（接口 + 注册表模式）
+- 跨数据源并行查询与结果合并
+- 生产级安全认证（JWT / API Key）、请求限流（令牌桶）、查询缓存（内存 / Redis）
+- 全面的可观测性（Prometheus 指标、OpenTelemetry 链路追踪、结构化日志）
+- Kubernetes 原生部署支持
+
+技术栈选型：
+| 组件　　　　　　　　　| 技术选型　　　　　　　　　　　　　　| 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　| 　　　　　　　　　　|
+| -----------------------| -------------------------------------| -----------------------------------------------------------| ---------------------|
+| GraphQL 框架　　　　　| gqlgen　　　　　　　　　　　　　　　| Go 生态最成熟的 Schema-first GraphQL 框架，编译时代码生成 | 　　　　　　　　　　|
+| HTTP 框架　　　　　　 | chi　　　　　　　　　　　　　　　　 | 轻量级、兼容 net/http、中间件生态丰富　　　　　　　　　　 | 　　　　　　　　　　|
+| 配置管理　　　　　　　| Viper　　　　　　　　　　　　　　　 | 支持 YAML + 环境变量覆盖 + 热更新（fsnotify）　　　　　　 | 　　　　　　　　　　|
+| 日志　　　　　　　　　| zap　　　　　　　　　　　　　　　　 | 高性能结构化日志　　　　　　　　　　　　　　　　　　　　　| 　　　　　　　　　　|
+| JWT 认证　　　　　　　| golang-jwt/jwt/v5　　　　　　　　　 | Go 生态最流行的 JWT 库，支持多种签名算法　　　　　　　　　| 　　　　　　　　　　|
+| StarRocks 连接　　　　| database/sql + go-sql-driver/mysql　| StarRocks 兼容 MySQL 协议　　　　　　　　　　　　　　　　 | 　　　　　　　　　　|
+| Prometheus 查询客户端 | prometheus/client_golang + net/http | 通过 HTTP API 查询 Prometheus 数据源　　　　　　　　　　　| 　　　　　　　　　　|
+| Prometheus 指标暴露　 | prometheus/client_golang　　　　　　| 官方 Go 客户端，暴露 /metrics 端点　　　　　　　　　　　　| 　　　　　　　　　　|
+| OpenTelemetry　　　　 | go.opentelemetry.io/otel　　　　　　| 官方 Go SDK　　　　　　　　　　　　　　　　　　　　　　　 | 　　　　　　　　　　|
+| 内存缓存　　　　　　　| hashicorp/golang-lru/v2　　　　　　 | gleflight　　　　　　　　　　　　　　　　　　　　　　　　 | 标准库 singleflight |
+
+## 架构
+
+### 整体架构
+
+```mermaid
+graph TB
+    Client[客户端] -->|HTTP POST /graphql| LB[负载均衡器]
+    LB --> API[API Service]
+    
+    subgraph API[API Service]
+        direction TB
+        MW[中间件层<br/>CORS / Auth / RateLimit / Compression]
+        GQL[GraphQL Engine<br/>gqlgen]
+        QR[Query Resolver]
+        DL[DataLoader]
+        DSM[DataSource Manager]
+        CL[Cache r/>RequestID / BodyLimit / CORS / Auth / RateLimit / Compression]
+        GQL[GraphQL Engine<br/>gqlgen + 复杂度/深度检查]
+        QR[Query Resolver<br/>字段选择 + 并行调度]
+        DL[DataLoader<br/>批量合并同数据源请求]
+        CL[Cache Layer<br/>singleflight + 穿透/雪崩/击穿防护]
+        DSM[DataSource Manager<br/>连接池 + 重连 + 重试]
+        
+        MW --> GQL
+        GQL --> QR
+        QR --> DL
+        DL --> CL
+        CL --> DSM
+    end
+    
+    DSM --> SR[(StarRocks<br/>MySQL Protocol)]
+    DSM --> PM[(Prometheus<br/>HTTP API)]
+    DSM -.->|扩展| NEW[(新数据源)]
+    
+    API -->|OTLP| Jaeger[Jaeger/Tempo]
+    API -->|/metrics| PromServer[Prometheus Server]
+    API -->|/health /ready| K8s[Kubernetes]
+    API -.->|分布式限流/缓存| Redis[(Redis)]
+```
+
+> **层级说明：** Cache Layer 位于 DataLoader 之后、DataSource Manager 之前。DataLoader 先将同一数据源的多个 resolver 请求批量合并，合并后的请求再经过 Cache Layer 查询缓存，未命中时才到达 DataSource Manager 执行实际查询。这样缓存粒度在数据源查询级别，避免了 resolver 级别的重复缓存。
+
+### 请求处理流程
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant MW as Middleware
+    participant GQL as GraphQL Engine
+    participant QR as Query Resolver
+    participant DL as DataLoader
+    participant CL as Cache Layer
+    participant DSM as DataSource Manager
+    participant DS as DataSource
+
+    C->>MW: HTTP POST /graphql
+    MW->>MW: 生成 RequestID
+    MW->>MW: 请求体大小检查
+    MW->>MW: CORS 检查
+    MW->>MW: 认证检查 (JWT/API Key)
+    MW->>MW: 限流检查 (Token Bucket, count=批量查询数)
+    MW->>GQL: 转发请求
+    GQL->>GQL: 解析请求体 (单查询/批量查询)
+    GQL->>GQL: 验证查询语法
+    GQL->>GQL: 复杂度/深度检查
+    GQL->>QR: 执行 Resolver (并行调度多数据源)
+    QR->>DL: 提交查询请求
+    DL->>DL: 批量合并同数据源请求
+    DL->>CL: 查询缓存
+    alt 缓存命中
+        CL-->>DL: 返回缓存结果
+    else 缓存未命中 (singleflight 防击穿)
+        CL->>DSM: 转发查询 (含重试逻辑)
+        DSM->>DS: 执行数据源查询
+        DS-->>DSM: 返回结果
+        DSM-->>CL: 返回结果
+        CL->>CL: 写入缓存 (TTL + jitter 防雪崩, 空结果短 TTL 防穿透)
+        CL-->>DL: 返回结果
+    end
+    DL-->>QR: 返回批量结果
+    QR->>QR: 合并多数据源结果 + 结果集截断检查
+    QR-->>GQL: 返回数据
+    GQL-->>MW: JSON 响应 (含 requestId, traceId)
+    MW->>MW: gzip 压缩 (超过阈值时)
+    MW-->>C: HTTP 响应 (含限流头 X-RateLimit-*)
+```
+
+### 批量查询处理流程
+
+```mermaid
+flowchart TD
+    A[接收 HTTP POST 请求] --> B{请求体是 JSON 数组?}
+    B -->|是| C[解析为批量查询]
+    B -->|否| D[解析为单查询]
+    C --> E{查询数 > max_batch_queries?}
+    E -->|是| F[返回 400 错误]
+    E -->|否| G[限流计数 = 查询数 N]
+    D --> H[限流计数 = 1]
+    G --> I[限流检查: 消耗 N 个令牌]
+    H --> I
+    I -->|通过| J[并行执行所有查询]
+    I -->|拒绝| K[返回 429 错误]
+    J --> L[收集所有结果]
+    L --> M{是批量查询?}
+    M -->|是| N[返回结果数组, len = N]
+    M -->|否| O[返回单个结果]
+```
+
+### 优雅关闭流程
+
+```mermaid
+sequenceDiagram
+    participant OS as 操作系统
+    participant S as HTTP Server
+    participant DSM as DataSource Manager
+    participant TP as Tracing Provider
+    participant MC as Metrics Collector
+    participant L as Logger
+
+    OS->>S: SIGTERM / SIGINT
+    S->>S: 停止接受新连接
+    S->>S: 等待 in-flight 请求完成 (max_wait_time)
+    S->>TP: Shutdown (刷新未导出的 Trace)
+    TP-->>S: done
+    S->>MC: 刷新 Prometheus 指标
+    MC-->>S: done
+    S->>DSM: CloseAll (关闭所有数据源连接池)
+    DSM-->>S: done
+    S->>L: Sync (刷新日志缓冲区)
+    L-->>S: done
+    S->>OS: exit(0)
+```
+
+### 项目目录结构
+
+```
+cmd/
+  server/
+    main.go                    # 入口程序
+internal/
+  config/
+    config.go                  # 配置结构定义与加载 (Viper)
+    validation.go              # 配置校验
+    hotreload.go               # 配置热更新 (fsnotify)
+  server/
+    server.go                  # HTTP 服务器启动、路由注册、优雅关闭
+    batch.go                   # 批量查询解析与调度
+  middleware/
+    auth.go                    # JWT / API Key 认证中间件
+    authz.go                   # 授权检查（数据源权限）
+    ratelimit.go               # 令牌桶限流中间件
+    cors.go                    # CORS 中间件
+    compression.go             # gzip 压缩中间件
+    requestid.go               # 请求 ID 生成中间件
+    bodylimit.go               # 请求体大小限制中间件
+  graphql/
+    schema/
+      base.graphql             # 基础类型定义 (分页、排序、过滤、自定义标量)
+      starrocks.graphql        # StarRocks 数据源 Schema
+      prometheus.graphql       # Prometheus 数据源 Schema
+      mutation.graphql         # Mutation 定义 (缓存管理)
+    generated/
+      generated.go             # gqlgen 生成代码
+      models_gen.go            # gqlgen 生成模型
+    resolver/
+      resolver.go              # Resolver 根结构
+      query.go                 # Query Resolver 实现
+      mutation.go              # Mutation Resolver 实现
+    dataloader/
+      dataloader.go            # DataLoader 实现
+    scalar/
+      datetime.go              # DateTime 自定义标量序列化/反序列化
+      json.go                  # JSON 自定义标量序列化/反序列化
+  datasource/
+    interface.go               # DataSource 接口定义
+    manager.go                 # DataSource Manager 实现
+    registry.go                # Adapter Registry 实现
+    reconnect.go               # 后台重连 goroutine 管理
+    mock.go                    # MockDataSource 测试辅助
+  adapter/
+    starrocks/
+      adapter.go               # StarRocks 适配器实现
+      query_builder.go         # SQL 查询构建器 (参数化)
+      type_mapper.go           # 类型映射
+      whitelist.go             # 表名/字段名白名单校验
+    prometheus/
+      adapter.go               # Prometheus 适配器实现
+      query_builder.go         # PromQL 查询构建器
+      type_mapper.go           # 类型映射
+      validator.go             # PromQL 输入校验
+  cache/
+    cache.go                   # Cache 接口定义
+    memory.go                  # 内存缓存 (hashicorp/golang-lru)
+    redis.go                   # Redis 缓存
+    layer.go                   # Cache Layer (singleflight + 穿透/雪崩/击穿防护)
+    key.go                     # 缓存 key 生成 (含 datasource 前缀)
+  ratelimit/
+    ratelimit.go               # RateLimiter 接口定义
+    local.go                   # 本地限流 (KeyedRateLimiter + x/time/rate)
+    distributed.go             # 分布式限流 (Redis + Lua)
+    fallback.go                # 分布式→本地降级逻辑
+  health/
+    health.go                  # 健康检查与就绪探针
+  observability/
+    metrics.go                 # Prometheus 指标注册与记录
+    tracing.go                 # OpenTelemetry 初始化与 Span 管理
+    logging.go                 # 结构化日志 (zap) 初始化
+  context/
+    keys.go                    # Context key 定义 (AuthIdentity, RequestID, TraceSpan)
+  audit/
+    audit.go                   # 审计日志
+  sanitize/
+    sanitize.go                # 敏感信息脱敏
+  errors/
+    errors.go                  # 统一错误码定义
+    types.go                   # 错误类型 (AuthError, ValidationError, etc.)
+pkg/
+  retry/
+    retry.go                   # 通用重试逻辑 (指数退避)
+    classifier.go              # 错误分类 (瞬时 vs 业务)
+deploy/
+  Dockerfile                   # 多阶段构建
+  k8s/
+    deployment.yaml
+    service.yaml
+    configmap.yaml
+    hpa.yaml
+  docker-compose.yaml          # 集成测试环境
+gqlgen.yml                     # gqlgen 配置 (含自定义标量映射)
+go.mod
+go.sum
+```
+
+
+## 组件与接口
+
+### 1. DataSource 接口
+
+所有数据源适配器必须实现的核心接口：
+
+```go
+// DataSource 定义数据源适配器的统一接口
+type DataSource interface {
+    // Name 返回数据源名称（配置中的 name 字段）
+    Name() string
+    
+    // Type 返回数据源类型标识（如 "starrocks", "prometheus"）
+    Type() string
+    
+    // Connect 建立与数据源的连接，幂等操作（已连接时不做操作）
+    Connect(ctx context.Context) error
+    
+    // IsAvailable 返回数据源当前是否可用（连接是否健康）
+    IsAvailable() bool
+    
+    // Execute 执行查询并返回结果
+    Execute(ctx context.Context, query QueryRequest) (*QueryResult, error)
+    
+    // HealthCheck 检查数据源连接健康状态
+    HealthCheck(ctx context.Context) error
+    
+    // SchemaFiles 返回该适配器提供的 .graphql Schema 文件路径列表
+    SchemaFiles() []string
+    
+    // Close 关闭连接并释放资源
+    Close(ctx context.Context) error
+}
+
+// AdapterFactory 适配器工厂函数类型
+type AdapterFactory func(name string, config DataSourceConfig) (DataSource, error)
+
+// FilterCondition 过滤条件（类型安全）
+type FilterCondition struct {
+    Field    string         // 字段名
+    Operator FilterOperator // 操作符 (EQ, NEQ, GT, GTE, LT, LTE, LIKE, IN, NOT_IN, IS_NULL, IS_NOT_NULL)
+    Value    interface{}    // 过滤值
+}
+
+// OrderByClause 排序条件
+type OrderByClause struct {
+    Field     string        // 排序字段
+    Direction SortDirection // ASC 或 DESC
+}
+
+// PaginationParams 分页参数
+type PaginationParams struct {
+    First  *int    // Relay: 前 N 条
+    After  *string // Relay: 游标之后
+    Offset *int    // 传统: 偏移量
+    Limit  *int    // 传统: 限制数
+}
+
+// QueryRequest 统一查询请求结构
+type QueryRequest struct {
+    Fields     []string               // 请求的字段列表（字段选择优化）
+    Filters    []FilterCondition      // 过滤条件（类型安全）
+    OrderBy    []OrderByClause        // 排序条件
+    Pagination *PaginationParams      // 分页参数
+    NeedCount  bool                   // 是否需要 totalCount
+    Options    map[string]interface{} // 数据源特有参数（如 Prometheus 的 query, startTime, endTime, step）
+}
+
+// QueryResult 统一查询结果结构
+type QueryResult struct {
+    Data       []map[string]interface{} // 结果数据行
+    TotalCount *int64                   // 总记录数（可选，NeedCount=true 时填充）
+    Warnings   []string                 // 警告信息（如特殊值转换、结果截断）
+}
+```
+
+### 2. Adapter Registry
+
+```go
+// AdapterRegistry 管理数据源适配器的注册与发现
+type AdapterRegistry struct {
+    mu       sync.RWMutex
+    adapters map[string]AdapterFactory
+}
+
+// Register 注册适配器工厂函数，类型名称重复时返回错误
+func (r *AdapterRegistry) Register(typeName string, factory AdapterFactory) error
+
+// Get 根据类型名称获取适配器工厂函数
+func (r *AdapterRegistry) Get(typeName string) (AdapterFactory, bool)
+
+// List 返回所有已注册的适配器类型名称
+func (r *AdapterRegistry) List() []string
+```
+
+### 3. DataSource Manager
+
+```go
+// DataSourceManager 管理所有数据源的生命周期
+type DataSourceManager struct {
+    registry    *AdapterRegistry
+    datasources map[string]DataSource
+    status      map[string]*DataSourceStatus // 每个数据源的状态跟踪
+    config      []DataSourceConfig
+    retryConfig RetryConfig
+    mu          sync.RWMutex
+    stopCh      chan struct{} // 用于停止后台重连 goroutine
+}
+
+// DataSourceStatus 数据源状态跟踪
+type DataSourceStatus struct {
+    Available       bool
+    LastError       error
+    ReconnectCount  int
+    NextReconnectAt time.Time
+}
+
+// Init 从配置初始化所有数据源，失败的数据源标记为不可用并启动后台重连
+func (m *DataSourceManager) Init(ctx context.Context) error
+
+// Get 根据名称获取数据源实例，返回错误如果数据源不可用
+func (m *DataSourceManager) Get(name string) (DataSource, error)
+
+// ExecuteWithRetry 执行查询，对瞬时错误自动重试（指数退避）
+func (m *DataSourceManager) ExecuteWithRetry(ctx context.Context, dsName string, query QueryRequest) (*QueryResult, error)
+
+// HealthCheckAll 检查所有数据源健康状态
+func (m *DataSourceManager) HealthCheckAll(ctx context.Context) map[string]error
+
+// CloseAll 停止后台重连并关闭所有数据源连接
+func (m *DataSourceManager) CloseAll(ctx context.Context) error
+
+// startReconnectLoop 后台 goroutine：对不可用数据源执行指数退避重连
+// 重连间隔: min(reconnect_interval × 2^(attempt-1), max_reconnect_interval)
+func (m *DataSourceManager) startReconnectLoop(dsName string)
+```
+
+### 4. Cache Layer
+
+```go
+// Cache 缓存后端接口
+type Cache interface {
+    Get(ctx context.Context, key string) ([]byte, bool, error)
+    Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+    Delete(ctx context.Context, key string) error
+    DeleteByPrefix(ctx context.Context, prefix string) error // 按前缀删除（支持按数据源清除）
+    Clear(ctx context.Context) error
+}
+
+// CacheKeyGenerator 缓存 key 生成器
+// 格式: "cache:{datasource}:{sha256(query+variables)}"
+// datasource 前缀确保 clearCache(datasource) 可以按前缀清除
+type CacheKeyGenerator struct{}
+
+func (g *CacheKeyGenerator) Generate(datasource, query string, variables map[string]interface{}) string
+
+// CacheLayer 带防护策略的缓存层
+type CacheLayer struct {
+    backend     Cache
+    sfGroup     singleflight.Group  // 击穿防护：同一 key 并发回源只执行一次
+    ttlConfig   map[string]time.Duration // 每个数据源独立 TTL
+    defaultTTL  time.Duration
+    jitterPct   int                 // 雪崩防护：TTL 抖动百分比 (默认 10)
+    emptyTTL    time.Duration       // 穿透防护：空结果缓存 TTL (默认 30s)
+    keyGen      *CacheKeyGenerator
+    metrics     *CacheMetrics
+}
+
+// GetOrLoad 查询缓存，未命中时通过 loader 回源并缓存结果
+// 1. 检查缓存命中 → 命中则直接返回，记录 cache_hit 指标
+// 2. 未命中 → 通过 singleflight 确保同一 key 只有一个 goroutine 回源
+// 3. 回源结果为空 → 缓存空值标记（短 TTL = emptyTTL）
+// 4. 回源结果非空 → 缓存结果（TTL = 配置 TTL ± jitter）
+// 5. 记录 cache_miss 指标
+func (cl *CacheLayer) GetOrLoad(ctx context.Context, key string, datasource string, loader func() ([]byte, error)) ([]byte, error)
+
+// ClearByDatasource 清除指定数据源的所有缓存
+func (cl *CacheLayer) ClearByDatasource(ctx context.Context, datasource string) error
+
+// ClearAll 清除所有缓存
+func (cl *CacheLayer) ClearAll(ctx context.Context) error
+```
+
+> **Singleflight 错误处理：** 当 singleflight 中的首个请求因瞬时错误失败时，所有等待的请求都会收到相同的错误。这是可接受的行为——客户端可以重试，下一次请求会触发新的回源。不在 singleflight 内部做重试，避免放大延迟。
+
+### 5. Auth Middleware（认证与授权分离）
+
+```go
+// Authenticator 认证器接口（验证凭据，返回身份信息或 401 错误）
+type Authenticator interface {
+    Authenticate(r *http.Request) (*AuthIdentity, error)
+}
+
+// Authorizer 授权器接口（检查权限，返回 403 错误）
+type Authorizer interface {
+    Authorize(identity *AuthIdentity, datasource string, operation string) error
+}
+
+// AuthIdentity 认证主体信息（存入 context）
+type AuthIdentity struct {
+    Subject     string   // JWT sub 或 API Key ID
+    Method      string   // "jwt" 或 "apikey"
+    Datasources []string // 允许访问的数据源列表
+    Operations  []string // 允许的操作类型 (query, mutation)
+}
+
+// AuthError 认证错误类型（区分 401 和 403）
+type AuthError struct {
+    Code       string // AUTH_MISSING, AUTH_TOKEN_EXPIRED, AUTH_TOKEN_INVALID, AUTH_INSUFFICIENT_PERMISSION
+    StatusCode int    // 401 或 403
+    Message    string
+}
+
+// JWTAuthenticator JWT 认证实现
+// - 从 Authorization: Bearer <token> 头提取 Token
+// - 验证签名（使用 golang-jwt/jwt/v5）、过期时间（exp）、签发者（iss）
+// - 过期返回 AUTH_TOKEN_EXPIRED，签名无效返回 AUTH_TOKEN_INVALID
+type JWTAuthenticator struct {
+    secret []byte
+    issuer string
+}
+
+// APIKeyAuthenticator API Key 认证实现
+// - 从 X-API-Key 头提取 API Key
+// - 使用 constant-time comparison 防止 timing attack
+// - 检查 expires_at 是否已过期
+// - 返回关联的权限范围
+type APIKeyAuthenticator struct {
+    keys map[string]*APIKeyEntry // key hash → entry
+}
+
+// APIKeyEntry API Key 配置条目
+type APIKeyEntry struct {
+    ID          string
+    KeyHash     []byte    // bcrypt 或 SHA256 哈希存储
+    ExpiresAt   *time.Time
+    Datasources []string
+    Operations  []string
+}
+```
+
+### 6. Rate Limiter（本地 + 分布式双模式）
+
+```go
+// RateLimiter 限流器接口
+type RateLimiter interface {
+    // Allow 检查是否允许请求通过
+    // key: 限流维度标识（IP 地址或 API Key ID）
+    // count: 消耗的令牌数（批量查询时 = 查询数 N）
+    // 返回值始终包含限流状态信息（无论是否被限流）
+    Allow(ctx context.Context, key string, count int) (*RateLimitResult, error)
+}
+
+// RateLimitResult 限流检查结果
+type RateLimitResult struct {
+    Allowed   bool      // 是否允许通过
+    Limit     int       // 限流上限 (requests_per_window)
+    Remaining int       // 剩余可用请求数
+    ResetAt   time.Time // 限流重置时间 (Unix 时间戳)
+}
+
+// === 本地限流模式 ===
+
+// KeyedRateLimiter 按 key 维度的本地限流器
+// 内部为每个 key 维护独立的 rate.Limiter 实例
+// 参数转换: rate = requests_per_window / window_size_seconds, burst = requests_per_window
+type KeyedRateLimiter struct {
+    mu              sync.RWMutex
+    limiters        map[string]*limiterEntry
+    ratePerSec      rate.Limit  // 令牌填充速率 (tokens/sec)
+    burst           int         // 桶容量 (= requests_per_window)
+    cleanupInterval time.Duration
+    stopCh          chan struct{}
+}
+
+type limiterEntry struct {
+    limiter  *rate.Limiter
+    lastSeen time.Time
+}
+
+// Allow 使用 rate.Limiter.AllowN(time.Now(), count) 消耗 count 个令牌
+func (krl *KeyedRateLimiter) Allow(ctx context.Context, key string, count int) (*RateLimitResult, error)
+
+// startCleanup 后台 goroutine：定期清理超过 2×window_size 未访问的 limiter 实例，防止内存泄漏
+func (krl *KeyedRateLimiter) startCleanup()
+
+// === 分布式限流模式 ===
+
+// DistributedRateLimiter 基于 Redis + Lua 脚本的分布式限流
+// Redis key 格式: "ratelimit:{key}"
+// Redis 存储: HASH { tokens: float, last_refill: float(unix_seconds) }
+type DistributedRateLimiter struct {
+    client     *redis.Client
+    script     *redis.Script // 预加载的 Lua 脚本
+    maxTokens  int           // 桶容量
+    refillRate float64       // 令牌填充速率 (tokens/sec)
+    windowSize time.Duration
+}
+
+// Lua 脚本伪代码:
+// 1. HMGET key tokens last_refill
+// 2. 计算 elapsed = now - last_refill
+// 3. 补充令牌: tokens = min(max_tokens, tokens + elapsed * refill_rate)
+// 4. 检查 tokens >= requested
+// 5. 扣减: tokens -= requested
+// 6. HMSET key tokens last_refill; EXPIRE key ttl
+// 7. 返回 [allowed, remaining, reset_seconds]
+func (drl *DistributedRateLimiter) Allow(ctx context.Context, key string, count int) (*RateLimitResult, error)
+
+// === 降级包装器 ===
+
+// FallbackRateLimiter 分布式限流的降级包装器
+// 正常时使用 DistributedRateLimiter，Redis 不可用时自动降级为 KeyedRateLimiter
+type FallbackRateLimiter struct {
+    primary   *DistributedRateLimiter
+    fallback  *KeyedRateLimiter
+    useFallback atomic.Bool
+}
+
+func (frl *FallbackRateLimiter) Allow(ctx context.Context, key string, count int) (*RateLimitResult, error)
+```
+
+> **多实例部署行为：**
+> - `local` 模式：每个实例独立限流。N 个实例 × 100 req/min = 全局最多 N×100 req/min。适用于单实例部署或对限流精度要求不高的场景。
+> - `distributed` 模式：所有实例共享 Redis 中的令牌桶。全局精确限流 100 req/min，无论实例数量。Redis 不可用时自动降级为 local 模式。
+
+### 7. Health Checker
+
+```go
+// HealthChecker 健康检查组件
+type HealthChecker struct {
+    dsManager *DataSourceManager
+    version   string
+    buildTime string
+}
+
+// LivenessCheck /health 端点处理
+// 所有核心组件正常 → 200 + 组件状态详情 JSON
+// 任一核心组件异常 → 503
+func (hc *HealthChecker) LivenessCheck(w http.ResponseWriter, r *http.Request)
+
+// ReadinessCheck /ready 端点处理
+// 至少一个数据源可用 → 200 + 各数据源连接状态
+// 所有数据源不可用 → 503
+func (hc *HealthChecker) ReadinessCheck(w http.ResponseWriter, r *http.Request)
+```
+
+### 8. Observability 组件
+
+```go
+// MetricsCollector Prometheus 指标收集器
+type MetricsCollector struct {
+    // 请求级指标
+    requestDuration    *prometheus.HistogramVec   // graphql_request_duration_seconds
+    requestsTotal      *prometheus.CounterVec     // graphql_requests_total
+    requestsInFlight   prometheus.Gauge           // graphql_requests_in_flight
+    // 数据源级指标
+    dsQueryDuration    *prometheus.HistogramVec   // graphql_datasource_query_duration_seconds
+    dsPoolActive       *prometheus.GaugeVec       // graphql_datasource_connection_pool_active
+    dsPoolIdle         *prometheus.GaugeVec       // graphql_datasource_connection_pool_idle
+    dsPoolWaiting      *prometheus.GaugeVec       // graphql_datasource_connection_pool_waiting
+    // 错误指标
+    errorsTotal        *prometheus.CounterVec     // graphql_errors_total
+    // 缓存指标
+    cacheHitsTotal     *prometheus.CounterVec     // graphql_cache_hits_total
+    cacheMissesTotal   *prometheus.CounterVec     // graphql_cache_misses_total
+    // 自定义标签
+    customLabels       prometheus.Labels          // 从配置加载的自定义标签
+}
+
+// 连接池指标采集说明:
+// - StarRocks (database/sql): 通过 db.Stats() 获取 InUse/Idle/WaitCount
+// - Prometheus (HTTP 客户端): 通过 http.Transport 的 ConnPool 统计，
+//   或使用自定义 RoundTripper 包装器跟踪活跃/空闲连接数
+
+// TracingProvider OpenTelemetry 追踪初始化
+type TracingProvider struct {
+    provider *sdktrace.TracerProvider
+    tracer   trace.Tracer
+}
+
+// Init 初始化 TracerProvider
+// enabled=true: 配置 OTLP exporter (gRPC/HTTP) + 采样率
+// enabled=false: 使用 NoopTracerProvider（零开销）
+func (tp *TracingProvider) Init(cfg TracingConfig) error
+
+// Shutdown 刷新所有未导出的 Trace 数据并关闭 exporter
+func (tp *TracingProvider) Shutdown(ctx context.Context) error
+```
+
+### 9. Context 传播
+
+```go
+// context/keys.go - 定义 context key，用于在中间件和 resolver 之间传递数据
+
+type contextKey string
+
+const (
+    // CtxKeyRequestID 请求 ID (string)
+    CtxKeyRequestID contextKey = "requestId"
+    // CtxKeyAuthIdentity 认证主体信息 (*AuthIdentity)
+    CtxKeyAuthIdentity contextKey = "authIdentity"
+    // CtxKeyTraceID 当前 trace ID (string)
+    CtxKeyTraceID contextKey = "traceId"
+)
+
+// 中间件注入顺序:
+// 1. RequestID 中间件: ctx = context.WithValue(ctx, CtxKeyRequestID, uuid)
+// 2. Auth 中间件: ctx = context.WithValue(ctx, CtxKeyAuthIdentity, identity)
+// 3. Tracing 中间件: ctx = context.WithValue(ctx, CtxKeyTraceID, span.SpanContext().TraceID().String())
+// 4. Resolver 通过 ctx 获取上述信息用于日志、审计、权限检查
+```
+
+### 10. StarRocks Adapter 内部组件
+
+```go
+// SQLQueryBuilder 将 GraphQL 查询参数转换为参数化 SQL
+type SQLQueryBuilder struct {
+    allowedTables map[string]map[string]bool // table → allowed columns 白名单
+}
+
+// Build 构建 SELECT 查询，返回 SQL 语句和参数列表
+// 1. 校验 table 名在白名单中
+// 2. 校验 Fields 中的字段名在该表的允许列中
+// 3. 字段名/表名使用反引号包裹: `table`.`column`
+// 4. 过滤值使用 ? 参数化占位符
+func (b *SQLQueryBuilder) Build(req QueryRequest, table string) (string, []interface{}, error)
+
+// BuildCount 构建 COUNT 查询
+func (b *SQLQueryBuilder) BuildCount(req QueryRequest, table string) (string, []interface{}, error)
+
+// ValidateIdentifier 校验标识符只包含合法字符 [a-zA-Z0-9_]
+func ValidateIdentifier(name string) error
+
+// TypeMapper StarRocks SQL 类型到 GraphQL 类型的映射
+// INT/BIGINT → Int, FLOAT/DOUBLE → Float, VARCHAR/STRING → String,
+// BOOLEAN → Boolean, DECIMAL → String (保留精度),
+// DATETIME/DATE → DateTime (自定义标量), JSON → JSON (自定义标量)
+// 不支持的类型 → String (记录警告日志)
+type TypeMapper struct{}
+```
+
+### 11. Prometheus Adapter 内部组件
+
+```go
+// PromQLQueryBuilder 将 GraphQL 查询参数转换为 PromQL
+type PromQLQueryBuilder struct{}
+
+// BuildInstant 构建即时查询
+func (b *PromQLQueryBuilder) BuildInstant(req QueryRequest) (string, url.Values, error)
+
+// BuildRange 构建范围查询
+func (b *PromQLQueryBuilder) BuildRange(req QueryRequest) (string, url.Values, error)
+
+// ValidateLabelValue 校验标签值，拒绝 PromQL 注入字符 (} { | ~ ")
+func (b *PromQLQueryBuilder) ValidateLabelValue(value string) error
+
+// ValidateQueryExpression 校验 PromQL 表达式的基本安全性
+// - 拒绝包含子查询嵌套超过 2 层的表达式
+// - 拒绝包含 `group_left`/`group_right` 的高开销操作（可配置）
+func (b *PromQLQueryBuilder) ValidateQueryExpression(query string) error
+```
+
+### 12. 配置热更新
+
+```go
+// HotReloader 配置热更新管理器
+type HotReloader struct {
+    viper      *viper.Viper
+    callbacks  map[string]func(interface{}) // 配置路径 → 回调函数
+    mu         sync.RWMutex
+}
+
+// 支持热更新的配置项（变更后自动生效，无需重启）:
+// - logging.level → 更新 zap 的 AtomicLevel
+// - rate_limit.requests_per_window, rate_limit.window_size → 重建 RateLimiter
+// - cache.default_ttl, cache.per_datasource.*.ttl → 更新 CacheLayer TTL 配置
+//
+// 不支持热更新的配置项（变更后需重启服务）:
+// - server.port, datasources.*.connection, auth.*, tracing.otlp.*
+//
+// 热更新线程安全: 使用 atomic.Value 或 sync.RWMutex 保护运行时配置读取
+// 热更新失败: 保留旧配置，记录 ERROR 日志，不影响服务运行
+```
+
+
+## 数据模型
+
+### GraphQL Schema 核心类型
+
+```graphql
+# ===== 自定义标量类型 =====
+
+"""ISO 8601 日期时间格式，如 2024-01-15T10:30:00Z"""
+scalar DateTime
+
+"""任意 JSON 值，用于动态字段和元数据"""
+scalar JSON
+
+# gqlgen.yml 中的标量映射配置:
+# models:
+#   DateTime:
+#     model: github.com/example/graphql-api/internal/graphql/scalar.DateTime
+#   JSON:
+#     model: github.com/example/graphql-api/internal/graphql/scalar.JSON
+
+# ===== 基础类型 =====
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+enum FilterOperator {
+  EQ
+  NEQ
+  GT
+  GTE
+  LT
+  LTE
+  LIKE
+  IN
+  NOT_IN
+  IS_NULL
+  IS_NOT_NULL
+}
+
+# 分页信息 (Relay Connection 规范)
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# ===== StarRocks 数据源类型 =====
+
+"""
+StarRocks 查询结果行。
+由于 StarRocks 是 OLAP 数据库，不同表结构不同，
+使用 JSON 标量类型作为动态字段容器。
+客户端通过 GraphQL 的字段选择机制指定需要的列，
+适配器根据请求的字段生成对应的 SQL SELECT 子句。
+"""
+type StarRocksRow {
+  """动态字段数据，key 为列名，value 为列值"""
+  data: JSON!
+}
+
+type StarRocksEdge {
+  node: StarRocksRow!
+  cursor: String!
+}
+
+type StarRocksConnection {
+  edges: [StarRocksEdge!]!
+  nodes: [StarRocksRow!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input StarRocksFilter {
+  field: String!
+  operator: FilterOperator!
+  value: String!
+}
+
+input StarRocksOrderBy {
+  field: String!
+  direction: SortDirection!
+}
+
+# ===== Prometheus 数据源类型 =====
+
+type PrometheusMetricLabel {
+  name: String!
+  value: String!
+}
+
+type PrometheusDataPoint {
+  timestamp: Float!
+  value: Float
+}
+
+type PrometheusVector {
+  metric: [PrometheusMetricLabel!]!
+  value: PrometheusDataPoint
+}
+
+type PrometheusMatrix {
+  metric: [PrometheusMetricLabel!]!
+  values: [PrometheusDataPoint!]!
+}
+
+type PrometheusInstantResult {
+  resultType: String!
+  vectors: [PrometheusVector!]!
+}
+
+type PrometheusRangeResult {
+  resultType: String!
+  matrices: [PrometheusMatrix!]!
+}
+
+input PrometheusLabelFilter {
+  name: String!
+  value: String!
+  matchType: LabelMatchType!
+}
+
+enum LabelMatchType {
+  EXACT       # =
+  NOT_EQUAL   # !=
+  REGEX       # =~
+  NOT_REGEX   # !~
+}
+
+# ===== Query 根类型 =====
+
+type Query {
+  """
+  StarRocks OLAP 数据查询。
+  table 参数必须在服务端白名单中，非法表名将返回验证错误。
+  返回的 StarRocksRow.data 为 JSON 对象，包含请求的字段。
+  """
+  starrocks(
+    table: String!
+    fields: [String!]
+    filters: [StarRocksFilter!]
+    orderBy: [StarRocksOrderBy!]
+    first: Int
+    after: String
+    offset: Int
+    limit: Int
+  ): StarRocksConnection!
+
+  """Prometheus 即时查询"""
+  prometheusInstant(
+    query: String!
+    time: DateTime
+    filters: [PrometheusLabelFilter!]
+  ): PrometheusInstantResult!
+
+  """Prometheus 范围查询"""
+  prometheusRange(
+    query: String!
+    startTime: DateTime!
+    endTime: DateTime!
+    step: String!
+    filters: [PrometheusLabelFilter!]
+  ): PrometheusRangeResult!
+}
+
+# ===== Mutation 根类型 =====
+
+"""
+本服务仅支持管理类 Mutation 操作，不支持数据写入。
+所有数据获取均通过 Query 完成。
+"""
+type Mutation {
+  """清除缓存。指定 datasource 清除特定数据源缓存，不指定则清除全部缓存。"""
+  clearCache(datasource: String): Boolean!
+}
+```
+
+> **Cursor 编码方案：** StarRocks 分页的 cursor 使用 base64 编码的 offset 值。例如 offset=20 编码为 `base64("offset:20")` = `b2Zmc2V0OjIw`。解码 `after` 参数时提取 offset 值，用于 SQL 的 OFFSET 子句。这种方案简单且与 offset/limit 分页兼容。
+
+### 配置数据结构
+
+```go
+// Config 应用程序完整配置
+type Config struct {
+    Server       ServerConfig       `mapstructure:"server"`
+    GraphQL      GraphQLConfig      `mapstructure:"graphql"`
+    Datasources  []DataSourceConfig `mapstructure:"datasources"`
+    Auth         AuthConfig         `mapstructure:"auth"`
+    RateLimit    RateLimitConfig    `mapstructure:"rate_limit"`
+    Cache        CacheConfig        `mapstructure:"cache"`
+    CORS         CORSConfig         `mapstructure:"cors"`
+    Compression  CompressionConfig  `mapstructure:"compression"`
+    Logging      LoggingConfig      `mapstructure:"logging"`
+    Sanitization SanitizationConfig `mapstructure:"sanitization"`
+    Metrics      MetricsConfig      `mapstructure:"metrics"`
+    Tracing      TracingConfig      `mapstructure:"tracing"`
+    Retry        RetryConfig        `mapstructure:"retry"`
+    Shutdown     ShutdownConfig     `mapstructure:"shutdown"`
+}
+
+// DataSourceConfig 数据源配置
+type DataSourceConfig struct {
+    Name       string                 `mapstructure:"name"`
+    Type       string                 `mapstructure:"type"`
+    Enabled    bool                   `mapstructure:"enabled"`
+    Connection map[string]interface{} `mapstructure:"connection"`
+    Options    map[string]interface{} `mapstructure:"options"`
+}
+
+// AuthConfig 认证配置
+type AuthConfig struct {
+    Method string        `mapstructure:"method"` // "jwt" | "apikey"
+    JWT    JWTConfig     `mapstructure:"jwt"`
+    APIKey APIKeyConfig  `mapstructure:"apikey"`
+}
+
+// CacheConfig 缓存配置
+type CacheConfig struct {
+    Enabled          bool                              `mapstructure:"enabled"`
+    Backend          string                            `mapstructure:"backend"` // "memory" | "redis"
+    DefaultTTL       time.Duration                     `mapstructure:"default_ttl"`
+    EmptyResultTTL   time.Duration                     `mapstructure:"empty_result_ttl"`
+    TTLJitterPercent int                               `mapstructure:"ttl_jitter_percent"`
+    Memory           MemoryCacheConfig                 `mapstructure:"memory"`
+    Redis            RedisCacheConfig                  `mapstructure:"redis"`
+    PerDatasource    map[string]DatasourceCacheConfig   `mapstructure:"per_datasource"`
+}
+
+// RateLimitConfig 限流配置
+type RateLimitConfig struct {
+    Mode              string        `mapstructure:"mode"` // "local" | "distributed"
+    RequestsPerWindow int           `mapstructure:"requests_per_window"`
+    WindowSize        time.Duration `mapstructure:"window_size"`
+    Redis             RedisConfig   `mapstructure:"redis"` // 分布式模式使用
+}
+
+// TracingConfig OpenTelemetry 追踪配置
+type TracingConfig struct {
+    Enabled      bool        `mapstructure:"enabled"`
+    SamplingRate float64     `mapstructure:"sampling_rate"` // 0.0 ~ 1.0, 默认 1.0
+    OTLP         OTLPConfig  `mapstructure:"otlp"`
+}
+```
+
+### 统一错误码
+
+```go
+// 错误码常量定义
+const (
+    // AUTH 认证授权错误
+    ErrAuthTokenExpired           = "AUTH_TOKEN_EXPIRED"
+    ErrAuthTokenInvalid           = "AUTH_TOKEN_INVALID"
+    ErrAuthInsufficientPermission = "AUTH_INSUFFICIENT_PERMISSION"
+    ErrAuthMissing                = "AUTH_MISSING"
+    ErrAuthKeyExpired             = "AUTH_KEY_EXPIRED"
+
+    // VALIDATION 请求验证错误
+    ErrValidationSyntaxError        = "VALIDATION_SYNTAX_ERROR"
+    ErrValidationComplexityExceeded = "VALIDATION_COMPLEXITY_EXCEEDED"
+    ErrValidationDepthExceeded      = "VALIDATION_DEPTH_EXCEEDED"
+    ErrValidationPayloadTooLarge    = "VALIDATION_PAYLOAD_TOO_LARGE"
+    ErrValidationBatchLimitExceeded = "VALIDATION_BATCH_LIMIT_EXCEEDED"
+    ErrValidationInvalidTable       = "VALIDATION_INVALID_TABLE"       // 表名不在白名单
+    ErrValidationInvalidField       = "VALIDATION_INVALID_FIELD"       // 字段名不在白名单
+    ErrValidationPromQLInjection    = "VALIDATION_PROMQL_INJECTION"    // PromQL 注入检测
+
+    // DATASOURCE 数据源错误
+    ErrDatasourceTimeout       = "DATASOURCE_TIMEOUT"
+    ErrDatasourceUnavailable   = "DATASOURCE_UNAVAILABLE"
+    ErrDatasourcePoolExhausted = "DATASOURCE_POOL_EXHAUSTED"
+    ErrDatasourceQueryError    = "DATASOURCE_QUERY_ERROR"
+    ErrDatasourceMaxDataPoints = "DATASOURCE_MAX_DATA_POINTS"  // Prometheus 数据点超限
+
+    // RATELIMIT 限流错误
+    ErrRateLimitExceeded = "RATELIMIT_EXCEEDED"
+
+    // INTERNAL 内部错误
+    ErrInternalUnexpected = "INTERNAL_UNEXPECTED"
+)
+```
+
+### 关键设计决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| Schema 模式 | Schema-first (gqlgen) | 编译时类型安全，Schema 即文档 |
+| StarRocks 动态字段 | JSON scalar 容器 (`data: JSON!`) | 适配不同表结构，避免为每张表定义固定 GraphQL 类型 |
+| 分页模式 | Relay Connection + offset/limit | 兼顾游标分页和传统分页需求 |
+| Cursor 编码 | base64("offset:{n}") | 简单，与 offset/limit 兼容 |
+| 缓存 key 格式 | `cache:{datasource}:{sha256}` | 支持按数据源前缀清除 |
+| 缓存 key 哈希 | SHA256(query + variables + datasource) | 确定性哈希，避免碰撞 |
+| 内存缓存 | hashicorp/golang-lru/v2 | 原生 LRU 淘汰策略支持 |
+| 限流算法 | 令牌桶 (Token Bucket) | 允许突发流量，平滑限流 |
+| 本地限流 | golang.org/x/time/rate + KeyedRateLimiter | 标准库 + 按 key 管理 |
+| 分布式限流 | Redis + Lua 原子脚本 | 多实例全局精确限流 |
+| 认证/授权 | Authenticator + Authorizer 分离 | 职责清晰，401/403 错误码准确 |
+| 重连策略 | 指数退避 (5s → 60s) | 避免重连风暴 |
+| 配置管理 | Viper + 环境变量覆盖 | 12-Factor App 兼容 |
+| 日志库 | zap | 高性能，结构化 JSON 输出 |
+| HTTP 路由 | chi | 轻量，兼容 net/http 标准接口 |
+| 批量查询限流 | 按实际查询数计数 | 防止通过批量查询绕过限流 |
+| 空结果缓存 | 短 TTL 空值标记 (30s) | 防止缓存穿透 |
+| TTL 抖动 | ±10% 随机 jitter | 防止缓存雪崩 |
+| 并发回源 | singleflight | 防止缓存击穿 |
+| SQL 安全 | 参数化查询 + 标识符白名单 + 反引号包裹 | 防止 SQL 注入（值注入 + 标识符注入） |
+
+
+## 正确性属性
+
+*属性（Property）是指在系统所有有效执行中都应保持为真的特征或行为——本质上是对系统应做什么的形式化陈述。属性是人类可读规范与机器可验证正确性保证之间的桥梁。*
+
+### Property 1: 有效 GraphQL 查询返回规范响应
+
+*For any* 有效的 GraphQL 查询请求（包含合法的 query 字段、合法的 variables），API 服务返回的 HTTP 响应状态码应为 200，响应体应为合法 JSON，且包含 `data` 字段。
+
+**Validates: Requirements 1.2**
+
+### Property 2: 无效请求体返回 400
+
+*For any* 不符合 GraphQL 规范的请求体（如非 JSON 格式、缺少 query 字段、JSON 语法错误），API 服务应返回 HTTP 状态码 400，响应体包含 `errors` 数组。
+
+**Validates: Requirements 1.3**
+
+### Property 3: 超大请求体返回 413
+
+*For any* 请求体大小超过配置的 `max_request_body_size` 的 HTTP 请求，API 服务应返回 HTTP 状态码 413。
+
+**Validates: Requirements 1.8**
+
+### Property 4: HTTP GET 查询支持
+
+*For any* 通过 HTTP GET 方法发送的请求，其 URL 查询字符串中包含有效的 `query` 参数时，API 服务应返回与等价 POST 请求相同的 GraphQL 响应。
+
+**Validates: Requirements 1.6**
+
+### Property 5: Playground 开发/生产模式切换
+
+*For any* 运行在 development 模式的 API 服务，`/playground` 端点应返回 HTTP 200 和 GraphiQL 页面；*For any* 运行在 production 模式的 API 服务，`/playground` 端点应返回 HTTP 404。
+
+**Validates: Requirements 1.7**
+
+### Property 6: 批量查询结果数组长度一致
+
+*For any* 包含 N 个有效查询的批量查询请求（N ≤ 配置上限），API 服务返回的结果数组长度应等于 N。
+
+**Validates: Requirements 1.9**
+
+### Property 7: 超限批量查询返回 400
+
+*For any* 包含查询数超过配置的 `max_batch_queries` 的批量查询请求，API 服务应返回 HTTP 状态码 400。
+
+**Validates: Requirements 1.10**
+
+### Property 8: 批量查询按实际查询数限流
+
+*For any* 包含 N 个查询的批量请求，限流器应消耗 N 个令牌（而非 1 个）。
+
+**Validates: Requirements 1.11**
+
+### Property 9: Introspection 启用/禁用
+
+*For any* `graphql.introspection_enabled` 为 true 的配置，Introspection 查询应返回 Schema 信息；*For any* 该配置为 false 时，Introspection 查询应返回错误响应。
+
+**Validates: Requirements 2.6, 2.8**
+
+### Property 10: 不支持的操作类型被拒绝
+
+*For any* 未定义的 Mutation 操作名称或任意 Subscription 操作，GraphQL 引擎应返回验证错误。
+
+**Validates: Requirements 2.11, 2.12**
+
+### Property 11: 配置校验拒绝无效值
+
+*For any* 包含无效值的配置（如负数的连接池大小、空的连接地址、不支持的数据源类型），API 服务应拒绝启动并输出明确的错误信息。
+
+**Validates: Requirements 3.10**
+
+### Property 12: 指数退避重连间隔
+
+*For any* 不可用数据源的连续重连尝试序列，第 N 次重连间隔应等于 min(initial_interval × 2^(N-1), max_interval)。
+
+**Validates: Requirements 3.4**
+
+### Property 13: 连接池耗尽超时
+
+*For any* 数据源连接池中所有连接均被占用时的新查询请求，如果在 `pool_acquire_timeout` 内未获得连接，应返回连接池耗尽错误（DATASOURCE_POOL_EXHAUSTED）。
+
+**Validates: Requirements 3.6**
+
+### Property 14: 适配器发现与实例化
+
+*For any* 配置文件中声明的数据源类型，如果该类型已在 Adapter_Registry 中注册，DataSource_Manager 应成功实例化对应适配器；如果未注册，应跳过该数据源并记录错误日志。
+
+**Validates: Requirements 3.8, 3.9**
+
+### Property 15: StarRocks SQL 查询构建
+
+*For any* 有效的 GraphQL 查询请求（包含字段选择、过滤条件、排序条件和分页参数），StarRocks 适配器生成的 SQL 应满足：SELECT 子句仅包含请求的字段（反引号包裹），WHERE 子句正确反映过滤条件（参数化占位符），ORDER BY 子句正确反映排序条件，LIMIT/OFFSET 子句正确反映分页参数。
+
+**Validates: Requirements 4.2, 4.3, 4.4, 4.5, 7.2**
+
+### Property 16: StarRocks 参数化查询防注入
+
+*For any* 包含 SQL 特殊字符（如 `'`、`"`、`;`、`--`）的过滤值，StarRocks 适配器生成的 SQL 应使用参数化占位符（`?`），过滤值不应直接拼接到 SQL 语句中。
+
+**Validates: Requirements 4.7**
+
+### Property 17: StarRocks 标识符白名单校验
+
+*For any* 客户端传入的表名或字段名，如果不在配置的白名单中，StarRocks 适配器应返回 VALIDATION_INVALID_TABLE 或 VALIDATION_INVALID_FIELD 错误。*For any* 包含非法字符（非 `[a-zA-Z0-9_]`）的标识符，应被拒绝。
+
+**Validates: Requirements 4.7（标识符注入防护）**
+
+### Property 18: StarRocks 类型映射
+
+*For any* StarRocks SQL 数据类型，类型映射器应返回正确的 GraphQL 类型（INT/BIGINT→Int, FLOAT/DOUBLE→Float, VARCHAR/STRING→String, BOOLEAN→Boolean, DECIMAL→String, DATETIME/DATE→DateTime, JSON→JSON）；对于不支持的类型，应映射为 String 并记录警告日志。
+
+**Validates: Requirements 4.8, 4.9**
+
+### Property 19: Prometheus PromQL 查询构建
+
+*For any* 有效的 Prometheus 查询请求（包含查询表达式、时间范围参数和标签过滤条件），Prometheus 适配器生成的 PromQL 应正确包含标签匹配器，时间参数应正确转换。
+
+**Validates: Requirements 5.2, 5.4, 5.5, 7.3**
+
+### Property 20: PromQL 注入防护
+
+*For any* 包含 PromQL 特殊字符（`}`、`{`、`|`、`~`、`"`）的标签过滤值，Prometheus 适配器应拒绝该输入并返回 VALIDATION_PROMQL_INJECTION 错误。
+
+**Validates: Requirements 5.7**
+
+### Property 21: Prometheus 类型映射
+
+*For any* Prometheus 数据类型（scalar, string, vector, matrix），类型映射器应返回正确的 GraphQL 类型。
+
+**Validates: Requirements 5.8**
+
+### Property 22: Prometheus 特殊值转换
+
+*For any* Prometheus 返回值中包含 NaN 或 ±Inf 的数据点，适配器应将其转换为 GraphQL null，并在 extensions.warnings 中记录转换信息。
+
+**Validates: Requirements 5.9**
+
+### Property 23: Prometheus 数据点超限保护
+
+*For any* Prometheus 查询返回的数据点数超过配置的 `max_data_points` 时，适配器应返回 DATASOURCE_MAX_DATA_POINTS 错误。
+
+**Validates: Requirements 5.6**
+
+### Property 24: 跨数据源并行查询与结果合并
+
+*For any* 涉及多个数据源的 GraphQL 查询，Query_Resolver 应并行查询各数据源，等待所有查询完成后将结果合并为统一响应，响应中应包含所有数据源的数据。
+
+**Validates: Requirements 6.1, 6.2**
+
+### Property 25: 混合查询部分失败处理
+
+*For any* 跨数据源查询中某个数据源查询失败的情况，响应的 `errors` 字段应包含失败数据源的错误信息，`data` 字段应包含其他成功数据源的结果（非 null）。
+
+**Validates: Requirements 6.3**
+
+### Property 26: 单数据源查询超时取消
+
+*For any* 单个数据源查询超过配置的查询超时时间（`query_timeout`），Query_Resolver 应取消该查询并返回 DATASOURCE_TIMEOUT 错误。
+
+**Validates: Requirements 8.5**
+
+### Property 27: 总请求超时取消
+
+*For any* HTTP 请求处理时间超过配置的总超时时间（`request_timeout`），所有进行中的数据源查询应被取消并返回超时错误。
+
+**Validates: Requirements 8.6**
+
+### Property 28: 查询复杂度限制
+
+*For any* 查询复杂度超过配置的 `max_query_complexity` 阈值的 GraphQL 查询，API 服务应拒绝执行并返回 VALIDATION_COMPLEXITY_EXCEEDED 错误。
+
+**Validates: Requirements 8.7**
+
+### Property 29: 查询深度限制
+
+*For any* 查询深度超过配置的 `max_query_depth` 阈值的嵌套查询，API 服务应拒绝执行并返回 VALIDATION_DEPTH_EXCEEDED 错误。
+
+**Validates: Requirements 8.8**
+
+### Property 30: 结果集截断
+
+*For any* 数据源返回的结果集行数超过配置的 `max_result_rows`，API 服务应截断结果至配置上限，并在 extensions.warnings 中包含截断提示。
+
+**Validates: Requirements 8.9**
+
+### Property 31: 错误响应结构
+
+*For any* API 服务返回的错误响应，`errors` 数组中的每个错误对象应包含 `message`、`path` 字段，以及 `extensions` 对象中的 `code`（符合 `{CATEGORY}_{ERROR_NAME}` 格式）和 `classification` 字段。
+
+**Validates: Requirements 9.1, 9.8, 9.9**
+
+### Property 32: 结构化日志格式
+
+*For any* API 服务输出的日志记录，应为合法 JSON 格式，包含 `level`、`timestamp`、`message` 字段。
+
+**Validates: Requirements 9.2**
+
+### Property 33: 请求 ID 唯一性与传播
+
+*For any* 两个不同的请求，API 服务生成的请求 ID 应不同，且请求 ID 应同时出现在响应头（`X-Request-ID`）和日志中。
+
+**Validates: Requirements 9.3**
+
+### Property 34: 语法错误位置信息
+
+*For any* 包含语法错误的 GraphQL 查询，错误响应应包含错误的行号和列号位置信息。
+
+**Validates: Requirements 9.4**
+
+### Property 35: 日志级别配置
+
+*For any* 配置的日志级别（DEBUG/INFO/WARN/ERROR），低于该级别的日志不应被输出。
+
+**Validates: Requirements 9.5**
+
+### Property 36: 重试策略区分瞬时与业务错误
+
+*For any* 数据源查询的瞬时错误（连接超时、网络中断），DataSource_Manager 应按指数退避策略重试至 max_retries 次；*For any* 业务错误（SQL 语法错误、PromQL 语法错误），应立即返回错误不重试。
+
+**Validates: Requirements 9.6, 9.7**
+
+### Property 37: 适配器注册表操作
+
+*For any* 适配器类型名称和工厂函数，注册后应能通过相同类型名称查找到该工厂函数（round-trip）；*For any* 已注册的类型名称，重复注册应返回错误。
+
+**Validates: Requirements 10.3, 10.4, 10.5**
+
+### Property 38: 数据源启用/禁用
+
+*For any* 配置中 `enabled` 字段为 false 的数据源，DataSource_Manager 应跳过其初始化。
+
+**Validates: Requirements 10.11**
+
+### Property 39: Prometheus 指标注册完整性
+
+*For any* 需求定义的指标名称（graphql_request_duration_seconds, graphql_requests_total, graphql_requests_in_flight, graphql_datasource_query_duration_seconds, graphql_datasource_connection_pool_active/idle/waiting, graphql_errors_total, graphql_cache_hits_total, graphql_cache_misses_total），该指标应在 /metrics 端点输出中存在，且标签集符合需求定义。
+
+**Validates: Requirements 11.3-11.10**
+
+### Property 40: 指标命名规范
+
+*For any* API 服务注册的 Prometheus 指标，名称应使用小写字母和下划线分隔，Counter 类型以 `_total` 结尾，Histogram 类型包含计量单位后缀。
+
+**Validates: Requirements 11.11**
+
+### Property 41: 自定义标签附加
+
+*For any* 配置文件中定义的自定义标签，所有注册的 Prometheus 指标应包含该标签。
+
+**Validates: Requirements 11.12**
+
+### Property 42: Root Span 创建与属性
+
+*For any* GraphQL 请求（tracing 启用时），应创建 Root Span，名称格式为 `GraphQL {operation_type} {operation_name}`，包含 `graphql.operation.name`、`graphql.operation.type`、`http.method`、`http.url` 属性。
+
+**Validates: Requirements 12.3, 12.4**
+
+### Property 43: Resolver Span 创建与属性
+
+*For any* Resolver 执行，应在 Root Span 下创建子 Span，名称格式为 `Resolver {field_name}`，包含 `graphql.field.name`、`graphql.field.type`、`graphql.datasource` 属性。
+
+**Validates: Requirements 12.5**
+
+### Property 44: 数据源查询 Span 创建与属性
+
+*For any* 数据源查询，应在 Resolver Span 下创建子 Span（StarRocks: `StarRocks Query`，Prometheus: `Prometheus Query`），包含 `db.system`、`db.statement`、`db.datasource` 属性。
+
+**Validates: Requirements 12.6, 12.7**
+
+### Property 45: W3C Trace Context 传播
+
+*For any* 包含 `traceparent` 头的入站请求，Root Span 应使用该头中的 trace context 作为父上下文；*For any* 出站数据源请求，应注入当前 trace context 到 `traceparent` 头。
+
+**Validates: Requirements 12.8, 12.9**
+
+### Property 46: 错误 Span 状态
+
+*For any* 数据源查询错误或未捕获异常，对应的 Span 状态应设置为 Error，并通过 Span Event 记录错误信息。
+
+**Validates: Requirements 12.14, 12.15**
+
+### Property 47: Trace ID 关联
+
+*For any* 启用 tracing 的请求，trace_id 应同时出现在结构化日志字段和 GraphQL 响应的 `extensions.traceId` 中。
+
+**Validates: Requirements 12.16, 12.17**
+
+### Property 48: 缺失认证凭据返回 401
+
+*For any* 未包含认证凭据（无 Authorization 头且无 X-API-Key 头）的非公共端点请求，API 服务应返回 HTTP 状态码 401。
+
+**Validates: Requirements 13.3**
+
+### Property 49: 权限不足返回 403
+
+*For any* 认证凭据有效但权限不足（如 API Key 不允许访问目标数据源）的请求，API 服务应返回 HTTP 状态码 403 和 AUTH_INSUFFICIENT_PERMISSION 错误码。
+
+**Validates: Requirements 13.4**
+
+### Property 50: 公共端点豁免认证和限流
+
+*For any* 公共端点（/health, /ready, /metrics, /playground），无论是否携带认证凭据，均应正常响应且不受限流约束。
+
+**Validates: Requirements 13.6, 14.6**
+
+### Property 51: JWT 过期 Token 返回 401 + token_expired
+
+*For any* 包含已过期 JWT Token 的请求，API 服务应返回 HTTP 状态码 401，响应体包含 AUTH_TOKEN_EXPIRED 错误码。
+
+**Validates: Requirements 13.8**
+
+### Property 52: API Key 权限隔离
+
+*For any* API Key，其允许访问的数据源和操作类型应严格匹配配置中定义的权限范围。
+
+**Validates: Requirements 13.10**
+
+### Property 53: API Key 过期失效
+
+*For any* 已超过 `expires_at` 时间的 API Key，认证应失败并返回 AUTH_KEY_EXPIRED 错误码。
+
+**Validates: Requirements 13.11**
+
+### Property 54: 审计日志完整性
+
+*For any* 经过认证的请求，审计日志应包含认证主体标识、操作时间、操作类型、目标数据源和请求结果。
+
+**Validates: Requirements 13.12**
+
+### Property 55: 敏感信息脱敏
+
+*For any* 记录到日志或 Trace Span 中的 SQL 查询语句，字符串字面量和数值参数应被掩码处理。
+
+**Validates: Requirements 13.13**
+
+### Property 56: 令牌桶限流
+
+*For any* 客户端（按 IP 或 API Key 维度），在一个时间窗口内的请求数超过配置的 `requests_per_window` 时，后续请求应返回 HTTP 状态码 429，且响应头包含 X-RateLimit-Limit、X-RateLimit-Remaining 和 X-RateLimit-Reset。
+
+**Validates: Requirements 14.1, 14.2, 14.3, 14.4**
+
+### Property 57: 限流响应头始终存在
+
+*For any* 非公共端点的请求（无论是否被限流），响应头应包含 X-RateLimit-Limit、X-RateLimit-Remaining 和 X-RateLimit-Reset。
+
+**Validates: Requirements 14.4**
+
+### Property 58: 分布式限流 Redis 降级
+
+*For any* 分布式限流模式下 Redis 连接不可用的情况，Rate_Limiter 应自动降级为本地限流模式并记录警告日志。
+
+**Validates: Requirements 14.9**
+
+### Property 59: 健康检查状态码
+
+*For any* 服务健康状态组合，/health 端点在所有核心组件正常时返回 200，任一异常时返回 503；/ready 端点在至少一个数据源可用时返回 200，全部不可用时返回 503。
+
+**Validates: Requirements 15.3, 15.4**
+
+### Property 60: 优雅关闭 - 停止接受新请求
+
+*For any* 收到 SIGTERM/SIGINT 信号后，API 服务应立即停止接受新连接，已建立的连接继续处理直到完成或超时。
+
+**Validates: Requirements 15.5, 15.6**
+
+### Property 61: 优雅关闭 - 资源清理顺序
+
+*For any* 优雅关闭流程，应按以下顺序执行：等待 in-flight 请求完成 → 刷新 Trace 数据 → 刷新 Metrics → 关闭数据源连接池 → 刷新日志。
+
+**Validates: Requirements 15.7, 15.8**
+
+### Property 62: CORS 配置
+
+*For any* `cors.enabled` 为 true 的配置，跨域请求应按配置的 Origin/Methods/Headers 策略处理；*For any* `cors.enabled` 为 false 的配置，不应添加 CORS 响应头。
+
+**Validates: Requirements 15.9, 15.10**
+
+### Property 63: gzip 压缩条件
+
+*For any* 包含 `Accept-Encoding: gzip` 头且响应体大小超过配置的最小压缩阈值的请求，响应应使用 gzip 压缩并设置 `Content-Encoding: gzip` 头。
+
+**Validates: Requirements 15.11, 15.12**
+
+### Property 64: 缓存 Key 确定性
+
+*For any* 两个具有相同 query、variables 和 datasource 的查询请求，生成的缓存 key 应相同；*For any* 两个 query、variables 或 datasource 不同的请求，缓存 key 应不同。
+
+**Validates: Requirements 16.3**
+
+### Property 65: 客户端绕过缓存
+
+*For any* 请求中 `extensions.cache` 为 false 的查询，Cache_Layer 应跳过缓存直接查询数据源。
+
+**Validates: Requirements 16.5**
+
+### Property 66: 仅缓存 Query 操作
+
+*For any* Mutation 类型的操作，Cache_Layer 应始终跳过缓存直接执行。
+
+**Validates: Requirements 16.7**
+
+### Property 67: LRU 缓存淘汰
+
+*For any* 已达到 `max_entries` 上限的内存缓存，添加新条目应淘汰最近最少使用的条目，且缓存条目数不超过上限。
+
+**Validates: Requirements 16.8**
+
+### Property 68: 缓存清除操作
+
+*For any* `clearCache(datasource: "X")` 调用，数据源 X 的所有缓存条目应被清除，其他数据源的缓存不受影响；*For any* `clearCache()` 调用（无参数），所有缓存条目应被清除。
+
+**Validates: Requirements 16.9**
+
+### Property 69: 缓存穿透防护
+
+*For any* 数据源返回空结果的查询，Cache_Layer 应缓存一个短 TTL 的空值标记，后续相同查询在该 TTL 内应命中缓存而非穿透到数据源。
+
+**Validates: Requirements 16.10**
+
+### Property 70: 缓存雪崩防护 - TTL 抖动
+
+*For any* 缓存条目的实际 TTL，应在配置 TTL 的 ±jitter_percent 范围内（默认 ±10%）。
+
+**Validates: Requirements 16.11**
+
+### Property 71: 缓存击穿防护 - Singleflight
+
+*For any* 同一缓存 key 的 N 个并发缓存未命中请求，应仅触发 1 次实际数据源查询，其他 N-1 个请求等待并共享结果。
+
+**Validates: Requirements 16.12**
+
+### Property 72: 环境变量覆盖配置
+
+*For any* YAML 配置项，设置对应的 `GRAPHQL_` 前缀环境变量应覆盖 YAML 中的值（如 `GRAPHQL_SERVER_PORT` 覆盖 `server.port`）。
+
+**Validates: Requirements 17.8**
+
+### Property 73: 配置热更新
+
+*For any* 对日志级别、限流参数或缓存 TTL 的配置文件变更，API 服务应在不重启的情况下自动加载新值。
+
+**Validates: Requirements 17.9**
+
+
+## 错误处理
+
+### 错误分层策略
+
+```mermaid
+graph TD
+    A[客户端请求] --> B{中间件层}
+    B -->|认证失败| C[401/403 HTTP 错误]
+    B -->|限流触发| D[429 HTTP 错误]
+    B -->|请求体过大| E[413 HTTP 错误]
+    B -->|通过| F{GraphQL 引擎}
+    F -->|语法错误| G[400 + VALIDATION_SYNTAX_ERROR]
+    F -->|复杂度超限| H[400 + VALIDATION_COMPLEXITY_EXCEEDED]
+    F -->|深度超限| H2[400 + VALIDATION_DEPTH_EXCEEDED]
+    F -->|批量超限| H3[400 + VALIDATION_BATCH_LIMIT_EXCEEDED]
+    F -->|通过| I{Query Resolver}
+    I -->|表名/字段名非法| I2[VALIDATION_INVALID_TABLE/FIELD]
+    I -->|PromQL 注入| I3[VALIDATION_PROMQL_INJECTION]
+    I -->|数据源超时| J[部分错误 + DATASOURCE_TIMEOUT]
+    I -->|数据源不可用| K[部分错误 + DATASOURCE_UNAVAILABLE]
+    I -->|连接池耗尽| L[部分错误 + DATASOURCE_POOL_EXHAUSTED]
+    I -->|查询错误| M[部分错误 + DATASOURCE_QUERY_ERROR]
+    I -->|数据点超限| M2[DATASOURCE_MAX_DATA_POINTS]
+    I -->|未知错误| N[INTERNAL_UNEXPECTED]
+```
+
+### HTTP 层错误
+
+| 场景 | HTTP 状态码 | 错误码 | 说明 |
+|------|------------|--------|------|
+| 认证缺失 | 401 | AUTH_MISSING | 请求未携带认证凭据 |
+| Token 过期 | 401 | AUTH_TOKEN_EXPIRED | JWT Token 已过期 |
+| Token 无效 | 401 | AUTH_TOKEN_INVALID | JWT 签名验证失败 |
+| API Key 过期 | 401 | AUTH_KEY_EXPIRED | API Key 已超过 expires_at |
+| 权限不足 | 403 | AUTH_INSUFFICIENT_PERMISSION | 无权访问目标数据源 |
+| 请求体过大 | 413 | VALIDATION_PAYLOAD_TOO_LARGE | 超过 max_request_body_size |
+| 限流触发 | 429 | RATELIMIT_EXCEEDED | 超过请求频率限制 |
+
+### GraphQL 层错误
+
+GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终为 200（符合 GraphQL 规范），除非是请求格式错误（400）：
+
+```json
+{
+  "errors": [
+    {
+      "message": "数据源查询超时",
+      "path": ["starrocks"],
+      "extensions": {
+        "code": "DATASOURCE_TIMEOUT",
+        "classification": "DATASOURCE",
+        "datasource": "analytics_db",
+        "requestId": "req-abc-123"
+      }
+    }
+  ],
+  "data": {
+    "starrocks": null,
+    "prometheusInstant": { "resultType": "vector", "vectors": [...] }
+  }
+}
+```
+
+### 重试策略
+
+```go
+// 瞬时错误（可重试）— 由 pkg/retry/classifier.go 判定
+// - 连接超时 (net.Error with Timeout())
+// - 连接被拒绝 (syscall.ECONNREFUSED)
+// - 连接重置 (syscall.ECONNRESET)
+// - 网络中断 (io.EOF, io.ErrUnexpectedEOF)
+
+// 业务错误（不可重试）
+// - SQL 语法错误 (MySQL error code 1064)
+// - PromQL 语法错误 (Prometheus HTTP 400)
+// - 权限错误 (MySQL error code 1045)
+// - 数据源返回的业务逻辑错误
+```
+
+重试采用指数退避策略：`interval × 2^(attempt-1)`，最大重试次数和初始间隔通过配置文件设置。
+
+### 跨数据源错误隔离
+
+混合查询中，各数据源的错误相互隔离：
+- 每个数据源查询在独立的 goroutine 中执行，使用 `errgroup.Group` 管理
+- 单个数据源失败不影响其他数据源的查询
+- 失败的数据源在 `errors` 中报告，成功的数据源在 `data` 中返回
+- 所有数据源都失败时，`data` 中对应字段为 null
+
+### 优雅降级
+
+| 组件 | 降级策略 |
+|------|---------|
+| 数据源连接 | 标记不可用，后台 goroutine 指数退避重连 |
+| Redis 缓存 | 降级为内存缓存或跳过缓存（记录警告日志） |
+| 分布式限流 Redis | 自动降级为本地限流（FallbackRateLimiter） |
+| OpenTelemetry 导出 | 丢弃 Trace 数据，不影响请求处理 |
+| 单个数据源查询 | 返回部分结果 + 错误信息 |
+| 配置热更新失败 | 保留旧配置，记录 ERROR 日志 |
+
+
+## 测试策略
+
+### 双轨测试方法
+
+本项目采用单元测试与属性测试（Property-Based Testing）相结合的双轨测试策略：
+
+- **单元测试**：验证具体示例、边界条件和错误场景
+- **属性测试**：验证跨所有输入的通用属性
+
+两者互补，共同提供全面的测试覆盖。
+
+### 属性测试配置
+
+- **属性测试库**：[rapid](https://github.com/flyingmutant/rapid)（Go 语言属性测试库）
+- **每个属性测试最少运行 100 次迭代**
+- **每个属性测试必须通过注释引用设计文档中的属性编号**
+- **标签格式**：`Feature: graphql-multi-datasource-api, Property {number}: {property_text}`
+- **每个正确性属性由一个属性测试实现**
+
+### 单元测试范围
+
+单元测试聚焦于：
+- 具体示例验证（如 Schema 结构、端点存在性）
+- 集成点测试（如中间件链顺序）
+- 边界条件和错误场景
+- 配置加载与验证
+- Context 传播正确性
+
+避免编写过多单元测试——属性测试已覆盖大量输入组合。
+
+### 属性测试范围
+
+属性测试覆盖设计文档中定义的所有 73 个正确性属性，重点包括：
+
+| 测试类别 | 覆盖属性 | 测试策略 |
+|---------|---------|---------|
+| HTTP 端点行为 | Property 1-5 | 生成随机请求，验证响应状态码和格式 |
+| 批量查询 | Property 6-8 | 生成随机批量查询，验证结果数组和限流计数 |
+| SQL 查询构建 | Property 15-17 | 生成随机 QueryRequest，验证 SQL 输出和白名单校验 |
+| PromQL 查询构建 | Property 19-20 | 生成随机查询参数，验证 PromQL 输出和注入防护 |
+| 类型映射 | Property 18, 21, 22 | 遍历所有类型组合，验证映射正确性 |
+| 缓存行为 | Property 64-71 | 生成随机查询和缓存状态，验证缓存逻辑 |
+| 认证授权 | Property 48-53 | 生成随机凭据组合，验证认证结果 |
+| 限流 | Property 56-58 | 模拟随机请求序列，验证令牌桶行为 |
+| 错误处理 | Property 31, 34, 36 | 生成随机错误场景，验证错误响应结构 |
+| 配置管理 | Property 11, 72, 73 | 生成随机配置值，验证加载和覆盖行为 |
+| 可观测性 | Property 39-47 | 验证指标注册、Span 层级和属性 |
+| 运维能力 | Property 59-63 | 验证健康检查、优雅关闭、CORS、压缩 |
+
+### 集成测试
+
+使用 Docker Compose 编排真实依赖服务：
+
+```yaml
+# docker-compose.test.yaml
+services:
+  starrocks-fe:
+    image: starrocks/fe-ubuntu:latest
+  starrocks-be:
+    image: starrocks/be-ubuntu:latest
+  prometheus:
+    image: prom/prometheus:latest
+  redis:
+    image: redis:7-alpine
+```
+
+集成测试验证：
+- StarRocks 适配器与真实 StarRocks 的交互
+- Prometheus 适配器与真实 Prometheus 的交互
+- Redis 缓存后端和分布式限流
+- 端到端 GraphQL 查询流程
+
+### 性能基准测试
+
+使用 Go 标准 `testing.B` 基准测试框架：
+- 单数据源简单查询延迟
+- 跨数据源混合查询延迟
+- 并发查询吞吐量
+- 缓存命中/未命中场景对比
+
+### 测试覆盖率目标
+
+- 单元测试覆盖率 ≥ 70%
+- 核心组件（datasource, cache, middleware, ratelimit）覆盖率 ≥ 80%
+- 使用 `go test -coverprofile` 生成覆盖率报告
