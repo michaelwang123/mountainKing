@@ -12,18 +12,21 @@
 - Kubernetes 原生部署支持
 
 技术栈选型：
-| 组件　　　　　　　　　| 技术选型　　　　　　　　　　　　　　| 理由　　　　　　　　　　　　　　　　　　　　　　　　　　　| 　　　　　　　　　　|
-| -----------------------| -------------------------------------| -----------------------------------------------------------| ---------------------|
-| GraphQL 框架　　　　　| gqlgen　　　　　　　　　　　　　　　| Go 生态最成熟的 Schema-first GraphQL 框架，编译时代码生成 | 　　　　　　　　　　|
-| HTTP 框架　　　　　　 | chi　　　　　　　　　　　　　　　　 | 轻量级、兼容 net/http、中间件生态丰富　　　　　　　　　　 | 　　　　　　　　　　|
-| 配置管理　　　　　　　| Viper　　　　　　　　　　　　　　　 | 支持 YAML + 环境变量覆盖 + 热更新（fsnotify）　　　　　　 | 　　　　　　　　　　|
-| 日志　　　　　　　　　| zap　　　　　　　　　　　　　　　　 | 高性能结构化日志　　　　　　　　　　　　　　　　　　　　　| 　　　　　　　　　　|
-| JWT 认证　　　　　　　| golang-jwt/jwt/v5　　　　　　　　　 | Go 生态最流行的 JWT 库，支持多种签名算法　　　　　　　　　| 　　　　　　　　　　|
-| StarRocks 连接　　　　| database/sql + go-sql-driver/mysql　| StarRocks 兼容 MySQL 协议　　　　　　　　　　　　　　　　 | 　　　　　　　　　　|
-| Prometheus 查询客户端 | prometheus/client_golang + net/http | 通过 HTTP API 查询 Prometheus 数据源　　　　　　　　　　　| 　　　　　　　　　　|
-| Prometheus 指标暴露　 | prometheus/client_golang　　　　　　| 官方 Go 客户端，暴露 /metrics 端点　　　　　　　　　　　　| 　　　　　　　　　　|
-| OpenTelemetry　　　　 | go.opentelemetry.io/otel　　　　　　| 官方 Go SDK　　　　　　　　　　　　　　　　　　　　　　　 | 　　　　　　　　　　|
-| 内存缓存　　　　　　　| hashicorp/golang-lru/v2　　　　　　 | gleflight　　　　　　　　　　　　　　　　　　　　　　　　 | 标准库 singleflight |
+| 组件 | 技术选型 | 理由 |
+| --- | --- | --- |
+| GraphQL 框架 | gqlgen | Go 生态最成熟的 Schema-first GraphQL 框架，编译时代码生成 |
+| HTTP 框架 | chi | 轻量级、兼容 net/http、中间件生态丰富 |
+| 配置管理 | Viper | 支持 YAML + 环境变量覆盖 + 热更新（fsnotify） |
+| 日志 | zap | 高性能结构化日志 |
+| JWT 认证 | golang-jwt/jwt/v5 | Go 生态最流行的 JWT 库，支持多种签名算法 |
+| StarRocks 连接 | database/sql + go-sql-driver/mysql | StarRocks 兼容 MySQL 协议 |
+| Prometheus 查询客户端 | prometheus/client_golang + net/http | 通过 HTTP API 查询 Prometheus 数据源 |
+| Prometheus 指标暴露 | prometheus/client_golang | 官方 Go 客户端，暴露 /metrics 端点 |
+| OpenTelemetry | go.opentelemetry.io/otel | 官方 Go SDK |
+| 内存缓存 | hashicorp/golang-lru/v2 | 标准 LRU 淘汰策略，API 简洁 |
+| 缓存 Key 哈希 | cespare/xxhash/v2 | 非密码学高性能哈希，缓存 key 生成无需密码学安全性 |
+| 并发回源控制 | golang.org/x/sync/singleflight | 标准库扩展，防止缓存击穿 |
+| 缓存序列化 | encoding/gob | 比 JSON 序列化/反序列化快 2-5 倍，适合内部缓存存储 |
 
 ## 架构
 
@@ -36,17 +39,12 @@ graph TB
     
     subgraph API[API Service]
         direction TB
-        MW[中间件层<br/>CORS / Auth / RateLimit / Compression]
-        GQL[GraphQL Engine<br/>gqlgen]
-        QR[Query Resolver]
-        DL[DataLoader]
-        DSM[DataSource Manager]
-        CL[Cache r/>RequestID / BodyLimit / CORS / Auth / RateLimit / Compression]
+        MW[中间件层<br/>RequestID / BodyLimit / CORS / Auth / RateLimit / Compression]
         GQL[GraphQL Engine<br/>gqlgen + 复杂度/深度检查]
         QR[Query Resolver<br/>字段选择 + 并行调度]
         DL[DataLoader<br/>批量合并同数据源请求]
         CL[Cache Layer<br/>singleflight + 穿透/雪崩/击穿防护]
-        DSM[DataSource Manager<br/>连接池 + 重连 + 重试]
+        DSM[DataSource Manager<br/>连接池 + 熔断 + 重连 + 重试]
         
         MW --> GQL
         GQL --> QR
@@ -66,6 +64,10 @@ graph TB
 ```
 
 > **层级说明：** Cache Layer 位于 DataLoader 之后、DataSource Manager 之前。DataLoader 先将同一数据源的多个 resolver 请求批量合并，合并后的请求再经过 Cache Layer 查询缓存，未命中时才到达 DataSource Manager 执行实际查询。这样缓存粒度在数据源查询级别，避免了 resolver 级别的重复缓存。
+
+> **DataLoader 与 Cache Layer 交互机制：** DataLoader 将同一请求中针对同一数据源的多个 resolver 调用批量合并为一个 `QueryRequest`。合并后的每个 `QueryRequest` 独立经过 Cache Layer 进行缓存查找——即每个合并后的查询作为一个独立的缓存 key，而非整个批次共享一个 key。这样设计的好处是：不同请求中包含相同查询参数的子查询可以命中缓存，最大化缓存复用率。DataLoader 的批量窗口为 1ms（可配置），最大批量大小为 100（可配置）。
+
+> **totalCount 缓存策略：** 当 `NeedCount=true` 时，数据查询和 COUNT 查询的结果绑定为同一个缓存条目（`QueryResult` 包含 `Data` 和 `TotalCount`），确保两者 TTL 同步过期，避免 totalCount 与实际返回行数不一致。
 
 ### 请求处理流程
 
@@ -175,6 +177,7 @@ internal/
   middleware/
     auth.go                    # JWT / API Key 认证中间件
     authz.go                   # 授权检查（数据源权限）
+    auth_failure_limiter.go    # 认证失败暴力破解防护
     ratelimit.go               # 令牌桶限流中间件
     cors.go                    # CORS 中间件
     compression.go             # gzip 压缩中间件
@@ -203,6 +206,7 @@ internal/
     manager.go                 # DataSource Manager 实现
     registry.go                # Adapter Registry 实现
     reconnect.go               # 后台重连 goroutine 管理
+    circuit_breaker.go         # 熔断器状态管理
     mock.go                    # MockDataSource 测试辅助
   adapter/
     starrocks/
@@ -220,7 +224,8 @@ internal/
     memory.go                  # 内存缓存 (hashicorp/golang-lru)
     redis.go                   # Redis 缓存
     layer.go                   # Cache Layer (singleflight + 穿透/雪崩/击穿防护)
-    key.go                     # 缓存 key 生成 (含 datasource 前缀)
+    key.go                     # 缓存 key 生成 (xxhash64 + 查询规范化)
+    normalize.go               # GraphQL 查询规范化
   ratelimit/
     ratelimit.go               # RateLimiter 接口定义
     local.go                   # 本地限流 (KeyedRateLimiter + x/time/rate)
@@ -248,15 +253,34 @@ pkg/
 deploy/
   Dockerfile                   # 多阶段构建
   k8s/
-    deployment.yaml
+    deployment.yaml            # 含 startupProbe + livenessProbe + readinessProbe
     service.yaml
     configmap.yaml
-    hpa.yaml
+    hpa.yaml                   # 基于自定义指标的 HPA
   docker-compose.yaml          # 集成测试环境
 gqlgen.yml                     # gqlgen 配置 (含自定义标量映射)
 go.mod
 go.sum
 ```
+
+### Kubernetes 部署要点
+
+**Startup Probe（启动探针）：** 服务启动时需要建立多个数据源连接，启动时间可能较长。Kubernetes Deployment 应配置 `startupProbe`（指向 `/ready`），避免启动期间被 kubelet 误杀。建议 `failureThreshold: 30, periodSeconds: 2`（最长等待 60 秒启动）。
+
+**HPA 扩缩容指标：** HorizontalPodAutoscaler 应基于自定义 Prometheus 指标而非仅依赖 CPU：
+- 主要指标：`graphql_requests_in_flight`（当前并发请求数），目标值根据单 Pod 承载能力设定
+- 辅助指标：`graphql_request_duration_seconds` 的 P95 延迟，超过阈值时触发扩容
+- 使用 Prometheus Adapter 将自定义指标暴露为 Kubernetes custom metrics API
+
+**连接池与 Pod 数量：** HPA 扩缩容时需注意数据源连接总数。参见组件与接口章节的"连接池大小规划指南"。
+
+### APQ（Automatic Persisted Queries）
+
+作为可选功能，API 服务支持 gqlgen 的 APQ 扩展。启用后：
+- 客户端首次发送完整查询文本 + SHA256 哈希，服务端缓存查询文本
+- 后续请求客户端仅发送哈希值，服务端从缓存中查找对应查询文本
+- 显著减少网络传输量，尤其适合大型查询
+- 通过配置 `graphql.apq_enabled` 启用/禁用（默认禁用）
 
 
 ## 组件与接口
@@ -374,7 +398,32 @@ type DataSourceStatus struct {
     LastError       error
     ReconnectCount  int
     NextReconnectAt time.Time
+    // 熔断器状态
+    CircuitState    CircuitState // CLOSED（正常）/ OPEN（熔断）/ HALF_OPEN（探测）
+    FailureCount    int          // 连续失败次数
+    LastFailureAt   time.Time    // 最近一次失败时间
 }
+
+// CircuitState 熔断器状态枚举
+type CircuitState int
+
+const (
+    CircuitClosed   CircuitState = iota // 正常状态，允许请求通过
+    CircuitOpen                         // 熔断状态，直接返回 DATASOURCE_UNAVAILABLE 错误
+    CircuitHalfOpen                     // 半开状态，允许单个探测请求通过
+)
+
+// 熔断器参数（通过配置文件设置）:
+// - failure_threshold: 连续失败次数阈值（默认 5），超过后进入 OPEN 状态
+// - open_duration: OPEN 状态持续时间（默认 30s），到期后进入 HALF_OPEN 状态
+// - half_open_max_requests: HALF_OPEN 状态允许的最大探测请求数（默认 1）
+// - success_threshold: HALF_OPEN 状态下连续成功次数阈值（默认 2），超过后恢复 CLOSED 状态
+//
+// 状态转换:
+// CLOSED → OPEN: 连续失败次数 ≥ failure_threshold
+// OPEN → HALF_OPEN: 经过 open_duration 时间后自动转换
+// HALF_OPEN → CLOSED: 连续成功次数 ≥ success_threshold
+// HALF_OPEN → OPEN: 任一探测请求失败
 
 // Init 从配置初始化所有数据源，失败的数据源标记为不可用并启动后台重连
 func (m *DataSourceManager) Init(ctx context.Context) error
@@ -382,7 +431,11 @@ func (m *DataSourceManager) Init(ctx context.Context) error
 // Get 根据名称获取数据源实例，返回错误如果数据源不可用
 func (m *DataSourceManager) Get(name string) (DataSource, error)
 
-// ExecuteWithRetry 执行查询，对瞬时错误自动重试（指数退避）
+// ExecuteWithRetry 执行查询，先检查熔断器状态，对瞬时错误自动重试（指数退避）
+// 1. 检查 CircuitState: OPEN → 直接返回 DATASOURCE_UNAVAILABLE
+// 2. CLOSED/HALF_OPEN → 执行查询
+// 3. 成功 → 重置 FailureCount，HALF_OPEN 下累计成功次数达标则恢复 CLOSED
+// 4. 失败 → 累加 FailureCount，达到阈值则切换为 OPEN
 func (m *DataSourceManager) ExecuteWithRetry(ctx context.Context, dsName string, query QueryRequest) (*QueryResult, error)
 
 // HealthCheckAll 检查所有数据源健康状态
@@ -409,11 +462,24 @@ type Cache interface {
 }
 
 // CacheKeyGenerator 缓存 key 生成器
-// 格式: "cache:{datasource}:{sha256(query+variables)}"
-// datasource 前缀确保 clearCache(datasource) 可以按前缀清除
+// 格式: "cache:{datasource}:{xxhash64(normalized_query+sorted_variables)}"
+// - 使用 xxhash64 替代 SHA256，非密码学场景下性能提升 10 倍以上
+// - datasource 前缀确保 clearCache(datasource) 可以按前缀清除
+// - 查询文本在哈希前进行规范化处理（见 NormalizeQuery）
 type CacheKeyGenerator struct{}
 
+// Generate 生成缓存 key
+// 1. 调用 NormalizeQuery 规范化查询文本
+// 2. 对 variables map 按 key 字典序排序后序列化
+// 3. 拼接 normalized_query + sorted_variables 计算 xxhash64
 func (g *CacheKeyGenerator) Generate(datasource, query string, variables map[string]interface{}) string
+
+// NormalizeQuery 规范化 GraphQL 查询文本以提高缓存命中率
+// - 去除多余空格和换行符，压缩为单行
+// - 去除注释
+// - 统一大小写（关键字小写）
+// 注意：不对字段顺序排序，因为字段顺序可能影响语义（如 fragment spread 位置）
+func NormalizeQuery(query string) string
 
 // CacheLayer 带防护策略的缓存层
 type CacheLayer struct {
@@ -443,6 +509,10 @@ func (cl *CacheLayer) ClearAll(ctx context.Context) error
 ```
 
 > **Singleflight 错误处理：** 当 singleflight 中的首个请求因瞬时错误失败时，所有等待的请求都会收到相同的错误。这是可接受的行为——客户端可以重试，下一次请求会触发新的回源。不在 singleflight 内部做重试，避免放大延迟。
+
+> **缓存序列化格式：** 缓存条目使用 `encoding/gob` 格式序列化存储（内存缓存和 Redis 缓存均适用）。相比 JSON，gob 序列化/反序列化性能提升 2-5 倍，且原生支持 Go 类型。Redis 缓存后端存储的是 gob 编码后的 `[]byte`。
+
+> **Singleflight 多实例限制：** 当前 singleflight 仅在单实例内生效。多实例部署时，同一缓存 key 的并发未命中请求仍可能从多个实例同时回源。对于使用 Redis 缓存后端的场景，可通过 Redis 分布式锁（`SET NX EX`）实现跨实例的 singleflight，但会增加一次 Redis 往返延迟。当前版本接受此限制，后续可按需扩展。
 
 ### 5. Auth Middleware（认证与授权分离）
 
@@ -493,11 +563,39 @@ type APIKeyAuthenticator struct {
 // APIKeyEntry API Key 配置条目
 type APIKeyEntry struct {
     ID          string
-    KeyHash     []byte    // bcrypt 或 SHA256 哈希存储
+    KeyHash     []byte    // bcrypt 哈希存储（禁止使用 SHA256 等快速哈希，防止暴力破解）
     ExpiresAt   *time.Time
     Datasources []string
     Operations  []string
 }
+
+// AuthFailureLimiter 认证失败暴力破解防护
+// 独立于正常请求限流，专门针对认证失败场景
+// 同一 IP 在 auth_failure_window 内认证失败超过 auth_failure_threshold 次，
+// 封禁该 IP auth_ban_duration 时间
+type AuthFailureLimiter struct {
+    mu        sync.RWMutex
+    failures  map[string]*failureRecord // IP → 失败记录
+    threshold int                       // 失败次数阈值（默认 10）
+    window    time.Duration             // 统计窗口（默认 5 分钟）
+    banDur    time.Duration             // 封禁时长（默认 15 分钟）
+    stopCh    chan struct{}
+}
+
+type failureRecord struct {
+    count    int
+    firstAt  time.Time
+    bannedAt *time.Time
+}
+
+// Check 检查 IP 是否被封禁，返回 true 表示允许通过
+func (afl *AuthFailureLimiter) Check(ip string) bool
+
+// RecordFailure 记录一次认证失败
+func (afl *AuthFailureLimiter) RecordFailure(ip string)
+
+// startCleanup 后台 goroutine：定期清理过期的失败记录和封禁记录
+func (afl *AuthFailureLimiter) startCleanup()
 ```
 
 ### 6. Rate Limiter（本地 + 分布式双模式）
@@ -572,13 +670,23 @@ func (drl *DistributedRateLimiter) Allow(ctx context.Context, key string, count 
 
 // FallbackRateLimiter 分布式限流的降级包装器
 // 正常时使用 DistributedRateLimiter，Redis 不可用时自动降级为 KeyedRateLimiter
+// 降级后启动后台恢复探测，定期检查 Redis 可用性并自动恢复
 type FallbackRateLimiter struct {
-    primary   *DistributedRateLimiter
-    fallback  *KeyedRateLimiter
-    useFallback atomic.Bool
+    primary       *DistributedRateLimiter
+    fallback      *KeyedRateLimiter
+    useFallback   atomic.Bool
+    probeInterval time.Duration // Redis 恢复探测间隔（默认 30s）
+    stopCh        chan struct{}
 }
 
 func (frl *FallbackRateLimiter) Allow(ctx context.Context, key string, count int) (*RateLimitResult, error)
+
+// startRecoveryProbe 后台 goroutine：降级后定期探测 Redis 可用性
+// 每 probeInterval 执行一次 PING 命令：
+// - 成功 → 切回 primary（useFallback = false），记录 INFO 日志
+// - 失败 → 保持 fallback，记录 WARN 日志
+// 恢复后停止探测 goroutine，下次降级时重新启动
+func (frl *FallbackRateLimiter) startRecoveryProbe()
 ```
 
 > **多实例部署行为：**
@@ -742,6 +850,42 @@ type HotReloader struct {
 //
 // 热更新线程安全: 使用 atomic.Value 或 sync.RWMutex 保护运行时配置读取
 // 热更新失败: 保留旧配置，记录 ERROR 日志，不影响服务运行
+```
+
+### 13. 请求日志分级策略
+
+```
+日志级别与记录内容：
+
+DEBUG: 完整查询文本 + variables + 完整响应体 + 数据源原始返回
+       （仅开发/调试环境启用，生产环境禁用以避免日志量过大和敏感数据泄露）
+
+INFO:  操作名 + 操作类型 + 数据源名称 + 延迟(ms) + 状态(success/error) + requestId + traceId
+       示例: {"level":"info","op":"GetMetrics","type":"query","ds":"monitoring","latency_ms":42,"status":"success","requestId":"req-xxx","traceId":"abc-123"}
+
+WARN:  慢查询告警（延迟超过配置阈值，默认 1s）+ 结果集截断 + 特殊值转换 + 降级事件
+       示例: {"level":"warn","msg":"slow query","op":"GetReport","ds":"analytics_db","latency_ms":2350,"threshold_ms":1000}
+
+ERROR: 查询失败 + 数据源连接错误 + 认证失败 + 熔断器状态变更 + 配置热更新失败
+```
+
+### 14. 连接池大小规划指南
+
+```
+连接池大小计算公式：
+  单 Pod 连接池大小 = 数据源最大连接数 / 预期最大 Pod 数 × 安全系数(0.8)
+
+示例：
+  StarRocks max_connections = 200
+  HPA 最大 Pod 数 = 10
+  单 Pod pool_size = 200 / 10 × 0.8 = 16
+
+建议：
+  - 开发环境: pool_size = 5
+  - 生产环境（单实例）: pool_size = 20
+  - 生产环境（多实例 HPA）: 按上述公式计算，预留 20% 余量
+  - Prometheus HTTP 客户端: MaxIdleConnsPerHost = pool_size（复用 HTTP 连接）
+  - 监控 graphql_datasource_connection_pool_waiting 指标，持续 > 0 说明连接池偏小
 ```
 
 
@@ -925,6 +1069,8 @@ type Mutation {
 ```
 
 > **Cursor 编码方案：** StarRocks 分页的 cursor 使用 base64 编码的 offset 值。例如 offset=20 编码为 `base64("offset:20")` = `b2Zmc2V0OjIw`。解码 `after` 参数时提取 offset 值，用于 SQL 的 OFFSET 子句。这种方案简单且与 offset/limit 分页兼容。
+>
+> **已知限制：** 基于 offset 的游标在数据变更（插入/删除行）时可能导致分页不一致（跳过或重复数据）。由于本服务定位为 OLAP 只读查询网关，StarRocks 中的数据变更频率极低（通常为批量 ETL 导入），此方案在实际场景中可接受。如果未来需要强一致性分页，可改为基于排序键的 keyset pagination。
 
 ### 配置数据结构
 
@@ -989,6 +1135,79 @@ type TracingConfig struct {
     SamplingRate float64     `mapstructure:"sampling_rate"` // 0.0 ~ 1.0, 默认 1.0
     OTLP         OTLPConfig  `mapstructure:"otlp"`
 }
+
+// OTLPConfig OTLP 导出配置
+type OTLPConfig struct {
+    Endpoint string `mapstructure:"endpoint"` // 如 "tempo:4317"
+    Protocol string `mapstructure:"protocol"` // "grpc" | "http"
+}
+
+// ServerConfig 服务基础配置
+type ServerConfig struct {
+    Port               int           `mapstructure:"port"`
+    Mode               string        `mapstructure:"mode"` // "production" | "development"
+    MaxRequestBodySize string        `mapstructure:"max_request_body_size"`
+    RequestTimeout     time.Duration `mapstructure:"request_timeout"`
+    MaxBatchQueries    int           `mapstructure:"max_batch_queries"`
+}
+
+// GraphQLConfig GraphQL 引擎配置
+type GraphQLConfig struct {
+    IntrospectionEnabled bool `mapstructure:"introspection_enabled"`
+    MaxQueryComplexity   int  `mapstructure:"max_query_complexity"`
+    MaxQueryDepth        int  `mapstructure:"max_query_depth"`
+    MaxResultRows        int  `mapstructure:"max_result_rows"`
+    APQEnabled           bool `mapstructure:"apq_enabled"` // Automatic Persisted Queries（可选）
+}
+
+// ShutdownConfig 优雅关闭配置
+type ShutdownConfig struct {
+    MaxWaitTime time.Duration `mapstructure:"max_wait_time"` // 默认 30s
+}
+
+// CompressionConfig 响应压缩配置
+type CompressionConfig struct {
+    Enabled bool   `mapstructure:"enabled"`
+    MinSize string `mapstructure:"min_size"` // 最小压缩阈值，如 "1KB"
+}
+
+// CORSConfig CORS 配置
+type CORSConfig struct {
+    Enabled        bool     `mapstructure:"enabled"`
+    AllowedOrigins []string `mapstructure:"allowed_origins"`
+    AllowedMethods []string `mapstructure:"allowed_methods"`
+    AllowedHeaders []string `mapstructure:"allowed_headers"`
+}
+
+// LoggingConfig 日志配置
+type LoggingConfig struct {
+    Level  string      `mapstructure:"level"` // "debug" | "info" | "warn" | "error"
+    Format string      `mapstructure:"format"` // "json"
+    Audit  AuditConfig `mapstructure:"audit"`
+}
+
+// RetryConfig 重试配置
+type RetryConfig struct {
+    MaxRetries    int           `mapstructure:"max_retries"`
+    RetryInterval time.Duration `mapstructure:"retry_interval"`
+    Backoff       string        `mapstructure:"backoff"` // "exponential"
+}
+
+// CircuitBreakerConfig 熔断器配置
+type CircuitBreakerConfig struct {
+    FailureThreshold    int           `mapstructure:"failure_threshold"`     // 默认 5
+    OpenDuration        time.Duration `mapstructure:"open_duration"`         // 默认 30s
+    HalfOpenMaxRequests int           `mapstructure:"half_open_max_requests"` // 默认 1
+    SuccessThreshold    int           `mapstructure:"success_threshold"`     // 默认 2
+}
+
+// AuthFailureConfig 认证失败暴力破解防护配置
+type AuthFailureConfig struct {
+    Enabled   bool          `mapstructure:"enabled"`
+    Threshold int           `mapstructure:"threshold"` // 默认 10
+    Window    time.Duration `mapstructure:"window"`    // 默认 5m
+    BanDuration time.Duration `mapstructure:"ban_duration"` // 默认 15m
+}
 ```
 
 ### 统一错误码
@@ -1002,6 +1221,7 @@ const (
     ErrAuthInsufficientPermission = "AUTH_INSUFFICIENT_PERMISSION"
     ErrAuthMissing                = "AUTH_MISSING"
     ErrAuthKeyExpired             = "AUTH_KEY_EXPIRED"
+    ErrAuthBruteForceBlocked      = "AUTH_BRUTE_FORCE_BLOCKED"  // IP 因认证失败过多被封禁
 
     // VALIDATION 请求验证错误
     ErrValidationSyntaxError        = "VALIDATION_SYNTAX_ERROR"
@@ -1016,6 +1236,7 @@ const (
     // DATASOURCE 数据源错误
     ErrDatasourceTimeout       = "DATASOURCE_TIMEOUT"
     ErrDatasourceUnavailable   = "DATASOURCE_UNAVAILABLE"
+    ErrDatasourceCircuitOpen   = "DATASOURCE_CIRCUIT_OPEN"     // 熔断器处于 OPEN 状态
     ErrDatasourcePoolExhausted = "DATASOURCE_POOL_EXHAUSTED"
     ErrDatasourceQueryError    = "DATASOURCE_QUERY_ERROR"
     ErrDatasourceMaxDataPoints = "DATASOURCE_MAX_DATA_POINTS"  // Prometheus 数据点超限
@@ -1035,14 +1256,19 @@ const (
 | Schema 模式 | Schema-first (gqlgen) | 编译时类型安全，Schema 即文档 |
 | StarRocks 动态字段 | JSON scalar 容器 (`data: JSON!`) | 适配不同表结构，避免为每张表定义固定 GraphQL 类型 |
 | 分页模式 | Relay Connection + offset/limit | 兼顾游标分页和传统分页需求 |
-| Cursor 编码 | base64("offset:{n}") | 简单，与 offset/limit 兼容 |
-| 缓存 key 格式 | `cache:{datasource}:{sha256}` | 支持按数据源前缀清除 |
-| 缓存 key 哈希 | SHA256(query + variables + datasource) | 确定性哈希，避免碰撞 |
+| Cursor 编码 | base64("offset:{n}") | 简单，与 offset/limit 兼容；OLAP 场景数据变更频率低，offset 漂移可接受 |
+| 缓存 key 格式 | `cache:{datasource}:{xxhash64}` | 支持按数据源前缀清除 |
+| 缓存 key 哈希 | xxhash64(normalized_query + sorted_variables) | 非密码学高性能哈希，比 SHA256 快 10 倍以上 |
+| 查询规范化 | 去除多余空格/换行/注释 | 提高缓存命中率，避免格式差异导致缓存未命中 |
+| 缓存序列化 | encoding/gob | 比 JSON 快 2-5 倍，原生支持 Go 类型 |
 | 内存缓存 | hashicorp/golang-lru/v2 | 原生 LRU 淘汰策略支持 |
 | 限流算法 | 令牌桶 (Token Bucket) | 允许突发流量，平滑限流 |
 | 本地限流 | golang.org/x/time/rate + KeyedRateLimiter | 标准库 + 按 key 管理 |
 | 分布式限流 | Redis + Lua 原子脚本 | 多实例全局精确限流 |
 | 认证/授权 | Authenticator + Authorizer 分离 | 职责清晰，401/403 错误码准确 |
+| API Key 存储 | bcrypt 哈希（禁止 SHA256） | 慢哈希防暴力破解，constant-time comparison 防 timing attack |
+| 暴力破解防护 | AuthFailureLimiter（IP 维度） | 独立于正常限流，防止认证失败攻击 |
+| 弹性策略 | 重试 + 熔断器 + 指数退避重连 | 重试处理瞬时错误，熔断器防止级联故障，重连恢复长期断连 |
 | 重连策略 | 指数退避 (5s → 60s) | 避免重连风暴 |
 | 配置管理 | Viper + 环境变量覆盖 | 12-Factor App 兼容 |
 | 日志库 | zap | 高性能，结构化 JSON 输出 |
@@ -1050,8 +1276,9 @@ const (
 | 批量查询限流 | 按实际查询数计数 | 防止通过批量查询绕过限流 |
 | 空结果缓存 | 短 TTL 空值标记 (30s) | 防止缓存穿透 |
 | TTL 抖动 | ±10% 随机 jitter | 防止缓存雪崩 |
-| 并发回源 | singleflight | 防止缓存击穿 |
+| 并发回源 | singleflight（单实例） | 防止缓存击穿；多实例场景接受有限的并发回源 |
 | SQL 安全 | 参数化查询 + 标识符白名单 + 反引号包裹 | 防止 SQL 注入（值注入 + 标识符注入） |
+| APQ | gqlgen APQ 扩展（可选） | 减少网络传输量，客户端只发送查询哈希 |
 
 
 ## 正确性属性
@@ -1496,6 +1723,48 @@ const (
 
 **Validates: Requirements 17.9**
 
+### Property 74: 熔断器状态转换
+
+*For any* 数据源的连续查询失败次数达到 `failure_threshold`，熔断器应从 CLOSED 切换为 OPEN；OPEN 状态持续 `open_duration` 后应自动切换为 HALF_OPEN；HALF_OPEN 状态下连续成功次数达到 `success_threshold` 应恢复 CLOSED；HALF_OPEN 状态下任一请求失败应切回 OPEN。
+
+**Validates: Design - 熔断器弹性设计**
+
+### Property 75: 熔断器 OPEN 状态快速失败
+
+*For any* 熔断器处于 OPEN 状态的数据源查询请求，DataSource_Manager 应立即返回 DATASOURCE_CIRCUIT_OPEN 错误，不执行实际查询。
+
+**Validates: Design - 熔断器弹性设计**
+
+### Property 76: 认证失败暴力破解防护
+
+*For any* 同一 IP 在 `auth_failure_window` 内认证失败次数超过 `auth_failure_threshold`，后续来自该 IP 的请求应返回 AUTH_BRUTE_FORCE_BLOCKED 错误，持续 `auth_ban_duration` 时间。
+
+**Validates: Design - 安全加固**
+
+### Property 77: 缓存 Key 查询规范化
+
+*For any* 两个语义相同但格式不同的 GraphQL 查询（仅空格、换行、注释不同），经过规范化后生成的缓存 key 应相同。
+
+**Validates: Design - 缓存命中率优化**
+
+### Property 78: 分布式限流降级恢复
+
+*For any* 分布式限流降级为本地模式后，当 Redis 恢复可用时，FallbackRateLimiter 应在 `probeInterval` 内自动切回分布式模式。
+
+**Validates: Design - 降级恢复机制**
+
+### Property 79: totalCount 与数据结果缓存一致性
+
+*For any* `NeedCount=true` 的查询，数据结果和 totalCount 应作为同一个缓存条目存储和过期，不应出现 totalCount 与实际返回行数不一致的情况。
+
+**Validates: Design - 缓存一致性**
+
+### Property 80: HTTP 层错误结构化响应
+
+*For any* HTTP 层错误（401/403/413/429），响应体应为合法 JSON，包含 `error.code`、`error.message` 和 `requestId` 字段。
+
+**Validates: Design - 统一错误响应格式**
+
 
 ## 错误处理
 
@@ -1525,12 +1794,26 @@ graph TD
 
 ### HTTP 层错误
 
+HTTP 层错误（中间件拦截）统一使用结构化 JSON 响应格式：
+
+```json
+{
+  "error": {
+    "code": "RATELIMIT_EXCEEDED",
+    "message": "请求频率超过限制，请稍后重试",
+    "classification": "RATELIMIT"
+  },
+  "requestId": "req-abc-123"
+}
+```
+
 | 场景 | HTTP 状态码 | 错误码 | 说明 |
 |------|------------|--------|------|
 | 认证缺失 | 401 | AUTH_MISSING | 请求未携带认证凭据 |
 | Token 过期 | 401 | AUTH_TOKEN_EXPIRED | JWT Token 已过期 |
 | Token 无效 | 401 | AUTH_TOKEN_INVALID | JWT 签名验证失败 |
 | API Key 过期 | 401 | AUTH_KEY_EXPIRED | API Key 已超过 expires_at |
+| 暴力破解封禁 | 401 | AUTH_BRUTE_FORCE_BLOCKED | IP 因认证失败过多被封禁 |
 | 权限不足 | 403 | AUTH_INSUFFICIENT_PERMISSION | 无权访问目标数据源 |
 | 请求体过大 | 413 | VALIDATION_PAYLOAD_TOO_LARGE | 超过 max_request_body_size |
 | 限流触发 | 429 | RATELIMIT_EXCEEDED | 超过请求频率限制 |
@@ -1591,8 +1874,9 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 | 组件 | 降级策略 |
 |------|---------|
 | 数据源连接 | 标记不可用，后台 goroutine 指数退避重连 |
+| 数据源查询 | 熔断器 OPEN 时直接返回 DATASOURCE_CIRCUIT_OPEN，避免无效重试 |
 | Redis 缓存 | 降级为内存缓存或跳过缓存（记录警告日志） |
-| 分布式限流 Redis | 自动降级为本地限流（FallbackRateLimiter） |
+| 分布式限流 Redis | 自动降级为本地限流（FallbackRateLimiter），后台探测恢复 |
 | OpenTelemetry 导出 | 丢弃 Trace 数据，不影响请求处理 |
 | 单个数据源查询 | 返回部分结果 + 错误信息 |
 | 配置热更新失败 | 保留旧配置，记录 ERROR 日志 |
@@ -1630,7 +1914,7 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 
 ### 属性测试范围
 
-属性测试覆盖设计文档中定义的所有 73 个正确性属性，重点包括：
+属性测试覆盖设计文档中定义的所有 80 个正确性属性，重点包括：
 
 | 测试类别 | 覆盖属性 | 测试策略 |
 |---------|---------|---------|
@@ -1639,10 +1923,11 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 | SQL 查询构建 | Property 15-17 | 生成随机 QueryRequest，验证 SQL 输出和白名单校验 |
 | PromQL 查询构建 | Property 19-20 | 生成随机查询参数，验证 PromQL 输出和注入防护 |
 | 类型映射 | Property 18, 21, 22 | 遍历所有类型组合，验证映射正确性 |
-| 缓存行为 | Property 64-71 | 生成随机查询和缓存状态，验证缓存逻辑 |
-| 认证授权 | Property 48-53 | 生成随机凭据组合，验证认证结果 |
-| 限流 | Property 56-58 | 模拟随机请求序列，验证令牌桶行为 |
-| 错误处理 | Property 31, 34, 36 | 生成随机错误场景，验证错误响应结构 |
+| 缓存行为 | Property 64-71, 77, 79 | 生成随机查询和缓存状态，验证缓存逻辑、规范化和一致性 |
+| 认证授权 | Property 48-53, 76 | 生成随机凭据组合，验证认证结果和暴力破解防护 |
+| 限流 | Property 56-58, 78 | 模拟随机请求序列，验证令牌桶行为和降级恢复 |
+| 熔断器 | Property 74-75 | 模拟连续失败/恢复序列，验证状态转换和快速失败 |
+| 错误处理 | Property 31, 34, 36, 80 | 生成随机错误场景，验证错误响应结构（含 HTTP 层） |
 | 配置管理 | Property 11, 72, 73 | 生成随机配置值，验证加载和覆盖行为 |
 | 可观测性 | Property 39-47 | 验证指标注册、Span 层级和属性 |
 | 运维能力 | Property 59-63 | 验证健康检查、优雅关闭、CORS、压缩 |
