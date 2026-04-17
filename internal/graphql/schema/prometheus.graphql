@@ -1,0 +1,37 @@
+# ===== Prometheus 数据源类型 =====
+
+type PrometheusMetricLabel {
+  name: String!
+  value: String!
+}
+
+type PrometheusDataPoint {
+  timestamp: Float!
+  value: Float
+}
+
+type PrometheusVector {
+  metric: [PrometheusMetricLabel!]!
+  value: PrometheusDataPoint
+}
+
+type PrometheusMatrix {
+  metric: [PrometheusMetricLabel!]!
+  values: [PrometheusDataPoint!]!
+}
+
+type PrometheusInstantResult {
+  resultType: String!
+  vectors: [PrometheusVector!]!
+}
+
+type PrometheusRangeResult {
+  resultType: String!
+  matrices: [PrometheusMatrix!]!
+}
+
+input PrometheusLabelFilter {
+  name: String!
+  value: String!
+  matchType: LabelMatchType!
+}

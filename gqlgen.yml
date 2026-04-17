@@ -1,0 +1,29 @@
+# gqlgen configuration for GraphQL Multi-DataSource API
+# See https://gqlgen.com/config/ for documentation.
+
+schema:
+  - internal/graphql/schema/*.graphql
+
+exec:
+  filename: internal/graphql/generated/generated.go
+  package: generated
+
+model:
+  filename: internal/graphql/generated/models_gen.go
+  package: generated
+
+resolver:
+  layout: follow-schema
+  dir: internal/graphql/resolver
+  package: resolver
+
+autobind:
+  - github.com/example/graphql-api/internal/graphql/scalar
+
+models:
+  DateTime:
+    model:
+      - github.com/example/graphql-api/internal/graphql/scalar.DateTime
+  JSON:
+    model:
+      - github.com/example/graphql-api/internal/graphql/scalar.JSON

@@ -1,0 +1,36 @@
+# ===== StarRocks 数据源类型 =====
+
+"""
+StarRocks 查询结果行。
+由于 StarRocks 是 OLAP 数据库，不同表结构不同，
+使用 JSON 标量类型作为动态字段容器。
+客户端通过 GraphQL 的字段选择机制指定需要的列，
+适配器根据请求的字段生成对应的 SQL SELECT 子句。
+"""
+type StarRocksRow {
+  """动态字段数据，key 为列名，value 为列值"""
+  data: JSON!
+}
+
+type StarRocksEdge {
+  node: StarRocksRow!
+  cursor: String!
+}
+
+type StarRocksConnection {
+  edges: [StarRocksEdge!]!
+  nodes: [StarRocksRow!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input StarRocksFilter {
+  field: String!
+  operator: FilterOperator!
+  value: String!
+}
+
+input StarRocksOrderBy {
+  field: String!
+  direction: SortDirection!
+}

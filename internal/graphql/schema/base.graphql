@@ -1,0 +1,85 @@
+# ===== 自定义标量类型 =====
+
+"""ISO 8601 日期时间格式，如 2024-01-15T10:30:00Z"""
+scalar DateTime
+
+"""任意 JSON 值，用于动态字段和元数据"""
+scalar JSON
+
+# ===== 基础枚举类型 =====
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+enum FilterOperator {
+  EQ
+  NEQ
+  GT
+  GTE
+  LT
+  LTE
+  LIKE
+  IN
+  NOT_IN
+  IS_NULL
+  IS_NOT_NULL
+}
+
+enum LabelMatchType {
+  """精确匹配 (=)"""
+  EXACT
+  """不等于 (!=)"""
+  NOT_EQUAL
+  """正则匹配 (=~)"""
+  REGEX
+  """正则不匹配 (!~)"""
+  NOT_REGEX
+}
+
+# ===== 分页类型 (Relay Connection 规范) =====
+
+"""分页信息，遵循 Relay Connection 规范"""
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# ===== Query 根类型 =====
+
+type Query {
+  """
+  StarRocks OLAP 数据查询。
+  table 参数必须在服务端白名单中，非法表名将返回验证错误。
+  返回的 StarRocksRow.data 为 JSON 对象，包含请求的字段。
+  """
+  starrocks(
+    table: String!
+    fields: [String!]
+    filters: [StarRocksFilter!]
+    orderBy: [StarRocksOrderBy!]
+    first: Int
+    after: String
+    offset: Int
+    limit: Int
+  ): StarRocksConnection!
+
+  """Prometheus 即时查询"""
+  prometheusInstant(
+    query: String!
+    time: DateTime
+    filters: [PrometheusLabelFilter!]
+  ): PrometheusInstantResult!
+
+  """Prometheus 范围查询"""
+  prometheusRange(
+    query: String!
+    startTime: DateTime!
+    endTime: DateTime!
+    step: String!
+    filters: [PrometheusLabelFilter!]
+  ): PrometheusRangeResult!
+}

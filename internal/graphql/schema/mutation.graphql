@@ -1,0 +1,14 @@
+# ===== Mutation 根类型 =====
+
+"""
+本服务仅支持管理类 Mutation 操作，不支持数据写入。
+所有数据获取均通过 Query 完成。
+Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
+"""
+type Mutation {
+  """
+  清除缓存。指定 datasource 清除特定数据源缓存，不指定则清除全部缓存。
+  需要认证主体具有 "mutation" 操作权限，否则返回 AUTH_INSUFFICIENT_PERMISSION 错误。
+  """
+  clearCache(datasource: String): Boolean!
+}
