@@ -1,0 +1,27 @@
+# 2026/04/17 17:14:17.765696 [TestProperty59_LivenessWithUnhealthyComponent] [rapid] draw numComponents: 2
+# 2026/04/17 17:14:17.765696 [TestProperty59_LivenessWithUnhealthyComponent] [rapid] draw hasUnhealthy: true
+# 2026/04/17 17:14:17.765696 [TestProperty59_LivenessWithUnhealthyComponent] [rapid] draw compName: "compa"
+# 2026/04/17 17:14:17.765696 [TestProperty59_LivenessWithUnhealthyComponent] [rapid] draw compName: "compa"
+# 2026/04/17 17:14:17.765696 [TestProperty59_LivenessWithUnhealthyComponent] expected 503 with unhealthy component, got 200
+# 
+v0.4.8#14256000283986253566
+0x0
+0x0
+0x1
+0x1
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0
+0x0

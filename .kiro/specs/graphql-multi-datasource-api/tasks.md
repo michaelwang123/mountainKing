@@ -230,27 +230,27 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
 - [ ] 16. Checkpoint - 确保认证、授权、限流完整可用
   - 验证：golangci-lint 通过 + JWT/API Key 认证正确 + 授权检查正确 + 限流（本地+分布式+降级）行为正确 + 暴力破解防护生效
 
-- [ ] 17. 缓存层
-  - [ ] 17.1 实现 Cache 接口与缓存 Key 生成（cache/cache.go, cache/key.go）：Cache 接口（Get/Set/Delete/DeleteByPrefix/Clear），CacheKeyGenerator（xxhash64 + 数据源前缀 cache:{datasource}:{hash}）
+- [x] 17. 缓存层
+  - [x] 17.1 实现 Cache 接口与缓存 Key 生成（cache/cache.go, cache/key.go）：Cache 接口（Get/Set/Delete/DeleteByPrefix/Clear），CacheKeyGenerator（xxhash64 + 数据源前缀 cache:{datasource}:{hash}）
     - _Requirements: 16.3_
-  - [ ] 17.2 实现查询规范化（cache/normalize.go）：去除多余空格/换行/注释，统一关键字大小写
+  - [x] 17.2 实现查询规范化（cache/normalize.go）：去除多余空格/换行/注释，统一关键字大小写
     - _Design: 缓存命中率优化_
-  - [ ] 17.3 实现内存缓存后端（cache/memory.go）：基于 hashicorp/golang-lru/v2，max_entries + max_memory_size 双重限制，LRU 淘汰，gob 序列化
+  - [x] 17.3 实现内存缓存后端（cache/memory.go）：基于 hashicorp/golang-lru/v2，max_entries + max_memory_size 双重限制，LRU 淘汰，gob 序列化
     - _Requirements: 16.2, 16.8_
-  - [ ] 17.4 实现 Redis 缓存后端（cache/redis.go）：gob 序列化，SCAN + DEL 按前缀删除（异步执行，禁止 KEYS 命令），复用 task 15.1 的共享 Redis 客户端
+  - [x] 17.4 实现 Redis 缓存后端（cache/redis.go）：gob 序列化，SCAN + DEL 按前缀删除（异步执行，禁止 KEYS 命令），复用 task 15.1 的共享 Redis 客户端
     - _Requirements: 16.2_
-  - [ ] 17.5 实现 Cache Layer（cache/layer.go）：GetOrLoad（singleflight 击穿防护），TTL + jitter 雪崩防护，空结果短 TTL 穿透防护，gob 反序列化失败恢复（删除损坏条目 + 回源 + WARN 日志），仅缓存 Query 操作，extensions.cache=false 绕过，totalCount 与数据结果同一缓存条目
+  - [x] 17.5 实现 Cache Layer（cache/layer.go）：GetOrLoad（singleflight 击穿防护），TTL + jitter 雪崩防护，空结果短 TTL 穿透防护，gob 反序列化失败恢复（删除损坏条目 + 回源 + WARN 日志），仅缓存 Query 操作，extensions.cache=false 绕过，totalCount 与数据结果同一缓存条目
     - _Requirements: 16.1, 16.4, 16.5, 16.7, 16.10, 16.11, 16.12_
-  - [ ] 17.6 实现缓存清除（ClearByDatasource 和 ClearAll 方法，供 Mutation Resolver 调用）
+  - [x] 17.6 实现缓存清除（ClearByDatasource 和 ClearAll 方法，供 Mutation Resolver 调用）
     - _Requirements: 16.9_
-  - [ ] 17.7 编写缓存核心属性测试
+  - [x] 17.7 编写缓存核心属性测试
     - **Property 64: 缓存 Key 确定性** — Validates: Requirements 16.3
     - **Property 65: 客户端绕过缓存** — Validates: Requirements 16.5
     - **Property 66: 仅缓存 Query 操作** — Validates: Requirements 16.7
     - **Property 67: LRU 缓存淘汰** — Validates: Requirements 16.8
     - **Property 68: 缓存清除操作** — Validates: Requirements 16.9
     - **Property 77: 缓存 Key 查询规范化** — Validates: Design - 缓存命中率优化
-  - [ ] 17.8 编写缓存防护与容错属性测试
+  - [x] 17.8 编写缓存防护与容错属性测试
     - **Property 69: 缓存穿透防护** — Validates: Requirements 16.10
     - **Property 70: 缓存雪崩防护 - TTL 抖动** — Validates: Requirements 16.11
     - **Property 71: 缓存击穿防护 - Singleflight** — Validates: Requirements 16.12
@@ -258,39 +258,39 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 85: 内存缓存内存大小限制** — Validates: Design - 内存缓存容量控制
     - **Property 86: 缓存 Gob 反序列化失败恢复** — Validates: Design - 缓存容错
 
-- [ ] 18. 健康检查
-  - [ ] 18.1 实现 Health Checker（health/health.go）：LivenessCheck（/health，所有核心组件正常→200，异常→503），ReadinessCheck（/ready，至少一个数据源可用→200，全部不可用→503），响应包含版本信息和构建时间
+- [x] 18. 健康检查
+  - [x] 18.1 实现 Health Checker（health/health.go）：LivenessCheck（/health，所有核心组件正常→200，异常→503），ReadinessCheck（/ready，至少一个数据源可用→200，全部不可用→503），响应包含版本信息和构建时间
     - _Requirements: 15.1, 15.2, 15.3, 15.4_
-  - [ ] 18.2 编写健康检查属性测试
+  - [x] 18.2 编写健康检查属性测试
     - **Property 59: 健康检查状态码** — Validates: Requirements 15.3, 15.4
 
 - [ ] 19. Checkpoint - 确保缓存和健康检查就绪
   - 验证：golangci-lint 通过 + 缓存（内存+Redis）读写正确 + 缓存防护（穿透/雪崩/击穿）生效 + 健康检查端点正确
 
-- [ ] 20. 可观测性 - Prometheus 指标
-  - [ ] 20.1 实现 MetricsCollector（observability/metrics.go）：注册所有 Prometheus 指标（graphql_request_duration_seconds, graphql_requests_total, graphql_requests_in_flight, graphql_datasource_query_duration_seconds, graphql_datasource_connection_pool_active/idle/waiting, graphql_errors_total, graphql_cache_hits_total, graphql_cache_misses_total），自定义 Histogram 桶边界（requestDuration: 10ms-10s，dsQueryDuration: 5ms-5s），自定义标签附加，暴露 /metrics 端点
+- [x] 20. 可观测性 - Prometheus 指标
+  - [x] 20.1 实现 MetricsCollector（observability/metrics.go）：注册所有 Prometheus 指标（graphql_request_duration_seconds, graphql_requests_total, graphql_requests_in_flight, graphql_datasource_query_duration_seconds, graphql_datasource_connection_pool_active/idle/waiting, graphql_errors_total, graphql_cache_hits_total, graphql_cache_misses_total），自定义 Histogram 桶边界（requestDuration: 10ms-10s，dsQueryDuration: 5ms-5s），自定义标签附加，暴露 /metrics 端点
     - _Requirements: 8.10, 11.1-11.12, 16.6_
-  - [ ] 20.2 编写指标属性测试
+  - [x] 20.2 编写指标属性测试
     - **Property 39: Prometheus 指标注册完整性** — Validates: Requirements 11.3-11.10
     - **Property 40: 指标命名规范** — Validates: Requirements 11.11
     - **Property 41: 自定义标签附加** — Validates: Requirements 11.12
 
-- [ ] 21. 可观测性 - OpenTelemetry 链路追踪
-  - [ ] 21.1 实现 TracingProvider（observability/tracing.go）：初始化 TracerProvider（OTLP gRPC/HTTP exporter），采样率配置（默认 1.0），NoopTracerProvider（disabled），Shutdown 独立 5s 超时
+- [x] 21. 可观测性 - OpenTelemetry 链路追踪
+  - [x] 21.1 实现 TracingProvider（observability/tracing.go）：初始化 TracerProvider（OTLP gRPC/HTTP exporter），采样率配置（默认 1.0），NoopTracerProvider（disabled），Shutdown 独立 5s 超时
     - _Requirements: 12.1, 12.2, 12.10, 12.11, 12.12, 12.13_
-  - [ ] 21.2 集成请求级 Root Span：名称格式 `GraphQL {operation_type} {operation_name}`，属性 graphql.operation.name/type, http.method, http.url
+  - [x] 21.2 集成请求级 Root Span：名称格式 `GraphQL {operation_type} {operation_name}`，属性 graphql.operation.name/type, http.method, http.url
     - _Requirements: 12.3, 12.4_
-  - [ ] 21.3 集成 Resolver 级子 Span：名称格式 `Resolver {field_name}`，属性 graphql.field.name/type, graphql.datasource
+  - [x] 21.3 集成 Resolver 级子 Span：名称格式 `Resolver {field_name}`，属性 graphql.field.name/type, graphql.datasource
     - _Requirements: 12.5_
-  - [ ] 21.4 集成数据源查询级子 Span：StarRocks Query（db.system=starrocks, db.statement 经脱敏处理），Prometheus Query（db.system=prometheus, db.statement）
+  - [x] 21.4 集成数据源查询级子 Span：StarRocks Query（db.system=starrocks, db.statement 经脱敏处理），Prometheus Query（db.system=prometheus, db.statement）
     - _Requirements: 12.6, 12.7_
-  - [ ] 21.5 实现 Redis 操作 tracing hook：使用 go-redis AddHook 机制，在 ProcessHook 中创建 Span（名称 `Redis {command}`，属性 db.system=redis, db.operation, net.peer.name），复用 task 15.1 的共享 Redis 客户端
+  - [x] 21.5 实现 Redis 操作 tracing hook：使用 go-redis AddHook 机制，在 ProcessHook 中创建 Span（名称 `Redis {command}`，属性 db.system=redis, db.operation, net.peer.name），复用 task 15.1 的共享 Redis 客户端
     - _Design: Redis 可观测性_
-  - [ ] 21.6 实现 W3C Trace Context 传播：入站 traceparent 头提取，出站请求注入 traceparent
+  - [x] 21.6 实现 W3C Trace Context 传播：入站 traceparent 头提取，出站请求注入 traceparent
     - _Requirements: 12.8, 12.9_
-  - [ ] 21.7 实现错误 Span 状态记录和 Trace ID 关联：错误时设置 Span Error 状态 + Event，trace_id 注入日志和 extensions.traceId
+  - [x] 21.7 实现错误 Span 状态记录和 Trace ID 关联：错误时设置 Span Error 状态 + Event，trace_id 注入日志和 extensions.traceId
     - _Requirements: 12.14, 12.15, 12.16, 12.17_
-  - [ ] 21.8 编写链路追踪属性测试
+  - [x] 21.8 编写链路追踪属性测试
     - **Property 42: Root Span 创建与属性** — Validates: Requirements 12.3, 12.4
     - **Property 43: Resolver Span 创建与属性** — Validates: Requirements 12.5
     - **Property 44: 数据源查询 Span 创建与属性** — Validates: Requirements 12.6, 12.7
@@ -299,12 +299,12 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 47: Trace ID 关联** — Validates: Requirements 12.16, 12.17
     - **Property 89: Redis 操作 Span 创建** — Validates: Design - Redis 可观测性
 
-- [ ] 22. 审计与脱敏
-  - [ ] 22.1 实现审计日志（audit/audit.go）：记录认证主体标识、操作时间、操作类型、目标数据源、请求结果，独立于应用日志输出
+- [x] 22. 审计与脱敏
+  - [x] 22.1 实现审计日志（audit/audit.go）：记录认证主体标识、操作时间、操作类型、目标数据源、请求结果，独立于应用日志输出
     - _Requirements: 13.12_
-  - [ ] 22.2 实现敏感信息脱敏（sanitize/sanitize.go）：正则替换 SQL 字符串字面量和数值参数，应用于日志和 Trace Span 的 db.statement
+  - [x] 22.2 实现敏感信息脱敏（sanitize/sanitize.go）：正则替换 SQL 字符串字面量和数值参数，应用于日志和 Trace Span 的 db.statement
     - _Requirements: 13.13_
-  - [ ] 22.3 编写审计与脱敏属性测试
+  - [x] 22.3 编写审计与脱敏属性测试
     - **Property 54: 审计日志完整性** — Validates: Requirements 13.12
     - **Property 55: 敏感信息脱敏** — Validates: Requirements 13.13
 
@@ -312,7 +312,7 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
   - 验证：golangci-lint 通过 + /metrics 端点返回所有指标 + Tracing Span 层级正确（Root→Resolver→DataSource+Redis）+ 审计日志包含必要字段 + 脱敏规则生效
 
 - [ ] 24. 主入口与端到端集成
-  - [ ] 24.1 实现 main.go（cmd/server/main.go）：加载配置 → 初始化日志 → 初始化 TracingProvider → 初始化共享 Redis 客户端 → 注册适配器 → 初始化 DataSourceManager → 初始化 CacheLayer → 初始化 RateLimiter → 初始化 MetricsCollector → 初始化 HealthChecker → 构建中间件链（RequestID → BodyLimit → CORS → CSRF → Auth → AuthFailureLimiter → RateLimit → Compression）→ 启动 HTTP 服务器 → 优雅关闭
+  - [-] 24.1 实现 main.go（cmd/server/main.go）：加载配置 → 初始化日志 → 初始化 TracingProvider → 初始化共享 Redis 客户端 → 注册适配器 → 初始化 DataSourceManager → 初始化 CacheLayer → 初始化 RateLimiter → 初始化 MetricsCollector → 初始化 HealthChecker → 构建中间件链（RequestID → BodyLimit → CORS → CSRF → Auth → AuthFailureLimiter → RateLimit → Compression）→ 启动 HTTP 服务器 → 优雅关闭
     - _Requirements: 1.1, 1.4, 1.5_
   - [ ] 24.2 创建示例配置文件（config.yaml）：包含所有配置项的完整示例，与 requirements.md 附录中的 YAML 配置一致
     - _Requirements: 3.1_

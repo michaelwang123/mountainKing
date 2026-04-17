@@ -1,0 +1,190 @@
+# GraphQL Multi-DataSource API - Configuration File
+# All values shown are defaults unless noted otherwise.
+# Environment variables with GRAPHQL_ prefix override these values
+# (e.g., GRAPHQL_SERVER_PORT overrides server.port).
+
+# Server configuration
+server:
+  port: 8080
+  mode: production                    # production | development
+  max_request_body_size: 1MB
+  request_timeout: 30s
+  max_batch_queries: 10               # Maximum queries in a single batch request
+  allow_get_queries: false            # GET queries disabled in production (CSRF protection)
+
+# GraphQL engine configuration
+graphql:
+  introspection_enabled: false        # Disable in production to prevent schema leakage
+  max_query_complexity: 100
+  max_query_depth: 10
+  max_result_rows: 10000              # Maximum rows returned per query
+
+# Data source configuration
+datasources:
+  - name: analytics_db
+    type: starrocks
+    enabled: true
+    connection:
+      host: starrocks-fe
+      port: 9030
+      username: root
+      password: "${GRAPHQL_STARROCKS_PASSWORD}"
+      database: analytics
+    options:
+      pool_size: 20
+      connection_timeout: 5s
+      query_timeout: 30s
+      pool_acquire_timeout: 5s        # Connection pool acquire timeout
+      reconnect_interval: 5s          # Initial reconnect interval
+      max_reconnect_interval: 60s     # Maximum reconnect interval (exponential backoff cap)
+      allowed_tables:                  # Table/column whitelist (required for StarRocks)
+        orders:
+          columns: [order_id, user_id, amount, status, created_at]
+        users:
+          columns: [user_id, username, email, created_at]
+
+  - name: monitoring
+    type: prometheus
+    enabled: true
+    connection:
+      url: http://prometheus:9090
+    options:
+      query_timeout: 15s
+      max_data_points: 11000
+      reconnect_interval: 5s
+      max_reconnect_interval: 60s
+
+# Authentication configuration
+auth:
+  method: jwt                         # jwt | apikey
+  trusted_proxies:                    # Trusted proxy CIDRs for X-Forwarded-For extraction
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+  jwt:
+    algorithm: RS256                  # HS256 | RS256 | ES256 (RS256/ES256 recommended for production)
+    public_key_file: /etc/secrets/jwt-public.pem  # Required for RS256/ES256
+    # secret: "${GRAPHQL_JWT_SECRET}" # Required for HS256 (uncomment if using HS256)
+    issuer: my-auth-service
+  apikey:
+    keys:
+      - id: client-a
+        key: "${GRAPHQL_APIKEY_CLIENT_A}"
+        permissions:
+          datasources: [analytics_db, monitoring]
+          operations: [query]
+      - id: client-a-new              # API Key rotation: new key
+        key: "${GRAPHQL_APIKEY_CLIENT_A_NEW}"
+        permissions:
+          datasources: [analytics_db, monitoring]
+          operations: [query]
+      - id: client-a-old              # API Key rotation: old key with expiration
+        key: "${GRAPHQL_APIKEY_CLIENT_A_OLD}"
+        expires_at: "2026-06-01T00:00:00Z"
+        permissions:
+          datasources: [analytics_db]
+          operations: [query]
+
+# Rate limiting configuration
+rate_limit:
+  mode: local                         # local | distributed
+  requests_per_window: 100
+  window_size: 60s
+  redis:                              # Used when mode is "distributed"
+    addr: redis:6379
+    password: "${GRAPHQL_REDIS_PASSWORD}"
+
+# Cache configuration
+cache:
+  enabled: true
+  backend: memory                     # memory | redis
+  default_ttl: 60s
+  empty_result_ttl: 30s               # Short TTL for empty results (penetration protection)
+  ttl_jitter_percent: 10              # TTL jitter percentage (avalanche protection)
+  memory:
+    max_entries: 10000
+    max_memory_size: 256MB            # Dual limit with max_entries for LRU eviction
+  redis:
+    addr: redis:6379
+    password: "${GRAPHQL_REDIS_PASSWORD}"
+    db: 1
+  per_datasource:
+    analytics_db:
+      ttl: 300s
+    monitoring:
+      ttl: 30s
+
+# CORS configuration
+cors:
+  enabled: false
+  allowed_origins:
+    - "https://dashboard.example.com"
+  allowed_methods:
+    - GET
+    - POST
+    - OPTIONS
+  allowed_headers:
+    - Content-Type
+    - Authorization
+    - X-API-Key
+
+# Response compression
+compression:
+  enabled: true
+  min_size: 1KB
+
+# Logging configuration
+logging:
+  level: info                         # debug | info | warn | error
+  format: json
+  audit:
+    enabled: true
+    output: stdout                    # stdout | file
+    file_path: /var/log/api/audit.log
+
+# Sensitive data sanitization
+sanitization:
+  enabled: true
+  rules:
+    - pattern: "'[^']*'"             # SQL string literals
+      replacement: "'***'"
+    - pattern: "\\b\\d{4,}\\b"       # Numbers with 4+ digits
+      replacement: "***"
+
+# Prometheus metrics configuration
+metrics:
+  custom_labels:
+    env: production
+    cluster: cn-east-1
+    instance: "${HOSTNAME}"
+
+# OpenTelemetry distributed tracing
+tracing:
+  enabled: true
+  sampling_rate: 0.1
+  otlp:
+    endpoint: tempo:4317
+    protocol: grpc                    # grpc | http
+
+# Error retry configuration
+retry:
+  max_retries: 3
+  retry_interval: 100ms
+  backoff: exponential
+
+# Circuit breaker configuration
+circuit_breaker:
+  failure_threshold: 5
+  open_duration: 30s
+  half_open_max_requests: 1
+  success_threshold: 2
+
+# Auth failure brute-force protection
+auth_failure:
+  enabled: false
+  threshold: 10
+  window: 5m
+  ban_duration: 15m
+
+# Graceful shutdown configuration
+shutdown:
+  max_wait_time: 30s
