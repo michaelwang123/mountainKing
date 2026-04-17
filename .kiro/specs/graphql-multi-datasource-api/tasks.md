@@ -116,7 +116,7 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
   - 验证：golangci-lint 通过 + StarRocks/Prometheus 适配器通过 MockDataSource 单元测试 + SQL/PromQL 构建器属性测试通过
 
 
-- [x] 11. GraphQL Schema 与引擎
+- [ ] 11. GraphQL Schema 与引擎
   - [x] 11.1 定义 GraphQL Schema 文件：base.graphql（自定义标量 DateTime/JSON、分页类型 PageInfo、枚举 SortDirection/FilterOperator/LabelMatchType）、starrocks.graphql（StarRocksRow/Connection/Filter/OrderBy）、prometheus.graphql（PrometheusVector/Matrix/InstantResult/RangeResult/LabelFilter）、mutation.graphql（clearCache，描述注释说明仅支持管理类操作，需要 mutation 权限），不定义 Subscription 根类型
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.9, 2.10, 2.11, 2.12_
   - [x] 11.2 配置 gqlgen.yml 并执行代码生成（go generate）：Schema 文件路径、自定义标量映射（DateTime/JSON → internal/graphql/scalar）、resolver 结构配置
@@ -139,22 +139,22 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 9: Introspection 启用/禁用** — Validates: Requirements 2.6, 2.8
     - **Property 10: 不支持的操作类型被拒绝** — Validates: Requirements 2.11, 2.12
 
-- [ ] 12. HTTP 服务器与中间件层
+- [x] 12. HTTP 服务器与中间件层
   - [x] 12.1 实现 HTTP 服务器（server/server.go）：chi 路由注册（/graphql POST+GET、/playground、/health、/ready、/metrics），请求级超时 context（context.WithTimeout(request_timeout)），数据源查询级超时（min(query_timeout, 剩余时间)），查询复杂度限制和深度限制（gqlgen 内置），优雅关闭（SIGTERM/SIGINT → 停止接受新连接 → 等待 in-flight 请求(max_wait_time) → TracingProvider.Shutdown(独立 5s 超时) → 刷新 Metrics → DataSourceManager.CloseAll → Logger.Sync）
     - _Requirements: 1.1, 8.5, 8.6, 8.7, 8.8, 15.5, 15.6, 15.7, 15.8_
   - [x] 12.2 实现批量查询解析与调度（server/batch.go）：JSON 数组检测，max_batch_queries 校验，并行执行，结果数组返回
     - _Requirements: 1.9, 1.10_
   - [x] 12.3 实现 RequestID 中间件（middleware/requestid.go）：生成唯一请求 ID，注入 context 和响应头 X-Request-ID
     - _Requirements: 9.3_
-  - [~] 12.4 实现 BodyLimit 中间件（middleware/bodylimit.go）：请求体大小限制，超限返回 413
+  - [x] 12.4 实现 BodyLimit 中间件（middleware/bodylimit.go）：请求体大小限制，超限返回 413
     - _Requirements: 1.8_
-  - [~] 12.5 实现 CORS 中间件（middleware/cors.go）：根据配置启用/禁用，处理 Origin/Methods/Headers
+  - [x] 12.5 实现 CORS 中间件（middleware/cors.go）：根据配置启用/禁用，处理 Origin/Methods/Headers
     - _Requirements: 15.9, 15.10_
-  - [~] 12.6 实现 Compression 中间件（middleware/compression.go）：gzip 压缩，Accept-Encoding 检查，最小压缩阈值
+  - [x] 12.6 实现 Compression 中间件（middleware/compression.go）：gzip 压缩，Accept-Encoding 检查，最小压缩阈值
     - _Requirements: 15.11, 15.12_
-  - [~] 12.7 实现 CSRF 防护中间件（middleware/csrf.go）：生产模式禁用 GET 查询（allow_get_queries 默认 false），Content-Type application/json 检查
+  - [x] 12.7 实现 CSRF 防护中间件（middleware/csrf.go）：生产模式禁用 GET 查询（allow_get_queries 默认 false），Content-Type application/json 检查
     - _Design: CSRF 防护_
-  - [~] 12.8 编写 HTTP 端点行为属性测试
+  - [x] 12.8 编写 HTTP 端点行为属性测试
     - **Property 1: 有效 GraphQL 查询返回规范响应** — Validates: Requirements 1.2
     - **Property 2: 无效请求体返回 400** — Validates: Requirements 1.3
     - **Property 3: 超大请求体返回 413** — Validates: Requirements 1.8
@@ -163,14 +163,14 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 6: 批量查询结果数组长度一致** — Validates: Requirements 1.9
     - **Property 7: 超限批量查询返回 400** — Validates: Requirements 1.10
     - **Property 83: CSRF 防护 - GET 查询生产模式禁用** — Validates: Design - CSRF 防护
-  - [~] 12.9 编写错误响应与中间件属性测试
+  - [x] 12.9 编写错误响应与中间件属性测试
     - **Property 31: 错误响应结构** — Validates: Requirements 9.1, 9.8, 9.9
     - **Property 33: 请求 ID 唯一性与传播** — Validates: Requirements 9.3
     - **Property 34: 语法错误位置信息** — Validates: Requirements 9.4
     - **Property 80: HTTP 层错误结构化响应** — Validates: Design - 统一错误响应格式
     - **Property 62: CORS 配置** — Validates: Requirements 15.9, 15.10
     - **Property 63: gzip 压缩条件** — Validates: Requirements 15.11, 15.12
-  - [~] 12.10 编写超时与优雅关闭属性测试
+  - [x] 12.10 编写超时与优雅关闭属性测试
     - **Property 26: 单数据源查询超时取消** — Validates: Requirements 8.5
     - **Property 27: 总请求超时取消** — Validates: Requirements 8.6
     - **Property 28: 查询复杂度限制** — Validates: Requirements 8.7
@@ -182,24 +182,24 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
 - [ ] 13. Checkpoint - 确保 HTTP 服务器和 GraphQL 引擎端到端可用
   - 验证：golangci-lint 通过 + GraphQL 查询端到端可用（使用 MockDataSource）+ 中间件链正确 + 超时/优雅关闭行为正确
 
-- [ ] 14. 认证与授权
-  - [~] 14.1 实现 JWT 认证器（middleware/auth.go - JWTAuthenticator）：从 Authorization: Bearer 头提取 Token，验证签名（HS256/RS256/ES256，支持对称和非对称密钥）、过期时间（exp）、签发者（iss），返回 AuthIdentity
+- [x] 14. 认证与授权
+  - [x] 14.1 实现 JWT 认证器（middleware/auth.go - JWTAuthenticator）：从 Authorization: Bearer 头提取 Token，验证签名（HS256/RS256/ES256，支持对称和非对称密钥）、过期时间（exp）、签发者（iss），返回 AuthIdentity
     - _Requirements: 13.1, 13.7, 13.8_
-  - [~] 14.2 实现 API Key 认证器（middleware/auth.go - APIKeyAuthenticator）：从 X-API-Key 头提取，bcrypt 哈希比对（constant-time），过期检查，权限范围返回
+  - [x] 14.2 实现 API Key 认证器（middleware/auth.go - APIKeyAuthenticator）：从 X-API-Key 头提取，bcrypt 哈希比对（constant-time），过期检查，权限范围返回
     - _Requirements: 13.1, 13.9, 13.10, 13.11_
-  - [~] 14.3 实现授权检查（middleware/authz.go）：Authorizer 接口，检查 AuthIdentity 对目标数据源和操作类型（query/mutation）的权限
+  - [x] 14.3 实现授权检查（middleware/authz.go）：Authorizer 接口，检查 AuthIdentity 对目标数据源和操作类型（query/mutation）的权限
     - _Requirements: 13.4_
-  - [~] 14.4 实现 Auth 中间件集成：在 GraphQL 引擎之前执行认证，公共端点（/health, /ready, /metrics, /playground）豁免，401/403 错误返回
+  - [x] 14.4 实现 Auth 中间件集成：在 GraphQL 引擎之前执行认证，公共端点（/health, /ready, /metrics, /playground）豁免，401/403 错误返回
     - _Requirements: 13.2, 13.3, 13.5, 13.6_
-  - [~] 14.5 实现认证失败暴力破解防护（middleware/auth_failure_limiter.go）：IP 维度失败计数，超阈值封禁，可信代理 IP 提取（trusted_proxies + X-Forwarded-For，取最右侧非信任 IP）
+  - [x] 14.5 实现认证失败暴力破解防护（middleware/auth_failure_limiter.go）：IP 维度失败计数，超阈值封禁，可信代理 IP 提取（trusted_proxies + X-Forwarded-For，取最右侧非信任 IP）
     - _Design: 安全加固_
-  - [~] 14.6 编写认证属性测试
+  - [x] 14.6 编写认证属性测试
     - **Property 48: 缺失认证凭据返回 401** — Validates: Requirements 13.3
     - **Property 49: 权限不足返回 403** — Validates: Requirements 13.4
     - **Property 50: 公共端点豁免认证和限流** — Validates: Requirements 13.6, 14.6
     - **Property 51: JWT 过期 Token 返回 401 + token_expired** — Validates: Requirements 13.8
     - **Property 81: JWT 非对称签名验证** — Validates: Design - JWT 非对称签名支持
-  - [~] 14.7 编写授权与安全防护属性测试
+  - [x] 14.7 编写授权与安全防护属性测试
     - **Property 52: API Key 权限隔离** — Validates: Requirements 13.10
     - **Property 53: API Key 过期失效** — Validates: Requirements 13.11
     - **Property 76: 认证失败暴力破解防护** — Validates: Design - 安全加固
@@ -207,22 +207,22 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 87: 可信代理 IP 提取** — Validates: Design - 代理环境 IP 提取
 
 - [ ] 15. 请求限流
-  - [~] 15.1 初始化共享 Redis 客户端：统一的 go-redis/redis/v9 客户端实例，供分布式限流（15.3）、Redis 缓存（17.4）和 Redis tracing hook（21.5）共用，通过配置文件指定 Redis 地址和密码
+  - [-] 15.1 初始化共享 Redis 客户端：统一的 go-redis/redis/v9 客户端实例，供分布式限流（15.3）、Redis 缓存（17.4）和 Redis tracing hook（21.5）共用，通过配置文件指定 Redis 地址和密码
     - _Design: Redis 客户端共享_
-  - [~] 15.2 实现本地限流器（ratelimit/local.go）：KeyedRateLimiter，使用 golang.org/x/time/rate，按 key 维度独立令牌桶，maxEntries=100000 防护，后台清理超过 2×window_size 未访问的 limiter
+  - [ ] 15.2 实现本地限流器（ratelimit/local.go）：KeyedRateLimiter，使用 golang.org/x/time/rate，按 key 维度独立令牌桶，maxEntries=100000 防护，后台清理超过 2×window_size 未访问的 limiter
     - _Requirements: 14.1, 14.2_
-  - [~] 15.3 实现分布式限流器（ratelimit/distributed.go）：Redis + Lua 脚本原子令牌桶操作
+  - [ ] 15.3 实现分布式限流器（ratelimit/distributed.go）：Redis + Lua 脚本原子令牌桶操作
     - _Requirements: 14.7, 14.8_
-  - [~] 15.4 实现降级包装器（ratelimit/fallback.go）：FallbackRateLimiter，Redis 不可用时降级为本地模式，后台恢复探测（probeInterval=30s）
+  - [ ] 15.4 实现降级包装器（ratelimit/fallback.go）：FallbackRateLimiter，Redis 不可用时降级为本地模式，后台恢复探测（probeInterval=30s）
     - _Requirements: 14.9_
-  - [~] 15.5 实现限流中间件（middleware/ratelimit.go）：限流 Key 优先级（API Key ID > JWT sub > IP），批量查询按实际查询数计数，公共端点豁免，响应头 X-RateLimit-Limit/Remaining/Reset（所有非公共端点请求均包含）
+  - [ ] 15.5 实现限流中间件（middleware/ratelimit.go）：限流 Key 优先级（API Key ID > JWT sub > IP），批量查询按实际查询数计数，公共端点豁免，响应头 X-RateLimit-Limit/Remaining/Reset（所有非公共端点请求均包含）
     - _Requirements: 1.11, 14.1, 14.3, 14.4, 14.5, 14.6_
-  - [~] 15.6 编写限流核心属性测试
+  - [ ] 15.6 编写限流核心属性测试
     - **Property 56: 令牌桶限流** — Validates: Requirements 14.1, 14.2, 14.3, 14.4
     - **Property 57: 限流响应头始终存在** — Validates: Requirements 14.4
     - **Property 8: 批量查询按实际查询数限流** — Validates: Requirements 1.11
     - **Property 93: 限流 Key 优先级** — Validates: Design - 限流 Key 选择策略
-  - [~] 15.7 编写限流降级与防护属性测试
+  - [ ] 15.7 编写限流降级与防护属性测试
     - **Property 58: 分布式限流 Redis 降级** — Validates: Requirements 14.9
     - **Property 78: 分布式限流降级恢复** — Validates: Design - 降级恢复机制
     - **Property 96: KeyedRateLimiter 最大 Key 数量限制** — Validates: Design - DDoS 内存防护
@@ -231,26 +231,26 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
   - 验证：golangci-lint 通过 + JWT/API Key 认证正确 + 授权检查正确 + 限流（本地+分布式+降级）行为正确 + 暴力破解防护生效
 
 - [ ] 17. 缓存层
-  - [~] 17.1 实现 Cache 接口与缓存 Key 生成（cache/cache.go, cache/key.go）：Cache 接口（Get/Set/Delete/DeleteByPrefix/Clear），CacheKeyGenerator（xxhash64 + 数据源前缀 cache:{datasource}:{hash}）
+  - [ ] 17.1 实现 Cache 接口与缓存 Key 生成（cache/cache.go, cache/key.go）：Cache 接口（Get/Set/Delete/DeleteByPrefix/Clear），CacheKeyGenerator（xxhash64 + 数据源前缀 cache:{datasource}:{hash}）
     - _Requirements: 16.3_
-  - [~] 17.2 实现查询规范化（cache/normalize.go）：去除多余空格/换行/注释，统一关键字大小写
+  - [ ] 17.2 实现查询规范化（cache/normalize.go）：去除多余空格/换行/注释，统一关键字大小写
     - _Design: 缓存命中率优化_
-  - [~] 17.3 实现内存缓存后端（cache/memory.go）：基于 hashicorp/golang-lru/v2，max_entries + max_memory_size 双重限制，LRU 淘汰，gob 序列化
+  - [ ] 17.3 实现内存缓存后端（cache/memory.go）：基于 hashicorp/golang-lru/v2，max_entries + max_memory_size 双重限制，LRU 淘汰，gob 序列化
     - _Requirements: 16.2, 16.8_
-  - [~] 17.4 实现 Redis 缓存后端（cache/redis.go）：gob 序列化，SCAN + DEL 按前缀删除（异步执行，禁止 KEYS 命令），复用 task 15.1 的共享 Redis 客户端
+  - [ ] 17.4 实现 Redis 缓存后端（cache/redis.go）：gob 序列化，SCAN + DEL 按前缀删除（异步执行，禁止 KEYS 命令），复用 task 15.1 的共享 Redis 客户端
     - _Requirements: 16.2_
-  - [~] 17.5 实现 Cache Layer（cache/layer.go）：GetOrLoad（singleflight 击穿防护），TTL + jitter 雪崩防护，空结果短 TTL 穿透防护，gob 反序列化失败恢复（删除损坏条目 + 回源 + WARN 日志），仅缓存 Query 操作，extensions.cache=false 绕过，totalCount 与数据结果同一缓存条目
+  - [ ] 17.5 实现 Cache Layer（cache/layer.go）：GetOrLoad（singleflight 击穿防护），TTL + jitter 雪崩防护，空结果短 TTL 穿透防护，gob 反序列化失败恢复（删除损坏条目 + 回源 + WARN 日志），仅缓存 Query 操作，extensions.cache=false 绕过，totalCount 与数据结果同一缓存条目
     - _Requirements: 16.1, 16.4, 16.5, 16.7, 16.10, 16.11, 16.12_
-  - [~] 17.6 实现缓存清除（ClearByDatasource 和 ClearAll 方法，供 Mutation Resolver 调用）
+  - [ ] 17.6 实现缓存清除（ClearByDatasource 和 ClearAll 方法，供 Mutation Resolver 调用）
     - _Requirements: 16.9_
-  - [~] 17.7 编写缓存核心属性测试
+  - [ ] 17.7 编写缓存核心属性测试
     - **Property 64: 缓存 Key 确定性** — Validates: Requirements 16.3
     - **Property 65: 客户端绕过缓存** — Validates: Requirements 16.5
     - **Property 66: 仅缓存 Query 操作** — Validates: Requirements 16.7
     - **Property 67: LRU 缓存淘汰** — Validates: Requirements 16.8
     - **Property 68: 缓存清除操作** — Validates: Requirements 16.9
     - **Property 77: 缓存 Key 查询规范化** — Validates: Design - 缓存命中率优化
-  - [~] 17.8 编写缓存防护与容错属性测试
+  - [ ] 17.8 编写缓存防护与容错属性测试
     - **Property 69: 缓存穿透防护** — Validates: Requirements 16.10
     - **Property 70: 缓存雪崩防护 - TTL 抖动** — Validates: Requirements 16.11
     - **Property 71: 缓存击穿防护 - Singleflight** — Validates: Requirements 16.12
@@ -259,38 +259,38 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 86: 缓存 Gob 反序列化失败恢复** — Validates: Design - 缓存容错
 
 - [ ] 18. 健康检查
-  - [~] 18.1 实现 Health Checker（health/health.go）：LivenessCheck（/health，所有核心组件正常→200，异常→503），ReadinessCheck（/ready，至少一个数据源可用→200，全部不可用→503），响应包含版本信息和构建时间
+  - [ ] 18.1 实现 Health Checker（health/health.go）：LivenessCheck（/health，所有核心组件正常→200，异常→503），ReadinessCheck（/ready，至少一个数据源可用→200，全部不可用→503），响应包含版本信息和构建时间
     - _Requirements: 15.1, 15.2, 15.3, 15.4_
-  - [~] 18.2 编写健康检查属性测试
+  - [ ] 18.2 编写健康检查属性测试
     - **Property 59: 健康检查状态码** — Validates: Requirements 15.3, 15.4
 
 - [ ] 19. Checkpoint - 确保缓存和健康检查就绪
   - 验证：golangci-lint 通过 + 缓存（内存+Redis）读写正确 + 缓存防护（穿透/雪崩/击穿）生效 + 健康检查端点正确
 
 - [ ] 20. 可观测性 - Prometheus 指标
-  - [~] 20.1 实现 MetricsCollector（observability/metrics.go）：注册所有 Prometheus 指标（graphql_request_duration_seconds, graphql_requests_total, graphql_requests_in_flight, graphql_datasource_query_duration_seconds, graphql_datasource_connection_pool_active/idle/waiting, graphql_errors_total, graphql_cache_hits_total, graphql_cache_misses_total），自定义 Histogram 桶边界（requestDuration: 10ms-10s，dsQueryDuration: 5ms-5s），自定义标签附加，暴露 /metrics 端点
+  - [ ] 20.1 实现 MetricsCollector（observability/metrics.go）：注册所有 Prometheus 指标（graphql_request_duration_seconds, graphql_requests_total, graphql_requests_in_flight, graphql_datasource_query_duration_seconds, graphql_datasource_connection_pool_active/idle/waiting, graphql_errors_total, graphql_cache_hits_total, graphql_cache_misses_total），自定义 Histogram 桶边界（requestDuration: 10ms-10s，dsQueryDuration: 5ms-5s），自定义标签附加，暴露 /metrics 端点
     - _Requirements: 8.10, 11.1-11.12, 16.6_
-  - [~] 20.2 编写指标属性测试
+  - [ ] 20.2 编写指标属性测试
     - **Property 39: Prometheus 指标注册完整性** — Validates: Requirements 11.3-11.10
     - **Property 40: 指标命名规范** — Validates: Requirements 11.11
     - **Property 41: 自定义标签附加** — Validates: Requirements 11.12
 
 - [ ] 21. 可观测性 - OpenTelemetry 链路追踪
-  - [~] 21.1 实现 TracingProvider（observability/tracing.go）：初始化 TracerProvider（OTLP gRPC/HTTP exporter），采样率配置（默认 1.0），NoopTracerProvider（disabled），Shutdown 独立 5s 超时
+  - [ ] 21.1 实现 TracingProvider（observability/tracing.go）：初始化 TracerProvider（OTLP gRPC/HTTP exporter），采样率配置（默认 1.0），NoopTracerProvider（disabled），Shutdown 独立 5s 超时
     - _Requirements: 12.1, 12.2, 12.10, 12.11, 12.12, 12.13_
-  - [~] 21.2 集成请求级 Root Span：名称格式 `GraphQL {operation_type} {operation_name}`，属性 graphql.operation.name/type, http.method, http.url
+  - [ ] 21.2 集成请求级 Root Span：名称格式 `GraphQL {operation_type} {operation_name}`，属性 graphql.operation.name/type, http.method, http.url
     - _Requirements: 12.3, 12.4_
-  - [~] 21.3 集成 Resolver 级子 Span：名称格式 `Resolver {field_name}`，属性 graphql.field.name/type, graphql.datasource
+  - [ ] 21.3 集成 Resolver 级子 Span：名称格式 `Resolver {field_name}`，属性 graphql.field.name/type, graphql.datasource
     - _Requirements: 12.5_
-  - [~] 21.4 集成数据源查询级子 Span：StarRocks Query（db.system=starrocks, db.statement 经脱敏处理），Prometheus Query（db.system=prometheus, db.statement）
+  - [ ] 21.4 集成数据源查询级子 Span：StarRocks Query（db.system=starrocks, db.statement 经脱敏处理），Prometheus Query（db.system=prometheus, db.statement）
     - _Requirements: 12.6, 12.7_
-  - [~] 21.5 实现 Redis 操作 tracing hook：使用 go-redis AddHook 机制，在 ProcessHook 中创建 Span（名称 `Redis {command}`，属性 db.system=redis, db.operation, net.peer.name），复用 task 15.1 的共享 Redis 客户端
+  - [ ] 21.5 实现 Redis 操作 tracing hook：使用 go-redis AddHook 机制，在 ProcessHook 中创建 Span（名称 `Redis {command}`，属性 db.system=redis, db.operation, net.peer.name），复用 task 15.1 的共享 Redis 客户端
     - _Design: Redis 可观测性_
-  - [~] 21.6 实现 W3C Trace Context 传播：入站 traceparent 头提取，出站请求注入 traceparent
+  - [ ] 21.6 实现 W3C Trace Context 传播：入站 traceparent 头提取，出站请求注入 traceparent
     - _Requirements: 12.8, 12.9_
-  - [~] 21.7 实现错误 Span 状态记录和 Trace ID 关联：错误时设置 Span Error 状态 + Event，trace_id 注入日志和 extensions.traceId
+  - [ ] 21.7 实现错误 Span 状态记录和 Trace ID 关联：错误时设置 Span Error 状态 + Event，trace_id 注入日志和 extensions.traceId
     - _Requirements: 12.14, 12.15, 12.16, 12.17_
-  - [~] 21.8 编写链路追踪属性测试
+  - [ ] 21.8 编写链路追踪属性测试
     - **Property 42: Root Span 创建与属性** — Validates: Requirements 12.3, 12.4
     - **Property 43: Resolver Span 创建与属性** — Validates: Requirements 12.5
     - **Property 44: 数据源查询 Span 创建与属性** — Validates: Requirements 12.6, 12.7
@@ -300,11 +300,11 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 89: Redis 操作 Span 创建** — Validates: Design - Redis 可观测性
 
 - [ ] 22. 审计与脱敏
-  - [~] 22.1 实现审计日志（audit/audit.go）：记录认证主体标识、操作时间、操作类型、目标数据源、请求结果，独立于应用日志输出
+  - [ ] 22.1 实现审计日志（audit/audit.go）：记录认证主体标识、操作时间、操作类型、目标数据源、请求结果，独立于应用日志输出
     - _Requirements: 13.12_
-  - [~] 22.2 实现敏感信息脱敏（sanitize/sanitize.go）：正则替换 SQL 字符串字面量和数值参数，应用于日志和 Trace Span 的 db.statement
+  - [ ] 22.2 实现敏感信息脱敏（sanitize/sanitize.go）：正则替换 SQL 字符串字面量和数值参数，应用于日志和 Trace Span 的 db.statement
     - _Requirements: 13.13_
-  - [~] 22.3 编写审计与脱敏属性测试
+  - [ ] 22.3 编写审计与脱敏属性测试
     - **Property 54: 审计日志完整性** — Validates: Requirements 13.12
     - **Property 55: 敏感信息脱敏** — Validates: Requirements 13.13
 
@@ -312,30 +312,30 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
   - 验证：golangci-lint 通过 + /metrics 端点返回所有指标 + Tracing Span 层级正确（Root→Resolver→DataSource+Redis）+ 审计日志包含必要字段 + 脱敏规则生效
 
 - [ ] 24. 主入口与端到端集成
-  - [~] 24.1 实现 main.go（cmd/server/main.go）：加载配置 → 初始化日志 → 初始化 TracingProvider → 初始化共享 Redis 客户端 → 注册适配器 → 初始化 DataSourceManager → 初始化 CacheLayer → 初始化 RateLimiter → 初始化 MetricsCollector → 初始化 HealthChecker → 构建中间件链（RequestID → BodyLimit → CORS → CSRF → Auth → AuthFailureLimiter → RateLimit → Compression）→ 启动 HTTP 服务器 → 优雅关闭
+  - [ ] 24.1 实现 main.go（cmd/server/main.go）：加载配置 → 初始化日志 → 初始化 TracingProvider → 初始化共享 Redis 客户端 → 注册适配器 → 初始化 DataSourceManager → 初始化 CacheLayer → 初始化 RateLimiter → 初始化 MetricsCollector → 初始化 HealthChecker → 构建中间件链（RequestID → BodyLimit → CORS → CSRF → Auth → AuthFailureLimiter → RateLimit → Compression）→ 启动 HTTP 服务器 → 优雅关闭
     - _Requirements: 1.1, 1.4, 1.5_
-  - [~] 24.2 创建示例配置文件（config.yaml）：包含所有配置项的完整示例，与 requirements.md 附录中的 YAML 配置一致
+  - [ ] 24.2 创建示例配置文件（config.yaml）：包含所有配置项的完整示例，与 requirements.md 附录中的 YAML 配置一致
     - _Requirements: 3.1_
 
 - [ ] 25. Checkpoint - 确保端到端集成可用
   - 验证：golangci-lint 通过 + 服务可启动 + GraphQL 查询端到端可用（使用 MockDataSource）+ 所有中间件按正确顺序执行 + 覆盖率 ≥ 70%
 
 - [ ] 26. 容器化与部署
-  - [~] 26.1 创建多阶段 Dockerfile：构建阶段（Go 编译）+ 最终阶段（scratch/distroless），非 root 用户（UID≠0），构建参数注入版本号和构建时间（--build-arg）
+  - [ ] 26.1 创建多阶段 Dockerfile：构建阶段（Go 编译）+ 最终阶段（scratch/distroless），非 root 用户（UID≠0），构建参数注入版本号和构建时间（--build-arg）
     - _Requirements: 18.1, 18.2, 18.3_
-  - [~] 26.2 创建 Kubernetes 部署清单：Deployment（含 startupProbe(failureThreshold:30,periodSeconds:2) + livenessProbe(/health) + readinessProbe(/ready)、资源 requests/limits 通过 ConfigMap 管理）、Service、ConfigMap、HPA（基于 graphql_requests_in_flight 自定义指标）
+  - [ ] 26.2 创建 Kubernetes 部署清单：Deployment（含 startupProbe(failureThreshold:30,periodSeconds:2) + livenessProbe(/health) + readinessProbe(/ready)、资源 requests/limits 通过 ConfigMap 管理）、Service、ConfigMap、HPA（基于 graphql_requests_in_flight 自定义指标）
     - _Requirements: 18.4, 18.5, 18.6_
-  - [~] 26.3 创建 Docker Compose 集成测试环境（deploy/docker-compose.yaml）：StarRocks FE/BE、Prometheus、Redis
+  - [ ] 26.3 创建 Docker Compose 集成测试环境（deploy/docker-compose.yaml）：StarRocks FE/BE、Prometheus、Redis
     - _Requirements: 17.11_
-  - [~] 26.4 创建 CI/CD 流水线配置示例（GitHub Actions）：lint（golangci-lint）、单元测试、覆盖率报告、镜像构建和推送
+  - [ ] 26.4 创建 CI/CD 流水线配置示例（GitHub Actions）：lint（golangci-lint）、单元测试、覆盖率报告、镜像构建和推送
     - _Requirements: 17.3, 18.7_
 
 - [ ] 27. 性能基准测试
-  - [~] 27.1 编写性能基准测试（使用 Go testing.B）：单数据源简单查询延迟、跨数据源混合查询延迟、并发查询吞吐量、缓存命中/未命中场景对比，验证需求 8 中定义的延迟目标（P95 单数据源 ≤200ms，P95 混合查询 ≤500ms）
+  - [ ] 27.1 编写性能基准测试（使用 Go testing.B）：单数据源简单查询延迟、跨数据源混合查询延迟、并发查询吞吐量、缓存命中/未命中场景对比，验证需求 8 中定义的延迟目标（P95 单数据源 ≤200ms，P95 混合查询 ≤500ms）
     - _Requirements: 17.12_
 
 - [ ] 28. 代码质量收尾
-  - [~] 28.1 添加 GoDoc 注释：所有导出函数、类型和接口添加符合 GoDoc 规范的注释，关键业务逻辑代码块添加行内注释
+  - [ ] 28.1 添加 GoDoc 注释：所有导出函数、类型和接口添加符合 GoDoc 规范的注释，关键业务逻辑代码块添加行内注释
     - _Requirements: 17.1, 17.2_
 
 - [ ] 29. Final checkpoint - 确保所有测试通过，代码质量达标
