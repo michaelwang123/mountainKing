@@ -11,6 +11,12 @@
 - 全面的可观测性（Prometheus 指标、OpenTelemetry 链路追踪、结构化日志）
 - Kubernetes 原生部署支持
 
+TLS/HTTPS 策略：
+- 本服务不直接处理 TLS 终止，TLS 由前置的负载均衡器（如 Nginx Ingress、AWS ALB、Envoy）负责
+- 服务仅监听 HTTP 端口，通过 Kubernetes Service 暴露
+- 如需服务间 mTLS（如 Istio Service Mesh），由 Sidecar Proxy 透明处理，应用层无需感知
+- 部署文档中应明确标注 TLS 终止点，避免实现时遗漏加密需求
+
 技术栈选型：
 | 组件 | 技术选型 | 理由 |
 | --- | --- | --- |
@@ -68,6 +74,10 @@ graph TB
 > **DataLoader 与 Cache Layer 交互机制：** DataLoader 将同一请求中针对同一数据源的多个 resolver 调用批量合并为一个 `QueryRequest`。合并后的每个 `QueryRequest` 独立经过 Cache Layer 进行缓存查找——即每个合并后的查询作为一个独立的缓存 key，而非整个批次共享一个 key。这样设计的好处是：不同请求中包含相同查询参数的子查询可以命中缓存，最大化缓存复用率。DataLoader 的批量窗口为 1ms（可配置），最大批量大小为 100（可配置）。
 
 > **totalCount 缓存策略：** 当 `NeedCount=true` 时，数据查询和 COUNT 查询的结果绑定为同一个缓存条目（`QueryResult` 包含 `Data` 和 `TotalCount`），确保两者 TTL 同步过期，避免 totalCount 与实际返回行数不一致。
+
+> **DataLoader 生命周期：** DataLoader 实例必须是 per-request 的（每个 HTTP 请求创建独立的 DataLoader 实例）。禁止跨请求共享 DataLoader，否则会导致数据泄漏——请求 A 的缓存结果可能被请求 B 读取。实现时应在中间件层为每个请求创建 DataLoader 并注入 context，Resolver 通过 context 获取当前请求的 DataLoader 实例。
+
+> **请求超时与查询超时组合机制：** 外层使用 `context.WithTimeout(ctx, request_timeout)` 创建请求级超时 context 作为所有操作的父 context。每个数据源查询使用 `context.WithTimeout(parentCtx, min(query_timeout, parentCtx.Deadline()-time.Now()))` 创建子 context，确保单个数据源查询不会超过其自身的 `query_timeout`，同时也不会超过请求级总超时。当父 context 超时取消时，所有子 context 自动取消。
 
 ### 请求处理流程
 
@@ -178,6 +188,7 @@ internal/
     auth.go                    # JWT / API Key 认证中间件
     authz.go                   # 授权检查（数据源权限）
     auth_failure_limiter.go    # 认证失败暴力破解防护
+    csrf.go                    # CSRF 防护中间件（GET 查询限制）
     ratelimit.go               # 令牌桶限流中间件
     cors.go                    # CORS 中间件
     compression.go             # gzip 压缩中间件
@@ -281,6 +292,13 @@ go.sum
 - 后续请求客户端仅发送哈希值，服务端从缓存中查找对应查询文本
 - 显著减少网络传输量，尤其适合大型查询
 - 通过配置 `graphql.apq_enabled` 启用/禁用（默认禁用）
+
+APQ 存储后端策略：
+- APQ 查询文本缓存复用 Cache Layer 的后端配置（`cache.backend`）
+- `memory` 后端：每个实例独立维护 APQ 缓存，新实例启动时有冷启动惩罚（首次请求需发送完整查询文本），适用于单实例或查询种类有限的场景
+- `redis` 后端：所有实例共享 APQ 缓存，无冷启动问题，推荐多实例部署使用
+- APQ 缓存条目无 TTL（持久化），通过 LRU 淘汰策略管理容量
+- APQ 缓存 key 格式：`apq:{sha256_hash}`
 
 
 ## 组件与接口
@@ -512,6 +530,10 @@ func (cl *CacheLayer) ClearAll(ctx context.Context) error
 
 > **缓存序列化格式：** 缓存条目使用 `encoding/gob` 格式序列化存储（内存缓存和 Redis 缓存均适用）。相比 JSON，gob 序列化/反序列化性能提升 2-5 倍，且原生支持 Go 类型。Redis 缓存后端存储的是 gob 编码后的 `[]byte`。
 
+> **Gob 反序列化失败处理：** 当缓存条目的 gob 反序列化失败时（如数据损坏、Schema 变更导致类型不兼容），Cache Layer 应：1) 删除该损坏的缓存条目；2) 回源查询数据源获取最新数据；3) 记录 WARN 日志（包含缓存 key 和错误信息）。不应因单个缓存条目损坏导致请求失败。
+
+> **内存缓存容量控制：** 除 `max_entries`（最大条目数）外，内存缓存还支持 `max_memory_size`（最大内存占用，默认 256MB）配置。当任一限制达到上限时触发 LRU 淘汰。内存占用通过 gob 编码后的 `[]byte` 长度累加估算（不含 Go 对象开销），提供近似但低开销的内存控制。
+
 > **Singleflight 多实例限制：** 当前 singleflight 仅在单实例内生效。多实例部署时，同一缓存 key 的并发未命中请求仍可能从多个实例同时回源。对于使用 Redis 缓存后端的场景，可通过 Redis 分布式锁（`SET NX EX`）实现跨实例的 singleflight，但会增加一次 Redis 往返延迟。当前版本接受此限制，后续可按需扩展。
 
 ### 5. Auth Middleware（认证与授权分离）
@@ -546,9 +568,14 @@ type AuthError struct {
 // - 从 Authorization: Bearer <token> 头提取 Token
 // - 验证签名（使用 golang-jwt/jwt/v5）、过期时间（exp）、签发者（iss）
 // - 过期返回 AUTH_TOKEN_EXPIRED，签名无效返回 AUTH_TOKEN_INVALID
+// - 支持对称签名（HMAC-SHA256）和非对称签名（RS256/ES256）
+// - 非对称签名模式下，API 服务仅需配置公钥即可验证 Token，私钥留在认证服务
+// - 推荐生产环境使用非对称签名，便于密钥轮换且降低密钥泄露风险
 type JWTAuthenticator struct {
-    secret []byte
-    issuer string
+    algorithm string          // "HS256" | "RS256" | "ES256"
+    secret    []byte          // HMAC 对称密钥（algorithm=HS256 时使用）
+    publicKey crypto.PublicKey // RSA/ECDSA 公钥（algorithm=RS256/ES256 时使用）
+    issuer    string
 }
 
 // APIKeyAuthenticator API Key 认证实现
@@ -573,13 +600,21 @@ type APIKeyEntry struct {
 // 独立于正常请求限流，专门针对认证失败场景
 // 同一 IP 在 auth_failure_window 内认证失败超过 auth_failure_threshold 次，
 // 封禁该 IP auth_ban_duration 时间
+//
+// 代理/NAT 环境下的 IP 提取策略：
+// - 配置 trusted_proxies 列表（CIDR 格式，如 ["10.0.0.0/8", "172.16.0.0/12"]）
+// - 当请求来自 trusted_proxies 时，从 X-Forwarded-For 头提取真实客户端 IP（取最右侧非信任 IP）
+// - 当请求不来自 trusted_proxies 时，直接使用 RemoteAddr
+// - 未配置 trusted_proxies 时，始终使用 RemoteAddr（安全默认值）
+// - IP 提取逻辑同时应用于 AuthFailureLimiter 和 RateLimiter
 type AuthFailureLimiter struct {
-    mu        sync.RWMutex
-    failures  map[string]*failureRecord // IP → 失败记录
-    threshold int                       // 失败次数阈值（默认 10）
-    window    time.Duration             // 统计窗口（默认 5 分钟）
-    banDur    time.Duration             // 封禁时长（默认 15 分钟）
-    stopCh    chan struct{}
+    mu             sync.RWMutex
+    failures       map[string]*failureRecord // IP → 失败记录
+    threshold      int                       // 失败次数阈值（默认 10）
+    window         time.Duration             // 统计窗口（默认 5 分钟）
+    banDur         time.Duration             // 封禁时长（默认 15 分钟）
+    trustedProxies []*net.IPNet              // 可信代理 CIDR 列表
+    stopCh         chan struct{}
 }
 
 type failureRecord struct {
@@ -597,6 +632,16 @@ func (afl *AuthFailureLimiter) RecordFailure(ip string)
 // startCleanup 后台 goroutine：定期清理过期的失败记录和封禁记录
 func (afl *AuthFailureLimiter) startCleanup()
 ```
+
+### 5a. CSRF 防护
+
+HTTP GET 查询端点天然容易受 CSRF 攻击（浏览器可通过 `<img>` 或 `<script>` 标签发起 GET 请求）。防护策略：
+
+- 生产模式下，GET 查询端点默认禁用（仅允许 POST），通过配置 `server.allow_get_queries: false`（默认）控制
+- 开发模式下，GET 查询端点默认启用（方便 Playground 和调试）
+- 即使启用 GET 查询，Auth 中间件仍要求有效认证凭据，未认证的 GET 请求返回 401
+- POST 请求要求 `Content-Type: application/json`，浏览器简单表单提交（`application/x-www-form-urlencoded`）无法触发，提供天然 CSRF 防护
+- 可选：支持配置自定义请求头检查（如 `X-Requested-With`），作为额外的 CSRF 防护层
 
 ### 6. Rate Limiter（本地 + 分布式双模式）
 
@@ -739,8 +784,13 @@ type MetricsCollector struct {
 
 // 连接池指标采集说明:
 // - StarRocks (database/sql): 通过 db.Stats() 获取 InUse/Idle/WaitCount
-// - Prometheus (HTTP 客户端): 通过 http.Transport 的 ConnPool 统计，
-//   或使用自定义 RoundTripper 包装器跟踪活跃/空闲连接数
+// - Prometheus (HTTP 客户端): 使用自定义 InstrumentedTransport 包装 http.Transport，
+//   通过 RoundTrip 方法拦截请求，维护 atomic 计数器跟踪活跃/空闲连接数：
+//   - 请求发起时 activeConns.Add(1)
+//   - 请求完成时 activeConns.Add(-1)
+//   - 空闲连接数通过 MaxIdleConnsPerHost - activeConns 估算
+//   - 等待连接数通过 channel 长度或 atomic 计数器跟踪
+//   InstrumentedTransport 同时为每个 HTTP 请求创建 OpenTelemetry Span（见下方 Redis Span 说明）
 
 // TracingProvider OpenTelemetry 追踪初始化
 type TracingProvider struct {
@@ -756,6 +806,8 @@ func (tp *TracingProvider) Init(cfg TracingConfig) error
 // Shutdown 刷新所有未导出的 Trace 数据并关闭 exporter
 func (tp *TracingProvider) Shutdown(ctx context.Context) error
 ```
+
+> **Redis 操作 Span：** 当使用 Redis 作为缓存后端或分布式限流存储时，每个 Redis 操作（GET/SET/DELETE/EVAL 等）应创建独立的 OpenTelemetry Span，避免链路追踪中出现"黑洞"。Span 名称格式为 `Redis {command}`，属性包含 `db.system`（值为 redis）、`db.operation`（如 GET、SET、EVAL）、`net.peer.name`（Redis 地址）。实现方式：使用 go-redis 的 Hook 机制（`redis.Client.AddHook`）注入 tracing hook，在 `ProcessHook` 中创建和关闭 Span。
 
 ### 9. Context 传播
 
@@ -850,6 +902,19 @@ type HotReloader struct {
 //
 // 热更新线程安全: 使用 atomic.Value 或 sync.RWMutex 保护运行时配置读取
 // 热更新失败: 保留旧配置，记录 ERROR 日志，不影响服务运行
+//
+// 热更新具体线程安全策略:
+// - logging.level: 使用 zap.AtomicLevel.SetLevel()，原子操作，无需额外同步
+// - rate_limit.*: 构建新的 RateLimiter 实例，通过 atomic.Value.Store() 原子替换引用，
+//   旧实例在无引用后由 GC 回收，替换期间无请求丢失
+// - cache.*.ttl: 使用 sync.RWMutex 保护 ttlConfig map 的读写
+//
+// Kubernetes ConfigMap 更新兼容:
+// Kubernetes 更新 ConfigMap 时使用符号链接原子替换（..data → ..data_tmp → rename），
+// 但 fsnotify 可能在替换过程中收到多个事件（REMOVE + CREATE + CHMOD）。
+// HotReloader 应使用 debounce 机制（默认 500ms），在最后一个文件事件后等待 500ms
+// 再执行配置重载，避免读取到中间状态的配置文件。
+// 如果 debounce 窗口内配置文件不可读，跳过本次重载并记录 WARN 日志。
 ```
 
 ### 13. 请求日志分级策略
@@ -1061,9 +1126,13 @@ type Query {
 """
 本服务仅支持管理类 Mutation 操作，不支持数据写入。
 所有数据获取均通过 Query 完成。
+Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
 """
 type Mutation {
-  """清除缓存。指定 datasource 清除特定数据源缓存，不指定则清除全部缓存。"""
+  """
+  清除缓存。指定 datasource 清除特定数据源缓存，不指定则清除全部缓存。
+  需要认证主体具有 "mutation" 操作权限，否则返回 AUTH_INSUFFICIENT_PERMISSION 错误。
+  """
   clearCache(datasource: String): Boolean!
 }
 ```
@@ -1104,9 +1173,10 @@ type DataSourceConfig struct {
 
 // AuthConfig 认证配置
 type AuthConfig struct {
-    Method string        `mapstructure:"method"` // "jwt" | "apikey"
-    JWT    JWTConfig     `mapstructure:"jwt"`
-    APIKey APIKeyConfig  `mapstructure:"apikey"`
+    Method         string           `mapstructure:"method"` // "jwt" | "apikey"
+    JWT            JWTConfig        `mapstructure:"jwt"`
+    APIKey         APIKeyConfig     `mapstructure:"apikey"`
+    TrustedProxies []string         `mapstructure:"trusted_proxies"` // 可信代理 CIDR 列表，如 ["10.0.0.0/8"]
 }
 
 // CacheConfig 缓存配置
@@ -1118,6 +1188,14 @@ type CacheConfig struct {
     TTLJitterPercent int                               `mapstructure:"ttl_jitter_percent"`
     Memory           MemoryCacheConfig                 `mapstructure:"memory"`
     Redis            RedisCacheConfig                  `mapstructure:"redis"`
+    PerDatasource    map[string]DatasourceCacheConfig   `mapstructure:"per_datasource"`
+}
+
+// MemoryCacheConfig 内存缓存配置
+type MemoryCacheConfig struct {
+    MaxEntries    int    `mapstructure:"max_entries"`     // 最大条目数（默认 10000）
+    MaxMemorySize string `mapstructure:"max_memory_size"` // 最大内存占用（默认 "256MB"），任一限制达到上限时触发 LRU 淘汰
+}
     PerDatasource    map[string]DatasourceCacheConfig   `mapstructure:"per_datasource"`
 }
 
@@ -1149,6 +1227,7 @@ type ServerConfig struct {
     MaxRequestBodySize string        `mapstructure:"max_request_body_size"`
     RequestTimeout     time.Duration `mapstructure:"request_timeout"`
     MaxBatchQueries    int           `mapstructure:"max_batch_queries"`
+    AllowGetQueries    bool          `mapstructure:"allow_get_queries"` // 是否允许 GET 查询（默认 false，开发模式下默认 true）
 }
 
 // GraphQLConfig GraphQL 引擎配置
@@ -1279,6 +1358,15 @@ const (
 | 并发回源 | singleflight（单实例） | 防止缓存击穿；多实例场景接受有限的并发回源 |
 | SQL 安全 | 参数化查询 + 标识符白名单 + 反引号包裹 | 防止 SQL 注入（值注入 + 标识符注入） |
 | APQ | gqlgen APQ 扩展（可选） | 减少网络传输量，客户端只发送查询哈希 |
+| JWT 签名算法 | 支持 HS256/RS256/ES256 | 生产环境推荐非对称签名（RS256/ES256），API 服务仅需公钥，密钥轮换更安全 |
+| DataLoader 生命周期 | Per-request 实例 | 防止跨请求数据泄漏，每个请求独立的批量合并窗口 |
+| CSRF 防护 | 生产模式禁用 GET 查询 | GET 请求易受 CSRF 攻击，POST + JSON Content-Type 提供天然防护 |
+| clearCache 授权 | 需要 mutation 操作权限 | 防止未授权客户端清空缓存导致雪崩 |
+| 内存缓存容量 | 条目数 + 内存大小双重限制 | 防止大结果集缓存导致 OOM |
+| 客户端 IP 提取 | trusted_proxies + X-Forwarded-For | 代理/NAT 环境下准确识别真实客户端 IP |
+| TLS 终止 | 负载均衡器/Sidecar 处理 | 应用层无需处理 TLS，简化实现，符合云原生最佳实践 |
+| Redis 操作追踪 | go-redis Hook 注入 Span | 避免链路追踪中 Redis 操作成为"黑洞" |
+| 配置热更新防抖 | 500ms debounce | 兼容 K8s ConfigMap 符号链接原子替换机制 |
 
 
 ## 正确性属性
@@ -1765,6 +1853,66 @@ const (
 
 **Validates: Design - 统一错误响应格式**
 
+### Property 81: JWT 非对称签名验证
+
+*For any* 使用 RS256 或 ES256 算法签发的 JWT Token，JWTAuthenticator 应使用配置的公钥验证签名；使用错误私钥签发的 Token 应返回 AUTH_TOKEN_INVALID 错误。
+
+**Validates: Design - JWT 非对称签名支持**
+
+### Property 82: DataLoader Per-Request 隔离
+
+*For any* 两个并发的 HTTP 请求，各自的 DataLoader 实例应完全独立，请求 A 通过 DataLoader 加载的数据不应被请求 B 的 DataLoader 返回。
+
+**Validates: Design - DataLoader 生命周期**
+
+### Property 83: CSRF 防护 - GET 查询生产模式禁用
+
+*For any* 运行在 production 模式且 `allow_get_queries` 为 false（默认）的 API 服务，HTTP GET 请求到 `/graphql` 端点应返回 HTTP 405（Method Not Allowed）。
+
+**Validates: Design - CSRF 防护**
+
+### Property 84: clearCache Mutation 授权
+
+*For any* 认证主体的 `Operations` 不包含 "mutation" 的请求，调用 `clearCache` Mutation 应返回 AUTH_INSUFFICIENT_PERMISSION 错误。
+
+**Validates: Design - Mutation 授权控制**
+
+### Property 85: 内存缓存内存大小限制
+
+*For any* 内存缓存的总内存占用达到 `max_memory_size` 配置上限时，添加新条目应触发 LRU 淘汰，使内存占用降至上限以下。
+
+**Validates: Design - 内存缓存容量控制**
+
+### Property 86: 缓存 Gob 反序列化失败恢复
+
+*For any* 缓存条目 gob 反序列化失败的情况，Cache Layer 应删除损坏条目并回源查询数据源，不应返回错误给客户端。
+
+**Validates: Design - 缓存容错**
+
+### Property 87: 可信代理 IP 提取
+
+*For any* 来自 trusted_proxies 范围内 IP 的请求，AuthFailureLimiter 和 RateLimiter 应从 X-Forwarded-For 头提取真实客户端 IP；*For any* 来自非信任 IP 的请求，应使用 RemoteAddr。
+
+**Validates: Design - 代理环境 IP 提取**
+
+### Property 88: 请求超时与查询超时组合
+
+*For any* 数据源查询，其实际超时时间应为 min(query_timeout, request_timeout 剩余时间)，确保单个查询不会超过请求级总超时。
+
+**Validates: Design - 超时组合机制**
+
+### Property 89: Redis 操作 Span 创建
+
+*For any* Redis 缓存或分布式限流操作（tracing 启用时），应创建独立的 Span，名称格式为 `Redis {command}`，包含 `db.system`（redis）和 `db.operation` 属性。
+
+**Validates: Design - Redis 可观测性**
+
+### Property 90: 配置热更新 Debounce
+
+*For any* 配置文件在 500ms 内的多次变更事件，HotReloader 应仅触发一次配置重载，避免读取到中间状态的配置。
+
+**Validates: Design - ConfigMap 兼容性**
+
 
 ## 错误处理
 
@@ -1914,7 +2062,7 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 
 ### 属性测试范围
 
-属性测试覆盖设计文档中定义的所有 80 个正确性属性，重点包括：
+属性测试覆盖设计文档中定义的所有 90 个正确性属性，重点包括：
 
 | 测试类别 | 覆盖属性 | 测试策略 |
 |---------|---------|---------|
@@ -1931,6 +2079,9 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 | 配置管理 | Property 11, 72, 73 | 生成随机配置值，验证加载和覆盖行为 |
 | 可观测性 | Property 39-47 | 验证指标注册、Span 层级和属性 |
 | 运维能力 | Property 59-63 | 验证健康检查、优雅关闭、CORS、压缩 |
+| 安全加固 | Property 81-84, 87 | 验证 JWT 非对称签名、DataLoader 隔离、CSRF 防护、Mutation 授权、IP 提取 |
+| 缓存容错 | Property 85-86 | 验证内存大小限制、gob 反序列化失败恢复 |
+| 超时与可观测性 | Property 88-90 | 验证超时组合、Redis Span、热更新防抖 |
 
 ### 集成测试
 
@@ -1962,6 +2113,22 @@ services:
 - 跨数据源混合查询延迟
 - 并发查询吞吐量
 - 缓存命中/未命中场景对比
+
+### 混沌测试
+
+验证弹性机制在真实故障场景下的表现，使用集成测试环境（Docker Compose）模拟故障：
+
+| 故障场景 | 模拟方式 | 验证目标 |
+|---------|---------|---------|
+| 数据源连接断开 | `docker pause starrocks-fe` | 熔断器 CLOSED→OPEN 转换，后台重连恢复 |
+| 数据源响应延迟 | toxiproxy 注入延迟 | 查询超时取消，熔断器触发 |
+| Redis 不可用 | `docker stop redis` | 分布式限流降级为本地模式，缓存降级 |
+| Redis 恢复 | `docker start redis` | FallbackRateLimiter 自动恢复分布式模式 |
+| 配置文件损坏 | 写入非法 YAML | 热更新失败保留旧配置，服务不受影响 |
+| 高并发缓存击穿 | 并发请求同一未缓存 key | singleflight 确保仅 1 次回源 |
+| 部分数据源故障 | 停止单个数据源 | 混合查询返回部分结果 + 错误信息 |
+
+混沌测试不要求在 CI 中自动运行，作为发布前的手动验证步骤。
 
 ### 测试覆盖率目标
 

@@ -518,6 +518,7 @@ server:
   max_request_body_size: 1MB
   request_timeout: 30s
   max_batch_queries: 10               # 批量查询最大数量
+  allow_get_queries: false            # 是否允许 GET 查询（生产模式默认 false，开发模式默认 true）
 
 # GraphQL 配置
 graphql:
@@ -559,8 +560,11 @@ datasources:
 # 认证配置
 auth:
   method: jwt                         # jwt | apikey
+  trusted_proxies: ["10.0.0.0/8", "172.16.0.0/12"]  # 可信代理 CIDR 列表
   jwt:
-    secret: "${GRAPHQL_JWT_SECRET}"
+    algorithm: RS256                  # HS256 | RS256 | ES256（生产环境推荐 RS256/ES256）
+    public_key_file: /etc/secrets/jwt-public.pem  # 非对称签名时使用公钥文件
+    # secret: "${GRAPHQL_JWT_SECRET}" # 对称签名（HS256）时使用
     issuer: my-auth-service
   apikey:
     keys:
@@ -599,6 +603,7 @@ cache:
   ttl_jitter_percent: 10              # TTL 抖动百分比（雪崩防护）
   memory:
     max_entries: 10000
+    max_memory_size: 256MB            # 最大内存占用（与 max_entries 双重限制）
   redis:
     addr: redis:6379
     password: "${GRAPHQL_REDIS_PASSWORD}"
