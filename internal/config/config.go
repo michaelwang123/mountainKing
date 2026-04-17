@@ -142,10 +142,11 @@ type RateLimitConfig struct {
 }
 
 // RedisConfig holds generic Redis connection settings used by non-cache components
-// such as distributed rate limiting.
+// such as distributed rate limiting, Redis cache backend, and Redis tracing hook.
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
+	DB       int    `mapstructure:"db"`
 }
 
 // CORSConfig holds Cross-Origin Resource Sharing settings.
