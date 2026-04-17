@@ -46,6 +46,7 @@ The server listens on `:8080` by default.
 
 ## Configuration
 
+
 Configuration is loaded from a YAML file with environment variable overrides using the `GRAPHQL_` prefix (12-Factor style).
 
 ```bash
