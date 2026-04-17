@@ -159,7 +159,7 @@ sequenceDiagram
     OS->>S: SIGTERM / SIGINT
     S->>S: 停止接受新连接
     S->>S: 等待 in-flight 请求完成 (max_wait_time)
-    S->>TP: Shutdown (刷新未导出的 Trace)
+    S->>TP: Shutdown (刷新未导出的 Trace, 独立 5s 超时)
     TP-->>S: done
     S->>MC: 刷新 Prometheus 指标
     MC-->>S: done
@@ -169,6 +169,8 @@ sequenceDiagram
     L-->>S: done
     S->>OS: exit(0)
 ```
+
+> **DataLoader 与优雅关闭：** 当 HTTP Server 停止接受新连接后，in-flight 请求继续处理。每个 in-flight 请求的 DataLoader 实例会在请求处理完成时自然销毁（per-request 生命周期）。如果 max_wait_time 到达时仍有 DataLoader 批量窗口未触发（极端情况：请求刚提交到 DataLoader 但 1ms 窗口未到期），HTTP Server 的 context 取消会传播到 DataLoader，DataLoader 应立即 flush 当前批次中的所有待处理请求并返回 context.Canceled 错误。
 
 ### 项目目录结构
 
@@ -299,6 +301,8 @@ APQ 存储后端策略：
 - `redis` 后端：所有实例共享 APQ 缓存，无冷启动问题，推荐多实例部署使用
 - APQ 缓存条目无 TTL（持久化），通过 LRU 淘汰策略管理容量
 - APQ 缓存 key 格式：`apq:{sha256_hash}`
+
+> **clearCache 与 APQ 缓存的关系：** `clearCache` Mutation 仅清除查询结果缓存（key 前缀 `cache:`），不影响 APQ 缓存（key 前缀 `apq:`）。APQ 缓存存储的是查询文本而非查询结果，清除 APQ 缓存会迫使客户端重新发送完整查询文本，通常不需要主动清除。APQ 缓存通过 LRU 淘汰策略自动管理容量。
 
 
 ## 组件与接口
@@ -442,6 +446,13 @@ const (
 // OPEN → HALF_OPEN: 经过 open_duration 时间后自动转换
 // HALF_OPEN → CLOSED: 连续成功次数 ≥ success_threshold
 // HALF_OPEN → OPEN: 任一探测请求失败
+//
+// 熔断器线程安全：
+// ExecuteWithRetry 中对 CircuitState 的检查和 FailureCount 的更新必须在同一把锁内完成
+// （使用 DataSourceManager.mu 或每个数据源独立的 sync.Mutex），避免以下竞态：
+// - goroutine A 检查 CircuitState=CLOSED，goroutine B 同时将 FailureCount 递增至阈值
+// - goroutine A 未感知到状态已变为 OPEN，继续发起查询
+// HALF_OPEN 状态下的探测请求计数同样需要原子操作保护。
 
 // Init 从配置初始化所有数据源，失败的数据源标记为不可用并启动后台重连
 func (m *DataSourceManager) Init(ctx context.Context) error
@@ -478,6 +489,13 @@ type Cache interface {
     DeleteByPrefix(ctx context.Context, prefix string) error // 按前缀删除（支持按数据源清除）
     Clear(ctx context.Context) error
 }
+
+// DeleteByPrefix 实现说明：
+// - 内存缓存 (LRU): 遍历所有 key 匹配前缀后删除，时间复杂度 O(N)，N 为缓存条目数
+// - Redis 缓存: 使用 SCAN + DEL 迭代删除（禁止使用 KEYS 命令，避免阻塞 Redis）
+//   SCAN 每次迭代 COUNT=100，分批删除。大 key 空间下可能耗时较长，
+//   clearCache Mutation 应异步执行并立即返回 true，后台完成实际清除。
+//   如需精确确认清除完成，可通过日志或指标观察。
 
 // CacheKeyGenerator 缓存 key 生成器
 // 格式: "cache:{datasource}:{xxhash64(normalized_query+sorted_variables)}"
@@ -596,6 +614,15 @@ type APIKeyEntry struct {
     Operations  []string
 }
 
+// API Key 配置与运行时转换流程：
+// 1. YAML 配置文件中 `key` 字段存储 bcrypt 哈希值（非明文），通过环境变量注入
+//    示例: key: "${GRAPHQL_APIKEY_CLIENT_A}" 其中环境变量值为 bcrypt 哈希字符串
+//    如: GRAPHQL_APIKEY_CLIENT_A="$2a$10$N9qo8uLOickgx2ZMRZoMye..."
+// 2. 运营人员使用 CLI 工具预生成 bcrypt 哈希: `htpasswd -nbBC 10 "" "raw-api-key" | cut -d: -f2`
+// 3. 启动时 APIKeyAuthenticator 从配置读取哈希字符串，转为 []byte 存入 APIKeyEntry.KeyHash
+// 4. 认证时使用 bcrypt.CompareHashAndPassword(keyHash, clientProvidedKey) 进行比对
+// 禁止在配置文件中存储明文 API Key，即使通过环境变量注入也应注入哈希值。
+
 // AuthFailureLimiter 认证失败暴力破解防护
 // 独立于正常请求限流，专门针对认证失败场景
 // 同一 IP 在 auth_failure_window 内认证失败超过 auth_failure_threshold 次，
@@ -681,9 +708,16 @@ type KeyedRateLimiter struct {
     limiters        map[string]*limiterEntry
     ratePerSec      rate.Limit  // 令牌填充速率 (tokens/sec)
     burst           int         // 桶容量 (= requests_per_window)
+    maxEntries      int         // 最大 key 数量（默认 100000），防止 DDoS 下内存无限增长
     cleanupInterval time.Duration
     stopCh          chan struct{}
 }
+
+// maxEntries 防护机制：
+// 当 limiters map 的 key 数量达到 maxEntries 时，拒绝为新 key 创建 limiter，
+// 直接返回 Allow=false（限流）。这是一种保守策略——宁可误限新 key，也不允许内存无限增长。
+// 配合 startCleanup 定期清理过期 key，正常流量下不会触发此限制。
+// DDoS 场景下（大量伪造 IP），此限制确保内存占用可控。
 
 type limiterEntry struct {
     limiter  *rate.Limiter
@@ -790,6 +824,14 @@ type MetricsCollector struct {
     customLabels       prometheus.Labels          // 从配置加载的自定义标签
 }
 
+// Histogram 桶边界配置：
+// 默认 Prometheus 桶边界（.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10）
+// 不适合本服务的延迟分布。自定义桶边界对齐需求 8 的延迟目标：
+// - requestDuration: {0.01, 0.025, 0.05, 0.1, 0.2, 0.5, 1, 2.5, 5, 10} 秒
+//   覆盖 P95=200ms（单数据源）和 P95=500ms（混合查询）的目标
+// - dsQueryDuration: {0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5} 秒
+//   更细粒度，便于定位数据源级别的延迟瓶颈
+
 // 连接池指标采集说明:
 // - StarRocks (database/sql): 通过 db.Stats() 获取 InUse/Idle/WaitCount
 // - Prometheus (HTTP 客户端): 使用自定义 InstrumentedTransport 包装 http.Transport，
@@ -812,6 +854,8 @@ type TracingProvider struct {
 func (tp *TracingProvider) Init(cfg TracingConfig) error
 
 // Shutdown 刷新所有未导出的 Trace 数据并关闭 exporter
+// Shutdown 内部使用独立的 context.WithTimeout（默认 5s），避免 OTLP exporter
+// 不可达时阻塞整体优雅关闭流程。超时后放弃未导出的 Trace 数据并记录 WARN 日志。
 func (tp *TracingProvider) Shutdown(ctx context.Context) error
 ```
 
@@ -888,6 +932,13 @@ type TypeMapper struct{}
 ```go
 // PromQLQueryBuilder 将 GraphQL 查询参数转换为 PromQL
 type PromQLQueryBuilder struct{}
+
+// Prometheus 适配器连接与健康检查实现：
+// - Connect(ctx): 发送 GET /api/v1/status/buildinfo 验证 Prometheus 端点可达
+//   成功返回 nil，失败返回连接错误（触发后台重连）
+// - IsAvailable(): 返回最近一次 HealthCheck 的结果（内存缓存，避免频繁 HTTP 请求）
+// - HealthCheck(ctx): 发送 GET /api/v1/status/buildinfo，超时时间使用 query_timeout 的 1/3
+//   （健康检查应比实际查询更快失败）
 
 // BuildInstant 构建即时查询
 func (b *PromQLQueryBuilder) BuildInstant(req QueryRequest) (string, url.Values, error)
@@ -1363,6 +1414,48 @@ type AuthFailureConfig struct {
     Window    time.Duration `mapstructure:"window"`    // 默认 5m
     BanDuration time.Duration `mapstructure:"ban_duration"` // 默认 15m
 }
+
+// RedisCacheConfig Redis 缓存后端配置
+type RedisCacheConfig struct {
+    Addr     string `mapstructure:"addr"`     // Redis 地址，如 "redis:6379"
+    Password string `mapstructure:"password"` // Redis 密码（通过环境变量注入）
+    DB       int    `mapstructure:"db"`       // Redis 数据库编号（默认 0）
+}
+
+// RedisConfig Redis 通用连接配置（限流等非缓存场景复用）
+type RedisConfig struct {
+    Addr     string `mapstructure:"addr"`     // Redis 地址
+    Password string `mapstructure:"password"` // Redis 密码
+}
+
+// DatasourceCacheConfig 单个数据源的缓存配置覆盖
+type DatasourceCacheConfig struct {
+    TTL time.Duration `mapstructure:"ttl"` // 该数据源的缓存 TTL（覆盖 default_ttl）
+}
+
+// AuditConfig 审计日志配置
+type AuditConfig struct {
+    Enabled  bool   `mapstructure:"enabled"`
+    Output   string `mapstructure:"output"`    // "stdout" | "file"
+    FilePath string `mapstructure:"file_path"` // Output=file 时的日志文件路径
+}
+
+// SanitizationConfig 敏感信息脱敏配置
+type SanitizationConfig struct {
+    Enabled bool                   `mapstructure:"enabled"`
+    Rules   []SanitizationRule     `mapstructure:"rules"`
+}
+
+// SanitizationRule 单条脱敏规则
+type SanitizationRule struct {
+    Pattern     string `mapstructure:"pattern"`     // 正则表达式
+    Replacement string `mapstructure:"replacement"` // 替换文本
+}
+
+// MetricsConfig Prometheus 指标配置
+type MetricsConfig struct {
+    CustomLabels map[string]string `mapstructure:"custom_labels"` // 自定义标签（如 env, cluster, instance）
+}
 ```
 
 ### 统一错误码
@@ -1447,6 +1540,13 @@ const (
 | 跨数据源并发管理 | sync.WaitGroup + 独立结果收集（非 errgroup.WithContext） | errgroup.WithContext 首个错误取消所有 goroutine，与部分失败处理冲突 |
 | StarRocks 白名单 | 安全默认：未配置则拒绝启动 | 防止遗漏白名单配置导致任意表/字段可查询 |
 | JWT 配置互斥 | HS256 用 secret，RS256/ES256 用 public_key_file | 防止配置歧义，启动时校验互斥约束 |
+| Histogram 桶边界 | 自定义桶对齐延迟目标（10ms-10s） | 默认 Prometheus 桶不适合本服务延迟分布 |
+| Redis DeleteByPrefix | SCAN + DEL 分批迭代（禁止 KEYS） | 避免阻塞 Redis，大 key 空间下异步执行 |
+| clearCache 范围 | 仅清除结果缓存，不影响 APQ 缓存 | APQ 存储查询文本非结果，清除会迫使客户端重传 |
+| KeyedRateLimiter 容量 | maxEntries=100000，超限直接限流 | DDoS 下防止伪造 IP 导致内存无限增长 |
+| TracingProvider 关闭 | 独立 5s 超时 | 防止 OTLP exporter 不可达时阻塞整体关闭 |
+| API Key 存储格式 | 配置文件存储 bcrypt 哈希（非明文） | 即使配置泄露也无法还原原始 Key |
+| 熔断器状态操作 | 检查 + 更新在同一把锁内 | 防止并发竞态导致状态不一致 |
 
 
 ## 正确性属性
@@ -2023,6 +2123,12 @@ const (
 
 **Validates: Design - 配置校验规则**
 
+### Property 96: KeyedRateLimiter 最大 Key 数量限制
+
+*For any* KeyedRateLimiter 的 limiters map 中 key 数量达到 `maxEntries` 上限时，新 key 的请求应被直接限流（Allow=false），不应创建新的 limiter 实例。
+
+**Validates: Design - DDoS 内存防护**
+
 
 ## 错误处理
 
@@ -2175,7 +2281,7 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 
 ### 属性测试范围
 
-属性测试覆盖设计文档中定义的所有 95 个正确性属性，重点包括：
+属性测试覆盖设计文档中定义的所有 96 个正确性属性，重点包括：
 
 | 测试类别 | 覆盖属性 | 测试策略 |
 |---------|---------|---------|
@@ -2196,6 +2302,7 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 | 缓存容错 | Property 85-86 | 验证内存大小限制、gob 反序列化失败恢复 |
 | 超时与可观测性 | Property 88-90 | 验证超时组合、Redis Span、热更新防抖 |
 | 配置校验与错误隔离 | Property 91-95 | 验证白名单必填、跨数据源不取消、限流 Key 优先级、JWT 互斥、数据源名称唯一 |
+| DDoS 防护 | Property 96 | 验证 KeyedRateLimiter 最大 key 数量限制 |
 
 ### 集成测试
 
