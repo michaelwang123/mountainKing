@@ -655,6 +655,14 @@ type RateLimiter interface {
     Allow(ctx context.Context, key string, count int) (*RateLimitResult, error)
 }
 
+// 限流 Key 选择优先级：
+// 1. 如果请求通过 API Key 认证成功，使用 API Key ID 作为限流 key（格式: "apikey:{id}"）
+// 2. 如果请求通过 JWT 认证成功，使用 JWT sub claim 作为限流 key（格式: "jwt:{sub}"）
+// 3. 以上均不适用时（如公共端点豁免认证），使用客户端 IP 作为限流 key（格式: "ip:{addr}"）
+// 优先使用认证身份而非 IP 的原因：同一 API Key 可能从多个 IP 发起请求（分布式客户端），
+// 按 API Key 限流更准确地反映单个客户端的请求频率。
+// IP 提取逻辑复用 AuthFailureLimiter 的 trusted_proxies + X-Forwarded-For 策略。
+
 // RateLimitResult 限流检查结果
 type RateLimitResult struct {
     Allowed   bool      // 是否允许通过
@@ -840,6 +848,20 @@ type SQLQueryBuilder struct {
     allowedTables map[string]map[string]bool // table → allowed columns 白名单
 }
 
+// 白名单配置来源：
+// StarRocks 适配器在初始化时从 DataSourceConfig.Options 中读取 `allowed_tables` 配置，
+// 构建 allowedTables 映射。配置格式示例（YAML）：
+//
+//   options:
+//     allowed_tables:
+//       orders:
+//         columns: [order_id, user_id, amount, status, created_at]
+//       users:
+//         columns: [user_id, username, email, created_at]
+//
+// 适配器工厂函数解析 Options["allowed_tables"] 并构建 map[string]map[string]bool。
+// 如果 allowed_tables 未配置或为空，适配器初始化应返回错误（安全默认：拒绝所有查询）。
+
 // Build 构建 SELECT 查询，返回 SQL 语句和参数列表
 // 1. 校验 table 名在白名单中
 // 2. 校验 Fields 中的字段名在该表的允许列中
@@ -915,6 +937,38 @@ type HotReloader struct {
 // HotReloader 应使用 debounce 机制（默认 500ms），在最后一个文件事件后等待 500ms
 // 再执行配置重载，避免读取到中间状态的配置文件。
 // 如果 debounce 窗口内配置文件不可读，跳过本次重载并记录 WARN 日志。
+```
+
+### 12a. 配置校验规则
+
+启动时配置校验（`validation.go`）除基础校验（需求 3.10）外，还需覆盖以下新增字段：
+
+```go
+// ValidateConfig 启动时完整配置校验，任一规则失败则拒绝启动
+//
+// === 认证配置校验 ===
+// - auth.method: 必须为 "jwt" 或 "apikey"
+// - auth.jwt.algorithm: 必须为 "HS256"、"RS256" 或 "ES256"（默认 "HS256"）
+// - auth.jwt.secret: algorithm=HS256 时必填，长度 ≥ 32 字节
+// - auth.jwt.public_key_file: algorithm=RS256/ES256 时必填，文件必须存在且为有效 PEM 格式
+// - auth.jwt.secret 与 auth.jwt.public_key_file 互斥：HS256 时不应配置 public_key_file，
+//   RS256/ES256 时不应配置 secret
+// - auth.trusted_proxies[]: 每个条目必须为有效 CIDR 格式（如 "10.0.0.0/8"），
+//   使用 net.ParseCIDR 校验
+//
+// === 缓存配置校验 ===
+// - cache.memory.max_memory_size: 必须为有效的大小字符串（如 "256MB"、"1GB"），
+//   支持 KB/MB/GB 单位，解析后值必须 > 0
+//
+// === 服务配置校验 ===
+// - server.allow_get_queries: 布尔值，无需特殊校验
+//   （但如果 mode=production 且 allow_get_queries=true，记录 WARN 日志提示 CSRF 风险）
+//
+// === 数据源配置校验 ===
+// - datasources[].name: 不允许重复（同名数据源会导致路由冲突）
+// - datasources[type=starrocks].options.allowed_tables: 必填且非空，
+//   每个表至少定义一个 column，column 名称必须匹配 [a-zA-Z0-9_]
+func ValidateConfig(cfg *Config) error
 ```
 
 ### 13. 请求日志分级策略
@@ -1179,6 +1233,30 @@ type AuthConfig struct {
     TrustedProxies []string         `mapstructure:"trusted_proxies"` // 可信代理 CIDR 列表，如 ["10.0.0.0/8"]
 }
 
+// JWTConfig JWT 认证配置
+type JWTConfig struct {
+    Algorithm     string `mapstructure:"algorithm"`       // "HS256" | "RS256" | "ES256"（默认 "HS256"）
+    Secret        string `mapstructure:"secret"`           // HMAC 对称密钥（algorithm=HS256 时必填）
+    PublicKeyFile string `mapstructure:"public_key_file"`  // RSA/ECDSA 公钥 PEM 文件路径（algorithm=RS256/ES256 时必填）
+    Issuer        string `mapstructure:"issuer"`           // JWT 签发者（iss claim 校验）
+}
+
+// APIKeyConfig API Key 认证配置
+type APIKeyConfig struct {
+    Keys []APIKeyConfigEntry `mapstructure:"keys"`
+}
+
+// APIKeyConfigEntry 单个 API Key 配置条目
+type APIKeyConfigEntry struct {
+    ID          string   `mapstructure:"id"`          // API Key 标识
+    Key         string   `mapstructure:"key"`         // bcrypt 哈希值（非明文，通过环境变量注入哈希）
+    ExpiresAt   string   `mapstructure:"expires_at"`  // 过期时间（ISO 8601 格式，可选）
+    Permissions struct {
+        Datasources []string `mapstructure:"datasources"` // 允许访问的数据源列表
+        Operations  []string `mapstructure:"operations"`  // 允许的操作类型 (query, mutation)
+    } `mapstructure:"permissions"`
+}
+
 // CacheConfig 缓存配置
 type CacheConfig struct {
     Enabled          bool                              `mapstructure:"enabled"`
@@ -1195,8 +1273,6 @@ type CacheConfig struct {
 type MemoryCacheConfig struct {
     MaxEntries    int    `mapstructure:"max_entries"`     // 最大条目数（默认 10000）
     MaxMemorySize string `mapstructure:"max_memory_size"` // 最大内存占用（默认 "256MB"），任一限制达到上限时触发 LRU 淘汰
-}
-    PerDatasource    map[string]DatasourceCacheConfig   `mapstructure:"per_datasource"`
 }
 
 // RateLimitConfig 限流配置
@@ -1367,6 +1443,10 @@ const (
 | TLS 终止 | 负载均衡器/Sidecar 处理 | 应用层无需处理 TLS，简化实现，符合云原生最佳实践 |
 | Redis 操作追踪 | go-redis Hook 注入 Span | 避免链路追踪中 Redis 操作成为"黑洞" |
 | 配置热更新防抖 | 500ms debounce | 兼容 K8s ConfigMap 符号链接原子替换机制 |
+| 限流 Key 优先级 | API Key ID > JWT sub > IP | 认证身份比 IP 更准确反映单个客户端，分布式客户端可能使用多个 IP |
+| 跨数据源并发管理 | sync.WaitGroup + 独立结果收集（非 errgroup.WithContext） | errgroup.WithContext 首个错误取消所有 goroutine，与部分失败处理冲突 |
+| StarRocks 白名单 | 安全默认：未配置则拒绝启动 | 防止遗漏白名单配置导致任意表/字段可查询 |
+| JWT 配置互斥 | HS256 用 secret，RS256/ES256 用 public_key_file | 防止配置歧义，启动时校验互斥约束 |
 
 
 ## 正确性属性
@@ -1393,7 +1473,7 @@ const (
 
 ### Property 4: HTTP GET 查询支持
 
-*For any* 通过 HTTP GET 方法发送的请求，其 URL 查询字符串中包含有效的 `query` 参数时，API 服务应返回与等价 POST 请求相同的 GraphQL 响应。
+*For any* 通过 HTTP GET 方法发送的请求（`allow_get_queries` 启用时），其 URL 查询字符串中包含有效的 `query` 参数时，API 服务应返回与等价 POST 请求相同的 GraphQL 响应。
 
 **Validates: Requirements 1.6**
 
@@ -1913,6 +1993,36 @@ const (
 
 **Validates: Design - ConfigMap 兼容性**
 
+### Property 91: StarRocks 白名单必填校验
+
+*For any* type=starrocks 的数据源配置，如果 `options.allowed_tables` 未配置或为空，API 服务应拒绝启动并输出明确的错误信息。
+
+**Validates: Design - StarRocks 白名单安全默认**
+
+### Property 92: 跨数据源查询不因单个失败取消其他查询
+
+*For any* 涉及 N 个数据源的混合查询，如果第 1 个数据源查询失败，其余 N-1 个数据源查询应继续执行直到完成或超时，不应被提前取消。
+
+**Validates: Design - 跨数据源错误隔离（errgroup 修正）**
+
+### Property 93: 限流 Key 优先级
+
+*For any* 通过 API Key 认证的请求，限流器应使用 API Key ID 作为限流 key；*For any* 通过 JWT 认证的请求，应使用 JWT sub 作为限流 key；仅当无认证身份时使用客户端 IP。
+
+**Validates: Design - 限流 Key 选择策略**
+
+### Property 94: JWT 配置互斥校验
+
+*For any* auth.jwt.algorithm=HS256 的配置，secret 必填且 public_key_file 不应配置；*For any* algorithm=RS256/ES256 的配置，public_key_file 必填且 secret 不应配置。违反互斥约束时 API 服务应拒绝启动。
+
+**Validates: Design - 配置校验规则**
+
+### Property 95: 数据源名称唯一性
+
+*For any* 配置文件中的 datasources 列表，不允许存在两个相同 name 的数据源条目，否则 API 服务应拒绝启动。
+
+**Validates: Design - 配置校验规则**
+
 
 ## 错误处理
 
@@ -2012,10 +2122,13 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 ### 跨数据源错误隔离
 
 混合查询中，各数据源的错误相互隔离：
-- 每个数据源查询在独立的 goroutine 中执行，使用 `errgroup.Group` 管理
-- 单个数据源失败不影响其他数据源的查询
+- 每个数据源查询在独立的 goroutine 中执行
+- 使用 `sync.WaitGroup` + 独立 result/error channel 管理并发（而非 `errgroup.WithContext`），确保单个数据源失败不会通过 context 取消其他正在执行的数据源查询
+- 每个 goroutine 将结果或错误写入对应的 channel/slot，主 goroutine 等待所有查询完成后统一收集
 - 失败的数据源在 `errors` 中报告，成功的数据源在 `data` 中返回
 - 所有数据源都失败时，`data` 中对应字段为 null
+
+> **为什么不使用 `errgroup.WithContext`：** `errgroup.WithContext` 在首个 goroutine 返回错误时会取消共享的 context，导致其他数据源查询被提前终止。这与 Property 25（混合查询部分失败处理）的要求冲突——我们需要所有数据源查询都执行完毕，即使部分失败。替代方案是使用不带 context 的 `errgroup.Group`（不调用 `WithContext`），或直接使用 `sync.WaitGroup` + 结果收集模式。
 
 ### 优雅降级
 
@@ -2062,7 +2175,7 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 
 ### 属性测试范围
 
-属性测试覆盖设计文档中定义的所有 90 个正确性属性，重点包括：
+属性测试覆盖设计文档中定义的所有 95 个正确性属性，重点包括：
 
 | 测试类别 | 覆盖属性 | 测试策略 |
 |---------|---------|---------|
@@ -2082,6 +2195,7 @@ GraphQL 层错误通过响应体的 `errors` 数组返回，HTTP 状态码始终
 | 安全加固 | Property 81-84, 87 | 验证 JWT 非对称签名、DataLoader 隔离、CSRF 防护、Mutation 授权、IP 提取 |
 | 缓存容错 | Property 85-86 | 验证内存大小限制、gob 反序列化失败恢复 |
 | 超时与可观测性 | Property 88-90 | 验证超时组合、Redis Span、热更新防抖 |
+| 配置校验与错误隔离 | Property 91-95 | 验证白名单必填、跨数据源不取消、限流 Key 优先级、JWT 互斥、数据源名称唯一 |
 
 ### 集成测试
 

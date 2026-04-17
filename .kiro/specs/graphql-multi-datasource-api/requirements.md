@@ -545,6 +545,11 @@ datasources:
       pool_acquire_timeout: 5s        # 连接池获取超时
       reconnect_interval: 5s          # 初始重连间隔
       max_reconnect_interval: 60s     # 最大重连间隔
+      allowed_tables:                  # 表名/字段名白名单（安全必填）
+        orders:
+          columns: [order_id, user_id, amount, status, created_at]
+        users:
+          columns: [user_id, username, email, created_at]
 
   - name: monitoring
     type: prometheus
