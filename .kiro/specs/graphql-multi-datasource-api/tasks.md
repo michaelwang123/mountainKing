@@ -206,23 +206,23 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
     - **Property 84: clearCache Mutation 授权** — Validates: Design - Mutation 授权控制
     - **Property 87: 可信代理 IP 提取** — Validates: Design - 代理环境 IP 提取
 
-- [ ] 15. 请求限流
-  - [-] 15.1 初始化共享 Redis 客户端：统一的 go-redis/redis/v9 客户端实例，供分布式限流（15.3）、Redis 缓存（17.4）和 Redis tracing hook（21.5）共用，通过配置文件指定 Redis 地址和密码
+- [x] 15. 请求限流
+  - [x] 15.1 初始化共享 Redis 客户端：统一的 go-redis/redis/v9 客户端实例，供分布式限流（15.3）、Redis 缓存（17.4）和 Redis tracing hook（21.5）共用，通过配置文件指定 Redis 地址和密码
     - _Design: Redis 客户端共享_
-  - [ ] 15.2 实现本地限流器（ratelimit/local.go）：KeyedRateLimiter，使用 golang.org/x/time/rate，按 key 维度独立令牌桶，maxEntries=100000 防护，后台清理超过 2×window_size 未访问的 limiter
+  - [x] 15.2 实现本地限流器（ratelimit/local.go）：KeyedRateLimiter，使用 golang.org/x/time/rate，按 key 维度独立令牌桶，maxEntries=100000 防护，后台清理超过 2×window_size 未访问的 limiter
     - _Requirements: 14.1, 14.2_
-  - [ ] 15.3 实现分布式限流器（ratelimit/distributed.go）：Redis + Lua 脚本原子令牌桶操作
+  - [x] 15.3 实现分布式限流器（ratelimit/distributed.go）：Redis + Lua 脚本原子令牌桶操作
     - _Requirements: 14.7, 14.8_
-  - [ ] 15.4 实现降级包装器（ratelimit/fallback.go）：FallbackRateLimiter，Redis 不可用时降级为本地模式，后台恢复探测（probeInterval=30s）
+  - [x] 15.4 实现降级包装器（ratelimit/fallback.go）：FallbackRateLimiter，Redis 不可用时降级为本地模式，后台恢复探测（probeInterval=30s）
     - _Requirements: 14.9_
-  - [ ] 15.5 实现限流中间件（middleware/ratelimit.go）：限流 Key 优先级（API Key ID > JWT sub > IP），批量查询按实际查询数计数，公共端点豁免，响应头 X-RateLimit-Limit/Remaining/Reset（所有非公共端点请求均包含）
+  - [x] 15.5 实现限流中间件（middleware/ratelimit.go）：限流 Key 优先级（API Key ID > JWT sub > IP），批量查询按实际查询数计数，公共端点豁免，响应头 X-RateLimit-Limit/Remaining/Reset（所有非公共端点请求均包含）
     - _Requirements: 1.11, 14.1, 14.3, 14.4, 14.5, 14.6_
-  - [ ] 15.6 编写限流核心属性测试
+  - [x] 15.6 编写限流核心属性测试
     - **Property 56: 令牌桶限流** — Validates: Requirements 14.1, 14.2, 14.3, 14.4
     - **Property 57: 限流响应头始终存在** — Validates: Requirements 14.4
     - **Property 8: 批量查询按实际查询数限流** — Validates: Requirements 1.11
     - **Property 93: 限流 Key 优先级** — Validates: Design - 限流 Key 选择策略
-  - [ ] 15.7 编写限流降级与防护属性测试
+  - [x] 15.7 编写限流降级与防护属性测试
     - **Property 58: 分布式限流 Redis 降级** — Validates: Requirements 14.9
     - **Property 78: 分布式限流降级恢复** — Validates: Design - 降级恢复机制
     - **Property 96: KeyedRateLimiter 最大 Key 数量限制** — Validates: Design - DDoS 内存防护
