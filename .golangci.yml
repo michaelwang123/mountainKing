@@ -1,0 +1,17 @@
+# golangci-lint configuration
+# Requirement 17.3: Enable govet, errcheck, staticcheck
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+
+issues:
+  exclude-dirs:
+    - internal/graphql/generated
