@@ -1,26 +1,340 @@
+// Package main is the entry point for the GraphQL Multi-DataSource API server.
+// It orchestrates the full initialization chain: config -> logging -> tracing ->
+// Redis -> adapters -> datasource manager -> cache -> rate limiter -> metrics ->
+// health -> audit -> sanitizer -> middleware -> GraphQL schema -> HTTP server ->
+// graceful shutdown.
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
-	_ "github.com/cespare/xxhash/v2"
-	_ "github.com/fsnotify/fsnotify"
-	_ "github.com/go-chi/chi/v5"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/golang-jwt/jwt/v5"
-	_ "github.com/hashicorp/golang-lru/v2"
-	_ "github.com/prometheus/client_golang/prometheus"
-	_ "github.com/redis/go-redis/v9"
-	_ "github.com/spf13/viper"
-	_ "go.opentelemetry.io/otel"
-	_ "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	_ "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	_ "go.opentelemetry.io/otel/sdk/trace"
-	_ "go.uber.org/zap"
-	_ "golang.org/x/sync/singleflight"
-	_ "golang.org/x/time/rate"
+	"go.uber.org/zap"
+
+	"github.com/example/graphql-api/internal/adapter/prometheus"
+	"github.com/example/graphql-api/internal/adapter/starrocks"
+	"github.com/example/graphql-api/internal/audit"
+	"github.com/example/graphql-api/internal/cache"
+	"github.com/example/graphql-api/internal/config"
+	"github.com/example/graphql-api/internal/datasource"
+	"github.com/example/graphql-api/internal/graphql/generated"
+	"github.com/example/graphql-api/internal/graphql/resolver"
+	"github.com/example/graphql-api/internal/health"
+	"github.com/example/graphql-api/internal/middleware"
+	"github.com/example/graphql-api/internal/observability"
+	"github.com/example/graphql-api/internal/ratelimit"
+	redisclient "github.com/example/graphql-api/internal/redis"
+	"github.com/example/graphql-api/internal/sanitize"
+	"github.com/example/graphql-api/internal/server"
+	"github.com/example/graphql-api/pkg/retry"
+	goredis "github.com/redis/go-redis/v9"
 )
 
 func main() {
-	fmt.Println("GraphQL Multi-DataSource API Server")
+	// 1. Load config (Viper YAML + env vars).
+	cfg, err := config.LoadConfig("config.yaml")
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+	if _, err := config.ValidateConfig(cfg); err != nil {
+		log.Fatalf("invalid config: %v", err)
+	}
+
+	// 2. Init structured logging (zap).
+	logger, err := observability.NewLogger(observability.LoggerConfig{
+		Level:  cfg.Logging.Level,
+		Format: cfg.Logging.Format,
+	})
+	if err != nil {
+		log.Fatalf("failed to init logger: %v", err)
+	}
+	defer func() { _ = logger.Sync() }()
+	logger.Info("starting GraphQL Multi-DataSource API server")
+
+	// 3. Init TracingProvider (OTLP).
+	tracingProvider, err := observability.InitTracing(cfg.Tracing)
+	if err != nil {
+		logger.Fatal("failed to init tracing", zap.Error(err))
+	}
+
+	// 4. Init shared Redis client (if needed).
+	var redisClient *goredis.Client
+	if needsRedis(cfg) {
+		addr := resolveRedisAddr(cfg)
+		redisClient, err = redisclient.NewRedisClient(config.RedisConfig{
+			Addr:     addr,
+			Password: resolveRedisPassword(cfg),
+			DB:       resolveRedisDB(cfg),
+		})
+		if err != nil {
+			logger.Fatal("failed to create redis client", zap.Error(err))
+		}
+		hook := observability.NewRedisTracingHook(tracingProvider.Tracer(), addr)
+		redisClient.AddHook(hook)
+
+		pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if pingErr := redisclient.Ping(pingCtx, redisClient); pingErr != nil {
+			logger.Warn("redis ping failed, features requiring Redis may degrade", zap.Error(pingErr))
+		} else {
+			logger.Info("redis client connected", zap.String("addr", addr))
+		}
+		pingCancel()
+	}
+
+	// 5. Register adapters (StarRocks, Prometheus) to AdapterRegistry.
+	registry := datasource.NewAdapterRegistry()
+	if err := registry.Register("starrocks", starrocks.Factory(logger.Logger)); err != nil {
+		logger.Fatal("failed to register starrocks adapter", zap.Error(err))
+	}
+	if err := registry.Register("prometheus", prometheus.Factory(logger.Logger)); err != nil {
+		logger.Fatal("failed to register prometheus adapter", zap.Error(err))
+	}
+
+	// 6. Init DataSourceManager.
+	retryCfg := retry.Config{
+		MaxRetries:    cfg.Retry.MaxRetries,
+		RetryInterval: cfg.Retry.RetryInterval,
+	}
+	dsManager := datasource.NewDataSourceManager(registry, cfg.Datasources, retryCfg, logger.Logger)
+	if err := dsManager.Init(context.Background()); err != nil {
+		logger.Fatal("failed to init datasource manager", zap.Error(err))
+	}
+
+	// 7. Init CacheLayer (memory or Redis backend).
+	var cacheLayer *cache.CacheLayer
+	if cfg.Cache.Enabled {
+		var backend cache.Cache
+		switch cfg.Cache.Backend {
+		case "redis":
+			if redisClient == nil {
+				logger.Fatal("redis cache backend requires redis, but redis is not configured")
+			}
+			backend = cache.NewRedisCache(redisClient)
+		default:
+			mc, mcErr := cache.NewMemoryCache(cache.MemoryCacheConfig{
+				MaxEntries:    cfg.Cache.Memory.MaxEntries,
+				MaxMemorySize: cfg.Cache.Memory.MaxMemorySize,
+			})
+			if mcErr != nil {
+				logger.Fatal("failed to create memory cache", zap.Error(mcErr))
+			}
+			backend = mc
+		}
+		ttlConfig := make(map[string]time.Duration)
+		for dsName, dsCacheCfg := range cfg.Cache.PerDatasource {
+			ttlConfig[dsName] = dsCacheCfg.TTL
+		}
+		cacheLayer = cache.NewCacheLayer(cache.CacheLayerConfig{
+			Backend:    backend,
+			TTLConfig:  ttlConfig,
+			DefaultTTL: cfg.Cache.DefaultTTL,
+			JitterPct:  cfg.Cache.TTLJitterPercent,
+			EmptyTTL:   cfg.Cache.EmptyResultTTL,
+			Logger:     logger.Logger,
+		})
+	}
+
+	// 8. Init RateLimiter (local or distributed with fallback).
+	var rateLimiter ratelimit.RateLimiter
+	switch cfg.RateLimit.Mode {
+	case "distributed":
+		if redisClient == nil {
+			logger.Fatal("distributed rate limiting requires redis")
+		}
+		dist := ratelimit.NewDistributedRateLimiter(redisClient, cfg.RateLimit.RequestsPerWindow, cfg.RateLimit.WindowSize)
+		local := ratelimit.NewKeyedRateLimiter(cfg.RateLimit.RequestsPerWindow, cfg.RateLimit.WindowSize, 100000)
+		rateLimiter = ratelimit.NewFallbackRateLimiter(dist, local, 30*time.Second, logger.Logger)
+	default:
+		rateLimiter = ratelimit.NewKeyedRateLimiter(cfg.RateLimit.RequestsPerWindow, cfg.RateLimit.WindowSize, 100000)
+	}
+
+	// 9. Init MetricsCollector.
+	metricsCollector := observability.NewMetricsCollector(&observability.MetricsConfig{
+		CustomLabels: cfg.Metrics.CustomLabels,
+	})
+
+	// 10. Init HealthChecker.
+	healthChecker := health.NewHealthChecker(dsManager, "dev", "unknown")
+
+	// 11. Init AuditLogger.
+	auditLogger, err := audit.NewAuditLogger(cfg.Logging.Audit)
+	if err != nil {
+		logger.Fatal("failed to init audit logger", zap.Error(err))
+	}
+	defer func() { _ = auditLogger.Close() }()
+	_ = auditLogger
+
+	// 12. Init Sanitizer.
+	sanitizer, err := sanitize.NewSanitizer(cfg.Sanitization)
+	if err != nil {
+		logger.Fatal("failed to init sanitizer", zap.Error(err))
+	}
+	_ = sanitizer
+
+	// 13. Build authenticator and auth failure limiter.
+	var authenticator middleware.Authenticator
+	switch cfg.Auth.Method {
+	case "jwt":
+		authenticator, err = middleware.NewJWTAuthenticator(cfg.Auth.JWT, cfg.Auth.JWT.Algorithm)
+		if err != nil {
+			logger.Fatal("failed to init JWT authenticator", zap.Error(err))
+		}
+	case "apikey":
+		authenticator, err = middleware.NewAPIKeyAuthenticator(cfg.Auth.APIKey)
+		if err != nil {
+			logger.Fatal("failed to init API Key authenticator", zap.Error(err))
+		}
+	default:
+		logger.Info("no auth method configured, authentication disabled")
+	}
+
+	var authFailureLimiter *middleware.AuthFailureLimiter
+	if cfg.AuthFailure.Enabled {
+		authFailureLimiter, err = middleware.NewAuthFailureLimiter(cfg.AuthFailure, cfg.Auth.TrustedProxies)
+		if err != nil {
+			logger.Fatal("failed to init auth failure limiter", zap.Error(err))
+		}
+		defer authFailureLimiter.Stop()
+	}
+
+	// 14. Create GraphQL schema + resolvers.
+	res := &resolver.Resolver{
+		DSManager:     dsManager,
+		GraphQLConfig: cfg.GraphQL,
+	}
+	if cacheLayer != nil {
+		res.CacheClearer = cacheLayer
+	}
+	schema := generated.NewExecutableSchema(generated.Config{Resolvers: res})
+
+	// 15. Build HTTP server with middleware chain.
+	srv := server.NewServer(cfg.Server, cfg.GraphQL, cfg.Shutdown, dsManager, res, schema, logger.Logger)
+	srv.SetTracingShutdown(tracingProvider.Shutdown)
+
+	// Get the server's chi router with GraphQL, playground, and placeholder routes.
+	router := srv.SetupRoutes()
+
+	// Override placeholder health/ready/metrics with real handlers.
+	router.Get("/health", healthChecker.LivenessCheck)
+	router.Get("/ready", healthChecker.ReadinessCheck)
+	router.Get("/metrics", metricsCollector.Handler().ServeHTTP)
+
+	// Apply middleware chain: RequestID -> BodyLimit -> CORS -> CSRF -> Auth -> AuthFailureLimiter -> RateLimit -> Compression.
+	router.Use(middleware.RequestID)
+	router.Use(middleware.BodyLimit(cfg.Server.MaxRequestBodySize))
+	router.Use(middleware.CORS(cfg.CORS))
+	router.Use(middleware.CSRFProtection(cfg.Server.AllowGetQueries, cfg.Server.Mode))
+	if authenticator != nil {
+		router.Use(middleware.AuthMiddleware(authenticator))
+	}
+	if authFailureLimiter != nil {
+		router.Use(newAuthFailureLimiterMiddleware(authFailureLimiter))
+	}
+	router.Use(middleware.RateLimitMiddleware(rateLimiter, authFailureLimiter))
+	router.Use(middleware.Compression(cfg.Compression))
+	// 15. Create HTTP server and build middleware chain.
+	srv := server.NewServer(
+		cfg.Server,
+		cfg.GraphQL,
+		cfg.Shutdown,
+		dsManager,
+		res,
+		schema,
+		logger.Logger,
+	)
+	srv.SetTracingShutdown(tracingProvider.Shutdown)
+
+	// Get the server's chi router with GraphQL, playground, and placeholder routes.
+	router := srv.SetupRoutes()
+
+	// Override placeholder health/ready/metrics with real handlers.
+	router.Get("/health", healthChecker.LivenessCheck)
+	router.Get("/ready", healthChecker.ReadinessCheck)
+	router.Get("/metrics", metricsCollector.Handler().ServeHTTP)
+
+	// Build middleware chain: RequestID -> BodyLimit -> CORS -> CSRF -> Auth -> AuthFailureLimiter -> RateLimit -> Compression.
+	router.Use(middleware.RequestID)
+	router.Use(middleware.BodyLimit(cfg.Server.MaxRequestBodySize))
+	router.Use(middleware.CORS(cfg.CORS))
+	router.Use(middleware.CSRFProtection(cfg.Server.AllowGetQueries, cfg.Server.Mode))
+
+	if authenticator != nil {
+		router.Use(middleware.AuthMiddleware(authenticator))
+	}
+
+	if authFailureLimiter != nil {
+		router.Use(authFailureLimiterMiddleware(authFailureLimiter))
+	}
+
+	router.Use(middleware.RateLimitMiddleware(rateLimiter, authFailureLimiter))
+	router.Use(middleware.Compression(cfg.Compression))
+
+	// Start HTTP server with the middleware-configured router (bypass srv.Start
+	// which would create a second router without our middleware).
+	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	logger.Info("HTTP server starting", zap.String("addr", addr), zap.String("mode", cfg.Server.Mode))
+
+	httpSrv := &http.Server{
+		Addr:    addr,
+		Handler: router,
+	}
+	go func() {
+		if listenErr := httpSrv.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
+			logger.Fatal("HTTP server error", zap.Error(listenErr))
+		}
+	}()
+
+	// 16. Graceful shutdown (SIGTERM/SIGINT).
+	srv.WaitForShutdown()
+// resolveRedisAddr returns the Redis address from the first available config source.
+func resolveRedisAddr(cfg *config.Config) string {
+	if cfg.RateLimit.Redis.Addr != "" {
+		return cfg.RateLimit.Redis.Addr
+	}
+	if cfg.Cache.Redis.Addr != "" {
+		return cfg.Cache.Redis.Addr
+	}
+	return "localhost:6379"
+}
+
+// resolveRedisPassword returns the Redis password from the first available config source.
+func resolveRedisPassword(cfg *config.Config) string {
+	if cfg.RateLimit.Redis.Password != "" {
+		return cfg.RateLimit.Redis.Password
+	}
+	return cfg.Cache.Redis.Password
+}
+
+// resolveRedisDB returns the Redis DB from the first available config source.
+func resolveRedisDB(cfg *config.Config) int {
+	if cfg.RateLimit.Redis.Addr != "" {
+		return cfg.RateLimit.Redis.DB
+	}
+	if cfg.Cache.Redis.Addr != "" {
+		return cfg.Cache.Redis.DB
+	}
+	return 0
+}
+
+// newAuthFailureLimiterMiddleware wraps AuthFailureLimiter as chi middleware
+// that checks if the client IP is banned before proceeding.
+func newAuthFailureLimiterMiddleware(afl *middleware.AuthFailureLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := afl.ExtractClientIP(r)
+			if !afl.Check(ip) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = w.Write([]byte(`{"error":{"code":"AUTH_BRUTE_FORCE_BLOCKED","message":"too many authentication failures","classification":"AUTH"}}`))
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
