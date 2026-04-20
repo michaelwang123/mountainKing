@@ -100,7 +100,7 @@ func TestProperty27_TotalRequestTimeoutCancellation(t *testing.T) {
 		s := &Server{
 			serverConfig: config.ServerConfig{RequestTimeout: timeout},
 		}
-		wrapped := s.withRequestTimeout(slowHandler)
+		wrapped := s.WithRequestTimeout(slowHandler)
 
 		ts := httptest.NewServer(wrapped)
 		defer ts.Close()
