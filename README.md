@@ -1,25 +1,29 @@
 # GraphQL Multi-DataSource API
 
-A production-grade GraphQL API server in Go that provides a unified query interface across multiple data sources — currently StarRocks (OLAP) and Prometheus (metrics).
+A production-grade GraphQL API server in Go that provides a unified query interface across multiple data sources — currently StarRocks (OLAP) and Prometheus (metrics). Built with gqlgen, chi, and a comprehensive middleware stack for enterprise-grade security, observability, and resilience.
 
 ## Features
 
 - Unified GraphQL API for querying StarRocks and Prometheus
-- Relay-style cursor pagination for StarRocks queries
+- Relay-style cursor pagination and traditional offset/limit pagination
 - Instant and range queries for Prometheus
-- JWT and API Key authentication
-- Per-datasource authorization and permissions
+- Cross-datasource parallel queries with isolated error handling
+- JWT and API Key authentication with per-datasource authorization
+- Token bucket rate limiting (local + distributed Redis with auto-fallback)
 - Circuit breaker and retry with exponential backoff
 - Request batching with configurable limits
 - DataLoader-based N+1 query prevention
-- In-memory or Redis-backed caching with TTL jitter
-- Local or distributed rate limiting
-- OpenTelemetry tracing (OTLP export)
-- Prometheus metrics endpoint
-- Structured logging (zap, JSON format)
-- Hot-reloadable YAML configuration with env var overrides
+- In-memory (LRU) or Redis-backed caching with penetration/avalanche/stampede protection
+- OpenTelemetry distributed tracing (OTLP export to Jaeger/Tempo)
+- Prometheus metrics endpoint with custom labels
+- Structured JSON logging (zap) with audit trail
+- Sensitive data sanitization in logs and traces
+- Hot-reloadable YAML configuration with env var overrides (12-Factor)
 - Graceful shutdown with ordered teardown
-- Kubernetes-ready (health/readiness probes)
+- CSRF protection, CORS, gzip compression, body size limits
+- Brute-force authentication failure protection
+- Kubernetes-ready (startup/liveness/readiness probes, HPA)
+- Multi-stage Docker build with distroless base image
 
 ## Prerequisites
 
@@ -42,41 +46,37 @@ go mod download
 go run cmd/server/main.go
 ```
 
-The server listens on `:8080` by default.
+The server listens on `:8080` by default. Set `GRAPHQL_SERVER_MODE=development` for Playground access at `/playground`.
 
 ## Configuration
 
-
-Configuration is loaded from a YAML file with environment variable overrides using the `GRAPHQL_` prefix (12-Factor style).
+Configuration is loaded from `config.yaml` with environment variable overrides using the `GRAPHQL_` prefix (12-Factor style).
 
 ```bash
-# Example env overrides
 export GRAPHQL_SERVER_PORT=9090
 export GRAPHQL_LOGGING_LEVEL=debug
 export GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED=true
 ```
 
+Hot-reloadable at runtime: log level, rate limit params, cache TTL.
+
 Key config sections:
 
-| Section | Description |
-|---------|-------------|
-| `server` | Port, mode, timeouts, batch limits |
-| `graphql` | Introspection, complexity/depth limits, APQ |
-| `datasources` | StarRocks/Prometheus connection configs |
-| `auth` | JWT or API Key authentication |
-| `cache` | Memory/Redis backend, TTL, jitter |
-| `rate_limit` | Local or distributed rate limiting |
-| `tracing` | OpenTelemetry OTLP export |
-| `circuit_breaker` | Failure threshold, open duration |
-| `retry` | Max retries, backoff strategy |
-
-## GraphQL Schema
-
-### Queries
-
-```graphql
-# StarRocks OLAP query with filtering, sorting, and pagination
-starrocks(table: String!, fields: [String!], filters: [StarRocksFilter!],
+| Section           | Description                                                 |
+| -------------------| -------------------------------------------------------------|
+| `server`          | Port, mode, timeouts, batch limits                          |
+| `graphql`         | Introspection, complexity/depth limits, max result rows     |
+| `datasources`     | StarRocks/Prometheus connection configs with whitelist      |
+| `auth`            | JWT (HS256/RS256/ES256) or API Key authentication           |
+| `rate_limit`      | Local or distributed (Redis) rate limiting                  |
+| `cache`           | Memory/Redis backend, TTL, jitter, per-datasource TTL       |
+| `tracing`         | OpenTelemetry OTLP export (gRPC/HTTP)                       |
+| `metrics`         | Custom Prometheus labels                                    |
+| `circuit_breaker` | Failure threshold, open duration                            |
+| `retry`           | Max retries, exponential backoff                            |
+| `cors`            | Cross-origin resource sharing                               |
+| `compression`     | gzip response compression                                   |
+| `logging`         | Level, formatields: [String!], filters: [StarRocksFilter!], |
           orderBy: [StarRocksOrderBy!], first: Int, after: String,
           offset: Int, limit: Int): StarRocksConnection!
 
@@ -92,7 +92,17 @@ prometheusRange(query: String!, startTime: DateTime!, endTime: DateTime!,
 ### Mutations
 
 ```graphql
-# Clear cache (all or per-datasource)
+# Clear c         filters: [PrometheusLabelFilter!]): PrometheusInstantResult!
+
+# Prometheus range query
+prometheusRange(query: String!, startTime: DateTime!, endTime: DateTime!,
+                step: String!, filters: [PrometheusLabelFilter!]): PrometheusRangeResult!
+```
+
+### Mutations
+
+```graphql
+# Clear cache (all or per-datasource). Requires mutation permission.
 clearCache(datasource: String): Boolean!
 ```
 
@@ -103,34 +113,62 @@ clearCache(datasource: String): Boolean!
 | `/graphql` | POST | GraphQL endpoint |
 | `/graphql` | GET | GraphQL (if `allow_get_queries` enabled) |
 | `/playground` | GET | GraphiQL (development mode only) |
-| `/health` | GET | Health check |
-| `/ready` | GET | Readiness probe |
+| `/health` | GET | Liveness check (200/503) |
+| `/ready` | GET | Readiness probe with datasource status (200/503) |
 | `/metrics` | GET | Prometheus metrics |
 
 ## Project Structure
 
 ```
-cmd/server/          Entry point
+cmd/server/              Entry point (main.go)
 internal/
   adapter/
-    prometheus/      Prometheus adapter, query builder, type mapper
-    starrocks/       StarRocks adapter, query builder, whitelist
-  config/            YAML config loading, validation, hot-reload
-  datasource/        DataSource interface, manager, circuit breaker, registry
-  errors/            Typed error definitions
+    prometheus/          Prometheus adapter, query builder, type mapper, validator
+    starrocks/           StarRocks adapter, query builder, type mapper, whitelist
+  audit/                 Audit logging
+  cache/                 Cache interface, memory/Redis backends, Cache Layer, key gen
+  config/                YAML config loading, validation, hot-reload (fsnotify)
+  context/               Context keys (RequestID, AuthIdentity, TraceID)
+  datasource/            DataSource interface, Manager, Registry, circuit breaker, reconnect
+  errors/                Typed error codes (AUTH_*, VALIDATION_*, DATASOURCE_*, etc.)
   graphql/
-    dataloader/      DataLoader for batched fetching
-    generated/       gqlgen generated code
-    resolver/        GraphQL resolvers
-    scalar/          Custom scalars (DateTime, JSON)
-    schema/          GraphQL schema files (.graphql)
-  middleware/        HTTP middleware (request ID, etc.)
-  observability/     Structured logging setup
-  server/            HTTP server, routing, graceful shutdown, batching
+    dataloader/          Per-request DataLoader for batched fetching
+    generated/           gqlgen generated code
+    resolver/            Query and Mutation resolvers
+    scalar/              Custom scalars (DateTime, JSON)
+    schema/              GraphQL schema files (.graphql)
+  health/                Health check and readiness probe
+  middleware/            Auth, authz, rate limit, CORS, CSRF, compression, body limit, request ID
+  observability/         Prometheus metrics, OpenTelemetry tracing, structured logging, Redis hook
+  ratelimit/             RateLimiter interface, local/distributed/fallback implementations
+  redis/                 Shared Redis client
+  sanitize/              Sensitive data masking
+  server/                HTTP server, routing, graceful shutdown, batch query handling
 pkg/
-  retry/             Retry logic with classifier and backoff
-deploy/k8s/          Kubernetes manifests
+  retry/                 Retry logic with error classifier and exponential backoff
+deploy/
+  Dockerfile             Multi-stage build (distroless, non-root)
+  docker-compose.yaml    Integration test environment
+  k8s/                   Kubernetes manifests (Deployment, Service, ConfigMap, HPA)
+  prometheus.yml         Prometheus scrape config
 ```
+
+## Documentation
+
+Comprehensive Apache-style project documentation is available in the [`official_document/`](official_document/) directory:
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](official_document/architecture.md) | System architecture, component relationships, request flow |
+| [Getting Started](official_document/getting-started.md) | Environment setup, build, run, first query |
+| [Configuration Reference](official_document/configuration.md) | All config options, env var overrides, hot-reload |
+| [GraphQL API Reference](official_document/graphql-api.md) | Schema, queries, mutations, pagination, error codes |
+| [Security Guide](official_document/security.md) | Authentication, authorization, rate limiting, input validation |
+| [DataSource Adapters](official_document/datasource-adapters.md) | StarRocks/Prometheus details and extension guide |
+| [Observability](official_document/observability.md) | Prometheus metrics, OpenTelemetry tracing, structured logging |
+| [Deployment Guide](official_document/deployment.md) | Docker, Kubernetes, CI/CD, production checklist |
+| [Performance Tuning](official_document/performance.md) | Caching, connection pools, circuit breaker, benchmarks |
+| [Developer Guide](official_document/developer-guide.md) | Project structure, code standards, testing, contribution |
 
 ## Code Generation
 
@@ -143,8 +181,38 @@ go run github.com/99designs/gqlgen generate
 ## Testing
 
 ```bash
+# Unit tests
 go test ./...
+
+# With race detection and coverage
+go test -race -coverprofile=coverage.out ./...
+
+# Benchmarks
+go test -bench=. -benchmem ./internal/server/
 ```
+
+Property-based tests use [rapid](https://pkg.go.dev/pgregory.net/rapid) with 100+ iterations per property.
+
+## Docker
+
+```bash
+# Build
+docker build -f deploy/Dockerfile \
+  --build-arg VERSION=$(git describe --tags) \
+  --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+  -t graphql-api:latest .
+
+# Run
+docker run -p 8080:8080 -v $(pwd)/config.yaml:/config.yaml graphql-api:latest
+```
+
+## Kubernetes
+
+```bash
+kubectl apply -f deploy/k8s/
+```
+
+Includes Deployment (with startup/liveness/readiness probes), Service, ConfigMap, and HPA (based on `graphql_requests_in_flight` custom metric).
 
 ## License
 
