@@ -9,6 +9,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -266,6 +267,14 @@ func LoadConfig(configPath string) (*Config, error) {
 	// map to environment variables like GRAPHQL_SERVER_PORT.
 	v.SetEnvKeyReplacer(underscoreReplacer())
 
+	// Explicitly bind nested keys that are commonly overridden via env vars.
+	// Viper's AutomaticEnv only works for keys that have been accessed via Get(),
+	// Set(), or SetDefault(). For nested keys loaded from YAML, we need explicit
+	// BindEnv calls to ensure env var overrides work with Unmarshal().
+	_ = v.BindEnv("auth.method", "GRAPHQL_AUTH_METHOD")
+	_ = v.BindEnv("server.mode", "GRAPHQL_SERVER_MODE")
+	_ = v.BindEnv("graphql.introspection_enabled", "GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED")
+
 	if configPath != "" {
 		if err := v.ReadInConfig(); err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
@@ -275,6 +284,17 @@ func LoadConfig(configPath string) (*Config, error) {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Post-unmarshal env var overrides for keys where Viper's AutomaticEnv
+	// doesn't work reliably (e.g., empty string overrides, nested keys).
+	// Use GRAPHQL_AUTH_METHOD="none" to disable authentication.
+	if envVal, ok := os.LookupEnv("GRAPHQL_AUTH_METHOD"); ok {
+		cfg.Auth.Method = envVal
+	}
+	// Treat "none" as disabled (empty).
+	if cfg.Auth.Method == "none" {
+		cfg.Auth.Method = ""
 	}
 
 	return &cfg, nil

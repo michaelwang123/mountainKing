@@ -82,12 +82,15 @@ func ValidateConfig(cfg *Config) ([]ValidationWarning, error) {
 	}
 
 	// === Auth validation ===
-	if cfg.Auth.Method != "" {
-		if cfg.Auth.Method != "jwt" && cfg.Auth.Method != "apikey" {
-			errs = append(errs, fmt.Sprintf("auth.method must be \"jwt\" or \"apikey\", got %q", cfg.Auth.Method))
+	// When auth.method is empty (e.g., disabled via env var or not configured),
+	// skip all auth-related validation to allow running without authentication.
+	authMethod := strings.TrimSpace(cfg.Auth.Method)
+	if authMethod != "" {
+		if authMethod != "jwt" && authMethod != "apikey" {
+			errs = append(errs, fmt.Sprintf("auth.method must be \"jwt\" or \"apikey\", got %q", authMethod))
 		}
 
-		if cfg.Auth.Method == "jwt" {
+		if authMethod == "jwt" {
 			errs = append(errs, validateJWTConfig(cfg.Auth.JWT)...)
 		}
 	}

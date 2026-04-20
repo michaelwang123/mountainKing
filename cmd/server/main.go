@@ -21,6 +21,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/michaelwang123/mountainKing/internal/adapter/prometheus"
 	"github.com/michaelwang123/mountainKing/internal/adapter/starrocks"
 	"github.com/michaelwang123/mountainKing/internal/audit"
@@ -227,13 +228,9 @@ func main() {
 	srv := server.NewServer(cfg.Server, cfg.GraphQL, cfg.Shutdown, dsManager, res, schema, logger.Logger)
 	srv.SetTracingShutdown(tracingProvider.Shutdown)
 
-	// Get the server's chi router with GraphQL, playground, and placeholder routes.
-	router := srv.SetupRoutes()
-
-	// Override placeholder health/ready/metrics with real handlers.
-	router.Get("/health", healthChecker.LivenessCheck)
-	router.Get("/ready", healthChecker.ReadinessCheck)
-	router.Get("/metrics", metricsCollector.Handler().ServeHTTP)
+	// Build a single chi router: middleware first, then routes.
+	// Chi requires all middleware to be defined before any routes.
+	router := chi.NewRouter()
 
 	// Apply middleware chain: RequestID -> BodyLimit -> CORS -> CSRF -> Auth -> AuthFailureLimiter -> RateLimit -> Compression.
 	router.Use(middleware.RequestID)
@@ -248,6 +245,21 @@ func main() {
 	}
 	router.Use(middleware.RateLimitMiddleware(rateLimiter, authFailureLimiter))
 	router.Use(middleware.Compression(cfg.Compression))
+
+	// Register health/ready/metrics with real handlers.
+	router.Get("/health", healthChecker.LivenessCheck)
+	router.Get("/ready", healthChecker.ReadinessCheck)
+	router.Get("/metrics", metricsCollector.Handler().ServeHTTP)
+
+	// Register GraphQL routes via server's handler setup.
+	gqlHandler := srv.NewGraphQLHandler()
+	router.Post("/graphql", srv.WithRequestTimeout(gqlHandler))
+	if cfg.Server.AllowGetQueries || cfg.Server.Mode == "development" {
+		router.Get("/graphql", srv.WithRequestTimeout(gqlHandler))
+	}
+	if cfg.Server.Mode == "development" {
+		router.Get("/playground", srv.PlaygroundHandler())
+	}
 
 	// 16. Start HTTP server directly with our middleware-configured router.
 	// We bypass srv.Start() because it calls SetupRoutes() again, creating

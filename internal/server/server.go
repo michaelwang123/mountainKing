@@ -88,14 +88,14 @@ func (s *Server) SetMetricsFlush(fn ShutdownFunc) {
 func (s *Server) SetupRoutes() *chi.Mux {
 	r := chi.NewRouter()
 
-	gqlHandler := s.newGraphQLHandler()
+	gqlHandler := s.NewGraphQLHandler()
 
 	// POST /graphql — always enabled.
-	r.Post("/graphql", s.withRequestTimeout(gqlHandler))
+	r.Post("/graphql", s.WithRequestTimeout(gqlHandler))
 
 	// GET /graphql — controlled by allow_get_queries config.
 	if s.serverConfig.AllowGetQueries {
-		r.Get("/graphql", s.withRequestTimeout(gqlHandler))
+		r.Get("/graphql", s.WithRequestTimeout(gqlHandler))
 	}
 
 	// GET /playground — only in development mode.
@@ -103,17 +103,15 @@ func (s *Server) SetupRoutes() *chi.Mux {
 		r.Get("/playground", playground.Handler("GraphQL Playground", "/graphql"))
 	}
 
-	// Placeholder endpoints — will be implemented in later tasks.
-	r.Get("/health", placeholderHandler("health"))
-	r.Get("/ready", placeholderHandler("ready"))
-	r.Get("/metrics", placeholderHandler("metrics"))
+	// Health, ready, and metrics endpoints are registered by the caller (main.go)
+	// with real implementations. No placeholders needed here.
 
 	return r
 }
 
-// newGraphQLHandler creates a gqlgen handler with complexity limit, depth limit,
-// and introspection control from config.
-func (s *Server) newGraphQLHandler() http.Handler {
+// NewGraphQLHandler creates a gqlgen handler with complexity limit, depth limit,
+// and introspection control from config. Exported for use by main.go.
+func (s *Server) NewGraphQLHandler() http.Handler {
 	srv := handler.New(s.schema)
 
 	// Transports.
@@ -162,10 +160,9 @@ func (s *Server) newGraphQLHandler() http.Handler {
 	return srv
 }
 
-// withRequestTimeout wraps an http.Handler with a context.WithTimeout derived
-// from the configured request_timeout. Each data source query should further
-// constrain its timeout to min(query_timeout, remaining request time).
-func (s *Server) withRequestTimeout(next http.Handler) http.HandlerFunc {
+// WithRequestTimeout wraps an http.Handler with a context.WithTimeout derived
+// from the configured request_timeout. Exported for use by main.go.
+func (s *Server) WithRequestTimeout(next http.Handler) http.HandlerFunc {
 	timeout := s.serverConfig.RequestTimeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
@@ -175,6 +172,12 @@ func (s *Server) withRequestTimeout(next http.Handler) http.HandlerFunc {
 		defer cancel()
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+// PlaygroundHandler returns an http.HandlerFunc that serves the GraphQL Playground UI.
+// Exported for use by main.go when registering routes directly.
+func (s *Server) PlaygroundHandler() http.HandlerFunc {
+	return playground.Handler("GraphQL Playground", "/graphql")
 }
 
 // placeholderHandler returns a simple handler that responds with 200 OK and
