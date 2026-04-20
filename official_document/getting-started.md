@@ -30,16 +30,32 @@ go run cmd/server/main.go
 
 ## 开发模式
 
-将 `config.yaml` 中的 `server.mode` 设为 `development`，或通过环境变量覆盖：
+默认配置为生产模式（JWT 认证、Introspection 禁用）。本地开发时需要切换到开发模式并禁用认证才能顺利启动。
+
+### Windows PowerShell
+
+```powershell
+$env:GRAPHQL_SERVER_MODE="development"
+$env:GRAPHQL_AUTH_METHOD=""
+$env:GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED="true"
+go run cmd/server/main.go
+```
+
+### Linux / macOS
 
 ```bash
 export GRAPHQL_SERVER_MODE=development
+export GRAPHQL_AUTH_METHOD=
+export GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED=true
 go run cmd/server/main.go
 ```
 
 开发模式下：
 - GraphQL Playground 可通过 `http://localhost:8080/playground` 访问
 - GET 查询默认启用
+- 数据源连不上是正常的，服务会在后台自动重连
+
+详细说明请参阅 [开发模式指南](development-mode.md)。
 
 ## 首次查询
 
@@ -123,6 +139,7 @@ docker compose up -d
 
 ## 下一步
 
+- [开发模式指南](development-mode.md) — 本地启动、调试、环境变量配置
 - [配置参考](configuration.md) — 了解所有配置项
 - [GraphQL API 参考](graphql-api.md) — 查看完整的 Schema 和查询示例
 - [安全指南](security.md) — 配置认证和授权
