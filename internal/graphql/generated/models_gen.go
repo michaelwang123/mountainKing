@@ -8,16 +8,13 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/example/graphql-api/internal/graphql/scalar"
+	"github.com/michaelwang123/mountainKing/internal/graphql/scalar"
 )
 
-// 本服务仅支持管理类 Mutation 操作，不支持数据写入。
-// 所有数据获取均通过 Query 完成。
-// Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
-type Mutation struct {
+// 本服务仅支持管理�?Mutation 操作，不支持数据写入�?// 所有数据获取均通过 Query 完成�?// Mutation 操作需要认证主体具�?"mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）�?type Mutation struct {
 }
 
-// 分页信息，遵循 Relay Connection 规范
+// 分页信息，遵�?Relay Connection 规范
 type PageInfo struct {
 	HasNextPage     bool    `json:"hasNextPage"`
 	HasPreviousPage bool    `json:"hasPreviousPage"`
@@ -87,14 +84,10 @@ type StarRocksOrderBy struct {
 	Direction SortDirection `json:"direction"`
 }
 
-// StarRocks 查询结果行。
-// 由于 StarRocks 是 OLAP 数据库，不同表结构不同，
-// 使用 JSON 标量类型作为动态字段容器。
-// 客户端通过 GraphQL 的字段选择机制指定需要的列，
-// 适配器根据请求的字段生成对应的 SQL SELECT 子句。
-type StarRocksRow struct {
-	// 动态字段数据，key 为列名，value 为列值
-	Data scalar.JSON `json:"data"`
+// StarRocks 查询结果行�?// 由于 StarRocks �?OLAP 数据库，不同表结构不同，
+// 使用 JSON 标量类型作为动态字段容器�?// 客户端通过 GraphQL 的字段选择机制指定需要的列，
+// 适配器根据请求的字段生成对应�?SQL SELECT 子句�?type StarRocksRow struct {
+	// 动态字段数据，key 为列名，value 为列�?	Data scalar.JSON `json:"data"`
 }
 
 type FilterOperator string
@@ -175,11 +168,11 @@ type LabelMatchType string
 const (
 	// 精确匹配 (=)
 	LabelMatchTypeExact LabelMatchType = "EXACT"
-	// 不等于 (!=)
+	// 不等�?(!=)
 	LabelMatchTypeNotEqual LabelMatchType = "NOT_EQUAL"
 	// 正则匹配 (=~)
 	LabelMatchTypeRegex LabelMatchType = "REGEX"
-	// 正则不匹配 (!~)
+	// 正则不匹�?(!~)
 	LabelMatchTypeNotRegex LabelMatchType = "NOT_REGEX"
 )
 

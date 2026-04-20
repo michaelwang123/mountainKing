@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package retry provides error classification and retry logic with
 // exponential backoff for the GraphQL Multi-DataSource API service.
 package retry
@@ -46,7 +50,7 @@ func IsTransient(err error) bool {
 
 // IsBusiness returns true if the error is a business (non-retryable) error.
 // Business errors include SQL syntax errors, PromQL syntax errors, etc.
-// This is the inverse of IsTransient â€” if an error is not transient and
+// This is the inverse of IsTransient â€?if an error is not transient and
 // not nil, it is considered a business error.
 func IsBusiness(err error) bool {
 	if err == nil {

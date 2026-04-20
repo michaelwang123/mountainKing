@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package config
 
 import (
@@ -13,7 +17,7 @@ import (
 )
 
 // =============================================================================
-// Property 73: 配置热更新
+// Property 73: 配置热更�?
 // **Validates: Requirements 17.9**
 // For any change to logging.level, rate_limit params, or cache TTL in the
 // config file, the HotReloader should detect the change and fire the registered
@@ -127,8 +131,8 @@ func TestProperty73_ConfigHotReload(t *testing.T) {
 }
 
 // =============================================================================
-// Property 90: 配置热更新 Debounce
-// **Validates: Design - ConfigMap 兼容性**
+// Property 90: 配置热更�?Debounce
+// **Validates: Design - ConfigMap 兼容�?*
 // For any config file that receives multiple rapid changes within 500ms,
 // the HotReloader should only trigger one reload (debounce).
 // =============================================================================

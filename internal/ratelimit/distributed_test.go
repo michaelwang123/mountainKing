@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package ratelimit
 
 import (
@@ -19,10 +23,10 @@ func TestNewDistributedRateLimiter(t *testing.T) {
 	if drl.windowSize != 60*time.Second {
 		t.Errorf("expected windowSize=60s, got %v", drl.windowSize)
 	}
-	// refillRate = 100 / 60 â‰ˆ 1.6667
+	// refillRate = 100 / 60 â‰?1.6667
 	expectedRate := 100.0 / 60.0
 	if drl.refillRate < expectedRate-0.001 || drl.refillRate > expectedRate+0.001 {
-		t.Errorf("expected refillRateâ‰ˆ%.4f, got %.4f", expectedRate, drl.refillRate)
+		t.Errorf("expected refillRateâ‰?.4f, got %.4f", expectedRate, drl.refillRate)
 	}
 	if drl.client != client {
 		t.Error("expected client to be stored")
@@ -79,7 +83,7 @@ func TestNewDistributedRateLimiter_DifferentWindows(t *testing.T) {
 			}
 			diff := drl.refillRate - tt.expectedRefillRate
 			if diff < -0.001 || diff > 0.001 {
-				t.Errorf("expected refillRateâ‰ˆ%.4f, got %.4f", tt.expectedRefillRate, drl.refillRate)
+				t.Errorf("expected refillRateâ‰?.4f, got %.4f", tt.expectedRefillRate, drl.refillRate)
 			}
 		})
 	}

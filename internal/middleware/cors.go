@@ -1,10 +1,14 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
 	"net/http"
 	"strings"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 // defaultMaxAge is the default preflight cache duration in seconds.
@@ -44,7 +48,7 @@ func CORS(cfg config.CORSConfig) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
-			// No Origin header â€” not a CORS request, pass through.
+			// No Origin header â€?not a CORS request, pass through.
 			if origin == "" {
 				next.ServeHTTP(w, r)
 				return
@@ -57,7 +61,7 @@ func CORS(cfg config.CORSConfig) func(http.Handler) http.Handler {
 			}
 
 			if !allowed {
-				// Origin not in the allowed list â€” pass through without CORS headers.
+				// Origin not in the allowed list â€?pass through without CORS headers.
 				next.ServeHTTP(w, r)
 				return
 			}

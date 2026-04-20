@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package config provides configuration loading and management for the GraphQL API service.
 // It uses Viper to load YAML configuration files with environment variable overrides
 // using the GRAPHQL_ prefix, following the 12-Factor App convention.

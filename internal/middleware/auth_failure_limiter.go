@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package middleware provides HTTP middleware components for the GraphQL API service.
 // AuthFailureLimiter implements brute-force protection for authentication failures.
 // It tracks failed authentication attempts per IP and bans IPs that exceed
@@ -11,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 // failureRecord tracks authentication failure attempts for a single IP.
@@ -76,7 +80,7 @@ func (afl *AuthFailureLimiter) Check(ip string) bool {
 		if time.Since(*rec.bannedAt) < afl.banDur {
 			return false
 		}
-		// Ban has expired â€” allow through; cleanup goroutine will remove the record.
+		// Ban has expired â€?allow through; cleanup goroutine will remove the record.
 		return true
 	}
 
@@ -217,7 +221,7 @@ func (afl *AuthFailureLimiter) isTrusted(ipStr string) bool {
 	return false
 }
 
-// stripPort removes the port from an address string (e.g. "1.2.3.4:8080" â†’ "1.2.3.4").
+// stripPort removes the port from an address string (e.g. "1.2.3.4:8080" â†?"1.2.3.4").
 func stripPort(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {

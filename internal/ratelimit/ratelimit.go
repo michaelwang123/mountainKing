@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package ratelimit provides rate limiting implementations for the GraphQL API service.
 // It supports both local (in-process) and distributed (Redis-based) rate limiting
 // using the Token Bucket algorithm.

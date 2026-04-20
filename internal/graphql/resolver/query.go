@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package resolver implements GraphQL query resolvers for the
 // multi-datasource API. This file contains helper functions for query
 // parameter conversion, result transformation, parallel multi-datasource
@@ -13,9 +17,9 @@ import (
 	"time"
 
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/internal/graphql/generated"
-	"github.com/example/graphql-api/internal/graphql/scalar"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/graphql/generated"
+	"github.com/michaelwang123/mountainKing/internal/graphql/scalar"
 )
 
 // --- Data source name lookup ---

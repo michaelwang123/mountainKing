@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -8,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 // defaultMinCompressSize is the default minimum response size for compression (1KB).
@@ -77,7 +81,7 @@ func Compression(cfg config.CompressionConfig) func(http.Handler) http.Handler {
 				_ = gz.Close()
 				gzipWriterPool.Put(gz)
 			} else {
-				// Below threshold â€” send uncompressed.
+				// Below threshold â€?send uncompressed.
 				if bw.statusCode != 0 {
 					w.WriteHeader(bw.statusCode)
 				}

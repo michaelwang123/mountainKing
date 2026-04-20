@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package redis provides a shared Redis client factory for the GraphQL API service.
 // The client is used by distributed rate limiting, Redis cache backend, and Redis tracing hook.
 package redis
@@ -6,12 +10,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 	goredis "github.com/redis/go-redis/v9"
 )
 
 // NewRedisClient creates a configured *redis.Client from the given RedisConfig.
-// The client uses lazy connection â€” it does not attempt to connect or ping
+// The client uses lazy connection â€?it does not attempt to connect or ping
 // at creation time. Use Ping to verify connectivity when needed.
 func NewRedisClient(cfg config.RedisConfig) (*goredis.Client, error) {
 	if cfg.Addr == "" {

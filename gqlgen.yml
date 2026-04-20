@@ -18,12 +18,12 @@ resolver:
   package: resolver
 
 autobind:
-  - github.com/example/graphql-api/internal/graphql/scalar
+  - github.com/michaelwang123/mountainKing/internal/graphql/scalar
 
 models:
   DateTime:
     model:
-      - github.com/example/graphql-api/internal/graphql/scalar.DateTime
+      - github.com/michaelwang123/mountainKing/internal/graphql/scalar.DateTime
   JSON:
     model:
-      - github.com/example/graphql-api/internal/graphql/scalar.JSON
+      - github.com/michaelwang123/mountainKing/internal/graphql/scalar.JSON

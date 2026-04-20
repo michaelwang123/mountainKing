@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package observability
 
 import (
@@ -12,7 +16,7 @@ import (
 )
 
 // =============================================================================
-// Property 32: 结构化日志格式
+// Property 32: 结构化日志格�?
 // **Validates: Requirements 9.2**
 // For any log message written by the Logger, the output should be valid JSON
 // containing "level", "timestamp", and "message" (or "msg") fields.

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package resolver
 
 // This file will not be regenerated automatically.
@@ -8,8 +12,8 @@ package resolver
 import (
 	"context"
 
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
 )
 
 // CacheClearer is the interface needed by the mutation resolver for cache

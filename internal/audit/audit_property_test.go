@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package audit
 
 import (
@@ -9,10 +13,10 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
-// Property 54: 审计日志完整性
+// Property 54: 审计日志完整�?
 // **Validates: Requirements 13.12**
 //
 // For any authenticated request, the audit log entry must contain:

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package datasource defines the core interfaces and types for the multi-datasource
 // adapter architecture. All data source adapters (e.g., StarRocks, Prometheus) must
 // implement the DataSource interface defined in this package.

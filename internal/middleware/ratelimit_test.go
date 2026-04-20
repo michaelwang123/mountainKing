@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -9,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
-	apierrors "github.com/example/graphql-api/internal/errors"
-	"github.com/example/graphql-api/internal/ratelimit"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/ratelimit"
 )
 
 // mockRateLimiter is a test double for ratelimit.RateLimiter.

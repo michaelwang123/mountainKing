@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package retry
 
 import (
@@ -28,7 +32,7 @@ func Do[T any](ctx context.Context, cfg Config, fn func(ctx context.Context) (T,
 			return result, nil
 		}
 
-		// Business errors are not retryable â€” return immediately.
+		// Business errors are not retryable â€?return immediately.
 		if IsBusiness(err) {
 			return zero, err
 		}
@@ -39,7 +43,7 @@ func Do[T any](ctx context.Context, cfg Config, fn func(ctx context.Context) (T,
 		}
 
 		// Calculate exponential backoff: interval * 2^attempt
-		// attempt 0 â†’ interval*1, attempt 1 â†’ interval*2, attempt 2 â†’ interval*4, ...
+		// attempt 0 â†?interval*1, attempt 1 â†?interval*2, attempt 2 â†?interval*4, ...
 		backoff := cfg.RetryInterval * (1 << uint(attempt))
 
 		// Check context before waiting.

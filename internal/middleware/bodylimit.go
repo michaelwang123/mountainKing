@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package middleware provides HTTP middleware components for the GraphQL API service.
 package middleware
 
@@ -8,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // defaultMaxBodySize is the default maximum request body size (1MB).
@@ -96,7 +100,7 @@ func ParseSizeString(s string) (int64, error) {
 		}
 	}
 
-	// No suffix â€” treat as raw bytes.
+	// No suffix â€?treat as raw bytes.
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid size string %q: %w", s, err)

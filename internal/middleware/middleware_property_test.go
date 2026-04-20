@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -14,9 +18,9 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/config"
-	ctxkeys "github.com/example/graphql-api/internal/context"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // TestProperty31_ErrorResponseStructure validates that error responses from the
@@ -100,7 +104,7 @@ func TestProperty31_ErrorResponseStructure(t *testing.T) {
 			t.Fatal("extensions missing 'classification' field")
 		}
 
-		// Property: classification matches the code prefix (CATEGORY_ERROR_NAME â†’ CATEGORY).
+		// Property: classification matches the code prefix (CATEGORY_ERROR_NAME â†?CATEGORY).
 		expectedClassification := apierrors.Classification(errCode)
 		if classification != expectedClassification {
 			t.Fatalf("classification %q does not match expected %q for code %q",

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package observability
 
 import (
@@ -39,7 +43,7 @@ func findAttr(attrs []attribute.KeyValue, key string) (string, bool) {
 }
 
 // =============================================================================
-// Property 42: Root Span 创建与属性
+// Property 42: Root Span 创建与属�?
 // **Validates: Requirements 12.3, 12.4**
 // For any GraphQL request (tracing enabled), a Root Span should be created with
 // name format "GraphQL {operation_type} {operation_name}" and attributes:
@@ -101,7 +105,7 @@ func TestProperty42_RootSpanCreationAndAttributes(t *testing.T) {
 }
 
 // =============================================================================
-// Property 43: Resolver Span 创建与属性
+// Property 43: Resolver Span 创建与属�?
 // **Validates: Requirements 12.5**
 // For any Resolver execution, a child Span should be created under the Root Span
 // with name format "Resolver {field_name}" and attributes: graphql.field.name,
@@ -166,7 +170,7 @@ func TestProperty43_ResolverSpanCreationAndAttributes(t *testing.T) {
 }
 
 // =============================================================================
-// Property 44: 数据源查询 Span 创建与属性
+// Property 44: 数据源查�?Span 创建与属�?
 // **Validates: Requirements 12.6, 12.7**
 // For any datasource query, a child Span should be created under the Resolver
 // Span (StarRocks: "StarRocks Query", Prometheus: "Prometheus Query") with
@@ -302,7 +306,7 @@ func TestProperty45_W3CTraceContextPropagation(t *testing.T) {
 }
 
 // =============================================================================
-// Property 46: 错误 Span 状态
+// Property 46: 错误 Span 状�?
 // **Validates: Requirements 12.14, 12.15**
 // For any datasource query error or uncaught exception, the corresponding Span
 // status should be set to Error, and a Span Event should record the error info.
@@ -415,7 +419,7 @@ func TestProperty47_TraceIDCorrelation_NoSpan(t *testing.T) {
 
 // =============================================================================
 // Property 89: Redis 操作 Span 创建
-// **Validates: Design - Redis 可观测性**
+// **Validates: Design - Redis 可观测�?*
 // For any Redis cache or distributed rate-limiting operation (tracing enabled),
 // an independent Span should be created with name format "Redis {command}" and
 // attributes: db.system (redis), db.operation, net.peer.name.

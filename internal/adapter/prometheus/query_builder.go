@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package prometheus implements the Prometheus data source adapter for the
 // GraphQL multi-datasource API. It converts GraphQL query parameters into
 // PromQL queries and communicates with Prometheus via its HTTP API.
@@ -8,7 +12,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/example/graphql-api/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
 )
 
 // LabelMatchType represents the type of label matching in PromQL.
@@ -138,9 +142,9 @@ func (b *PromQLQueryBuilder) extractRequiredOption(req datasource.QueryRequest, 
 
 // appendLabelMatchers converts FilterCondition entries to PromQL label matchers
 // and appends them to the query expression. The conversion rules are:
-//   - FilterOpEQ  â†’ =  (exact match)
-//   - FilterOpNEQ â†’ != (not equal)
-//   - FilterOpLIKE â†’ =~ (regex match)
+//   - FilterOpEQ  â†?=  (exact match)
+//   - FilterOpNEQ â†?!= (not equal)
+//   - FilterOpLIKE â†?=~ (regex match)
 //
 // Other filter operators are silently skipped as they have no PromQL equivalent.
 func (b *PromQLQueryBuilder) appendLabelMatchers(query string, filters []datasource.FilterCondition) string {

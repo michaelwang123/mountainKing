@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package datasource
 
 import (
@@ -10,16 +14,16 @@ import (
 	"go.uber.org/zap"
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/config"
-	apierrors "github.com/example/graphql-api/internal/errors"
-	"github.com/example/graphql-api/pkg/retry"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
+	"github.com/michaelwang123/mountainKing/pkg/retry"
 )
 
 // TestProperty12_ExponentialBackoffReconnectInterval validates that the Nth
 // reconnection interval equals min(initial * 2^(N-1), max) for any sequence
 // of reconnection attempts.
 //
-// Feature: graphql-multi-datasource-api, Property 12: 指数退避重连间隔
+// Feature: graphql-multi-datasource-api, Property 12: 指数退避重连间�?
 // **Validates: Requirements 3.4**
 func TestProperty12_ExponentialBackoffReconnectInterval(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -127,7 +131,7 @@ func TestProperty13_ConnectionPoolExhaustedTimeout(t *testing.T) {
 			t.Fatalf("Init failed: %v", err)
 		}
 
-		// Execute a query — pool exhausted is a business error, should NOT be retried.
+		// Execute a query �?pool exhausted is a business error, should NOT be retried.
 		_, execErr := mgr.ExecuteWithRetry(context.Background(), dsName, QueryRequest{})
 		if execErr == nil {
 			t.Fatal("expected pool exhausted error, got nil")
@@ -152,7 +156,7 @@ func TestProperty13_ConnectionPoolExhaustedTimeout(t *testing.T) {
 // with a registered type, Init creates the datasource; for unregistered types,
 // Init skips and the datasource is not in the manager.
 //
-// Feature: graphql-multi-datasource-api, Property 14: 适配器发现与实例化
+// Feature: graphql-multi-datasource-api, Property 14: 适配器发现与实例�?
 // **Validates: Requirements 3.8, 3.9**
 func TestProperty14_AdapterDiscoveryAndInstantiation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -224,7 +228,7 @@ func TestProperty14_AdapterDiscoveryAndInstantiation(t *testing.T) {
 // TestProperty38_DataSourceEnableDisable validates that for any config with
 // enabled=false, Init skips that datasource entirely.
 //
-// Feature: graphql-multi-datasource-api, Property 38: 数据源启用/禁用
+// Feature: graphql-multi-datasource-api, Property 38: 数据源启�?禁用
 // **Validates: Requirements 10.11**
 func TestProperty38_DataSourceEnableDisable(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {

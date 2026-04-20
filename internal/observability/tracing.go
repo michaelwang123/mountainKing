@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package observability provides structured logging, metrics, and tracing
 // initialization for the GraphQL API service.
 package observability
@@ -18,12 +22,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 const (
 	// tracerName is the instrumentation name used for all spans created by this package.
-	tracerName = "github.com/example/graphql-api"
+	tracerName = "github.com/michaelwang123/mountainKing"
 	// shutdownTimeout is the maximum time allowed for flushing trace data on shutdown.
 	shutdownTimeout = 5 * time.Second
 )

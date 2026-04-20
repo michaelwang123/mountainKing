@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package server
 
 import (
@@ -12,12 +16,12 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/example/graphql-api/internal/cache"
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/internal/graphql/generated"
-	"github.com/example/graphql-api/internal/graphql/resolver"
-	"github.com/example/graphql-api/pkg/retry"
+	"github.com/michaelwang123/mountainKing/internal/cache"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/graphql/generated"
+	"github.com/michaelwang123/mountainKing/internal/graphql/resolver"
+	"github.com/michaelwang123/mountainKing/pkg/retry"
 )
 
 // newBenchmarkServer creates a test server for benchmarking.
@@ -62,7 +66,7 @@ func newBenchmarkServer() (*httptest.Server, func()) {
 }
 
 // BenchmarkSingleDatasourceQuery measures single datasource simple query latency.
-// Target: P95 â‰¤ 200ms (excluding datasource time).
+// Target: P95 â‰?200ms (excluding datasource time).
 func BenchmarkSingleDatasourceQuery(b *testing.B) {
 	ts, cleanup := newBenchmarkServer()
 	defer cleanup()
@@ -87,7 +91,7 @@ func BenchmarkSingleDatasourceQuery(b *testing.B) {
 // BenchmarkMixedDatasourceQuery measures cross-datasource mixed query latency.
 // Simulates the overhead of processing queries that would span multiple datasources.
 // Uses two sequential GraphQL queries in a single benchmark iteration to model
-// the mixed-source pattern. Target: P95 â‰¤ 500ms (excluding datasource time).
+// the mixed-source pattern. Target: P95 â‰?500ms (excluding datasource time).
 func BenchmarkMixedDatasourceQuery(b *testing.B) {
 	ts, cleanup := newBenchmarkServer()
 	defer cleanup()

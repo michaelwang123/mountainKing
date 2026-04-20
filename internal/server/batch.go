@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package server provides the HTTP server for the GraphQL API service.
 package server
 
@@ -11,7 +15,7 @@ import (
 	"net/http/httptest"
 	"sync"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
 )
 
 // BatchHandler wraps a gqlgen HTTP handler to support GraphQL query batching.

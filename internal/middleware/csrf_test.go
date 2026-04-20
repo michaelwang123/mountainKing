@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -8,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
 )
 
 // okHandler is a simple handler that returns 200 OK.

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package scalar provides custom GraphQL scalar type implementations for
 // DateTime and JSON, handling serialization and deserialization between
 // GraphQL wire format and Go native types.

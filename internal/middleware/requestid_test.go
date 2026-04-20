@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -6,7 +10,7 @@ import (
 	"regexp"
 	"testing"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
 )
 
 // uuidV4Regex matches a standard UUID v4 string.

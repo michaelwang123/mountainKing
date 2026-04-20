@@ -1,14 +1,18 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package starrocks
 
 import (
 	"fmt"
 
-	"github.com/example/graphql-api/internal/datasource"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // ParseAllowedTables extracts the allowed_tables whitelist from a DataSourceConfig's Options.
-// Returns a map of table name â†’ set of allowed column names.
+// Returns a map of table name â†?set of allowed column names.
 // Returns an error if allowed_tables is missing, empty, or contains invalid identifiers.
 //
 // Expected Options format:

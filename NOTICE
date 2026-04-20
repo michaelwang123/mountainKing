@@ -1,0 +1,71 @@
+mountainKing - GraphQL Multi-DataSource API
+Copyright 2024-2026 mountainKing Contributors
+
+This product includes software developed at
+https://github.com/michaelwang123/mountainKing
+
+========================================================================
+Third-Party Dependencies
+========================================================================
+
+This project uses the following third-party libraries:
+
+gqlgen (github.com/99designs/gqlgen)
+  License: MIT
+  Copyright: 99designs
+
+chi (github.com/go-chi/chi)
+  License: MIT
+  Copyright: Peter Kieltyka
+
+Viper (github.com/spf13/viper)
+  License: MIT
+  Copyright: Steve Francia
+
+zap (go.uber.org/zap)
+  License: MIT
+  Copyright: Uber Technologies, Inc.
+
+golang-jwt (github.com/golang-jwt/jwt)
+  License: MIT
+  Copyright: golang-jwt maintainers
+
+go-sql-driver/mysql (github.com/go-sql-driver/mysql)
+  License: MPL-2.0
+  Copyright: go-sql-driver authors
+
+prometheus/client_golang (github.com/prometheus/client_golang)
+  License: Apache-2.0
+  Copyright: Prometheus Authors
+
+go-redis (github.com/redis/go-redis)
+  License: BSD-2-Clause
+  Copyright: go-redis authors
+
+OpenTelemetry Go (go.opentelemetry.io/otel)
+  License: Apache-2.0
+  Copyright: OpenTelemetry Authors
+
+golang-lru (github.com/hashicorp/golang-lru)
+  License: MPL-2.0
+  Copyright: HashiCorp, Inc.
+
+xxhash (github.com/cespare/xxhash)
+  License: MIT
+  Copyright: Caleb Spare
+
+fsnotify (github.com/fsnotify/fsnotify)
+  License: BSD-3-Clause
+  Copyright: fsnotify Authors
+
+rapid (pgregory.net/rapid)
+  License: MPL-2.0
+  Copyright: Gregory Petrosyan
+
+golang.org/x/sync
+  License: BSD-3-Clause
+  Copyright: The Go Authors
+
+golang.org/x/time
+  License: BSD-3-Clause
+  Copyright: The Go Authors

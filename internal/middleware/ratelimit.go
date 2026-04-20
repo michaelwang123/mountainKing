@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package middleware provides HTTP middleware components for the GraphQL API service.
 // RateLimitMiddleware enforces per-client request rate limiting using the
 // Token Bucket algorithm. It supports API Key, JWT, and IP-based rate limit keys.
@@ -9,9 +13,9 @@ import (
 	"net/http"
 	"strconv"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
-	apierrors "github.com/example/graphql-api/internal/errors"
-	"github.com/example/graphql-api/internal/ratelimit"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/ratelimit"
 )
 
 // IPExtractor extracts the real client IP from an HTTP request.
@@ -25,9 +29,9 @@ type IPExtractor interface {
 // /playground) are exempt from rate limiting.
 //
 // Rate limit key priority:
-//  1. API Key auth â†’ "apikey:{id}"
-//  2. JWT auth â†’ "jwt:{sub}"
-//  3. Fallback â†’ "ip:{addr}"
+//  1. API Key auth â†?"apikey:{id}"
+//  2. JWT auth â†?"jwt:{sub}"
+//  3. Fallback â†?"ip:{addr}"
 //
 // Batch queries consume tokens equal to the number of queries in the batch.
 // Response headers X-RateLimit-Limit, X-RateLimit-Remaining, and
