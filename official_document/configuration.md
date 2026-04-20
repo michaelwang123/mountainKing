@@ -91,7 +91,7 @@ options:
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `method` | string | — | 认证方式：`jwt` 或 `apikey` |
+| `method` | string | — | 认证方式：`jwt`、`apikey` 或 `none`（禁用认证） |
 | `trusted_proxies` | []string | — | 可信代理 CIDR 列表，用于 X-Forwarded-For IP 提取 |
 
 #### JWT 配置
