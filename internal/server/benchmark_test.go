@@ -66,7 +66,7 @@ func newBenchmarkServer() (*httptest.Server, func()) {
 }
 
 // BenchmarkSingleDatasourceQuery measures single datasource simple query latency.
-// Target: P95 â‰?200ms (excluding datasource time).
+// Target: P95 â†’200ms (excluding datasource time).
 func BenchmarkSingleDatasourceQuery(b *testing.B) {
 	ts, cleanup := newBenchmarkServer()
 	defer cleanup()
@@ -91,7 +91,7 @@ func BenchmarkSingleDatasourceQuery(b *testing.B) {
 // BenchmarkMixedDatasourceQuery measures cross-datasource mixed query latency.
 // Simulates the overhead of processing queries that would span multiple datasources.
 // Uses two sequential GraphQL queries in a single benchmark iteration to model
-// the mixed-source pattern. Target: P95 â‰?500ms (excluding datasource time).
+// the mixed-source pattern. Target: P95 â†’500ms (excluding datasource time).
 func BenchmarkMixedDatasourceQuery(b *testing.B) {
 	ts, cleanup := newBenchmarkServer()
 	defer cleanup()

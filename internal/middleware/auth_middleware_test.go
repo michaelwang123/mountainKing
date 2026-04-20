@@ -66,7 +66,7 @@ func parseErrorResponse(t *testing.T, body []byte) map[string]any {
 func TestAuthMiddleware_PublicEndpoints_SkipAuth(t *testing.T) {
 	publicPaths := []string{"/health", "/ready", "/metrics", "/playground"}
 
-	// Use an authenticator that always fails â€?public endpoints should still pass.
+	// Use an authenticator that always fails â†’public endpoints should still pass.
 	failAuth := &mockAuthenticator{
 		err: &AuthError{Code: apierrors.ErrAuthMissing, StatusCode: 401, Message: "no creds"},
 	}

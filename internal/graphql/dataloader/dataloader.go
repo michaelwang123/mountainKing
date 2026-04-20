@@ -4,7 +4,7 @@
 
 // Package dataloader implements a per-request DataLoader that batches and
 // coalesces queries targeting the same data source within a configurable
-// time window. Each HTTP request gets its own DataLoader instance â€?sharing
+// time window. Each HTTP request gets its own DataLoader instance â€” sharing
 // across requests is forbidden to prevent data leakage.
 package dataloader
 
@@ -47,8 +47,8 @@ type DataLoader struct {
 	maxBatch    int
 
 	mu      sync.Mutex
-	pending map[string][]*loadRequest // datasource name â†?pending requests
-	timers  map[string]*time.Timer    // datasource name â†?flush timer
+	pending map[string][]*loadRequest // datasource name â†’ pending requests
+	timers  map[string]*time.Timer    // datasource name â†’ flush timer
 	closed  bool
 }
 
@@ -81,7 +81,7 @@ func WithMaxBatch(n int) Option {
 }
 
 // Load submits a query for the named data source and blocks until the result
-// is available. It respects context cancellation â€?if the context is cancelled
+// is available. It respects context cancellation â€” if the context is cancelled
 // before the result arrives the caller receives the context error.
 func (dl *DataLoader) Load(ctx context.Context, dsName string, query datasource.QueryRequest) (*datasource.QueryResult, error) {
 	ch := make(chan *LoadResult, 1)
@@ -113,7 +113,7 @@ func (dl *DataLoader) Load(ctx context.Context, dsName string, query datasource.
 	case res := <-ch:
 		return res.Result, res.Err
 	case <-ctx.Done():
-		// Context cancelled â€?trigger an immediate async flush so other
+		// Context cancelled â€” trigger an immediate async flush so other
 		// waiters in the same batch are not stuck forever.
 		dl.mu.Lock()
 		if reqs := dl.takePending(dsName); len(reqs) > 0 {

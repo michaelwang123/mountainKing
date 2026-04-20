@@ -303,7 +303,7 @@ func (a *APIKeyAuthenticator) Authenticate(r *http.Request) (*AuthIdentity, erro
 			continue
 		}
 
-		// Key matched â€?check expiration.
+		// Key matched â€” check expiration.
 		if a.keys[i].ExpiresAt != nil && time.Now().After(*a.keys[i].ExpiresAt) {
 			return nil, &AuthError{
 				Code:       apierrors.ErrAuthTokenExpired,

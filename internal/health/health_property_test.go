@@ -18,9 +18,9 @@ import (
 // Property 59: 健康检查状态码
 // **Validates: Requirements 15.3, 15.4**
 //
-// - When all datasources healthy �?/health returns 200, /ready returns 200
-// - When all datasources unhealthy �?/health returns 200 (liveness), /ready returns 503
-// - When at least one datasource healthy �?/ready returns 200
+// - When all datasources healthy → /health returns 200, /ready returns 200
+// - When all datasources unhealthy → /health returns 200 (liveness), /ready returns 503
+// - When at least one datasource healthy → /ready returns 200
 func TestProperty59_HealthCheckStatusCodes(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		// Generate 1-10 datasources with random health states.
@@ -73,12 +73,12 @@ func TestProperty59_HealthCheckStatusCodes(t *testing.T) {
 		hc.ReadinessCheck(wReady, reqReady)
 
 		if healthyCount > 0 {
-			// At least one datasource healthy �?200
+			// At least one datasource healthy → 200
 			if wReady.Code != http.StatusOK {
 				t.Fatalf("readiness: expected 200 (healthy=%d), got %d", healthyCount, wReady.Code)
 			}
 		} else {
-			// All datasources unhealthy �?503
+			// All datasources unhealthy → 503
 			if wReady.Code != http.StatusServiceUnavailable {
 				t.Fatalf("readiness: expected 503 (all unhealthy), got %d", wReady.Code)
 			}

@@ -18,7 +18,7 @@ import (
 // TestProperty56_TokenBucketRateLimiting validates that the token bucket rate limiter
 // allows requests up to burst, denies after exhaustion, and tokens refill over time.
 //
-// Feature: graphql-multi-datasource-api, Property 56: 令牌桶限�?
+// Feature: graphql-multi-datasource-api, Property 56: 令牌桶限流
 // **Validates: Requirements 14.1, 14.2, 14.3, 14.4**
 func TestProperty56_TokenBucketRateLimiting(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -149,7 +149,7 @@ func TestProperty8_BatchQueryRateLimiting(t *testing.T) {
 // TestProperty58_DistributedRateLimitRedisDegradation validates that when Redis is
 // unavailable, FallbackRateLimiter degrades to local mode and still enforces rate limits.
 //
-// Feature: graphql-multi-datasource-api, Property 58: 分布式限�?Redis 降级
+// Feature: graphql-multi-datasource-api, Property 58: 分布式限流 Redis 降级
 // **Validates: Requirements 14.9**
 func TestProperty58_DistributedRateLimitRedisDegradation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -198,7 +198,7 @@ func TestProperty58_DistributedRateLimitRedisDegradation(t *testing.T) {
 			}
 		}
 
-		// Next request should be denied �?local limiter enforces the limit.
+		// Next request should be denied — local limiter enforces the limit.
 		denied, err := frl.Allow(ctx, key, 1)
 		if err != nil {
 			t.Fatalf("unexpected error on denied request: %v", err)
@@ -221,7 +221,7 @@ func TestProperty58_DistributedRateLimitRedisDegradation(t *testing.T) {
 // degradation, the useFallback flag transitions correctly: it is set to true
 // on degradation and can be reset to false (simulating Redis recovery).
 //
-// Feature: graphql-multi-datasource-api, Property 78: 分布式限流降级恢�?
+// Feature: graphql-multi-datasource-api, Property 78: 分布式限流降级恢复
 // **Validates: Design - 降级恢复机制**
 func TestProperty78_DistributedRateLimitDegradationRecovery(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -259,7 +259,7 @@ func TestProperty78_DistributedRateLimitDegradationRecovery(t *testing.T) {
 			t.Fatal("expected useFallback=true after degradation")
 		}
 
-		// Property: the recovery mechanism exists �?useFallback is an atomic.Bool
+		// Property: the recovery mechanism exists — useFallback is an atomic.Bool
 		// that can be toggled. Simulate recovery by directly setting it to false
 		// (the real probe does this when PING succeeds).
 		frl.useFallback.Store(false)
@@ -284,7 +284,7 @@ func TestProperty78_DistributedRateLimitDegradationRecovery(t *testing.T) {
 // TestProperty96_KeyedRateLimiterMaxEntries validates that when KeyedRateLimiter
 // reaches maxEntries, new keys are denied (Allow=false) while existing keys still work.
 //
-// Feature: graphql-multi-datasource-api, Property 96: KeyedRateLimiter 最�?Key 数量限制
+// Feature: graphql-multi-datasource-api, Property 96: KeyedRateLimiter 最大 Key 数量限制
 // **Validates: Design - DDoS 内存防护**
 func TestProperty96_KeyedRateLimiterMaxEntries(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {

@@ -212,7 +212,7 @@ func TestCORS_Preflight_DisallowedOrigin_NoHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	// Disallowed origin â€?passes through to inner handler, no CORS headers.
+	// Disallowed origin â†’passes through to inner handler, no CORS headers.
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("expected no CORS headers for disallowed origin preflight, got %q", got)
 	}

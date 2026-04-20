@@ -12,7 +12,7 @@ import (
 	"pgregory.net/rapid"
 )
 
-// promResultTypeMapping defines the expected Prometheus result type �?GraphQL type mappings.
+// promResultTypeMapping defines the expected Prometheus result type → GraphQL type mappings.
 var promResultTypeMapping = map[PrometheusResultType]GraphQLTypeName{
 	ResultTypeScalar: GQLFloat,
 	ResultTypeString: GQLString,
@@ -63,12 +63,12 @@ func TestProperty21_PrometheusTypeMapping(t *testing.T) {
 }
 
 // TestProperty22_PrometheusSpecialValueConversion validates that for any float64 value:
-// - NaN �?nil + non-empty warning
-// - +Inf �?nil + non-empty warning
-// - -Inf �?nil + non-empty warning
-// - Normal float64 �?non-nil pointer with correct value + empty warning
+// - NaN → nil + non-empty warning
+// - +Inf → nil + non-empty warning
+// - -Inf → nil + non-empty warning
+// - Normal float64 → non-nil pointer with correct value + empty warning
 //
-// Feature: graphql-multi-datasource-api, Property 22: Prometheus 特殊值转�?
+// Feature: graphql-multi-datasource-api, Property 22: Prometheus 特殊值转换
 // **Validates: Requirements 5.9**
 func TestProperty22_PrometheusSpecialValueConversion(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -123,7 +123,7 @@ func TestProperty22_PrometheusSpecialValueConversion(t *testing.T) {
 // For any slice of N data points where N > maxDataPoints, the adapter's convertVector
 // should return a DATASOURCE_MAX_DATA_POINTS error. For N <= maxDataPoints, it should succeed.
 //
-// Feature: graphql-multi-datasource-api, Property 23: Prometheus 数据点超限保�?
+// Feature: graphql-multi-datasource-api, Property 23: Prometheus 数据点超限保护
 // **Validates: Requirements 5.6**
 func TestProperty23_PrometheusDataPointLimitProtection(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {

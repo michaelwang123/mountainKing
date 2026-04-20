@@ -34,7 +34,7 @@ func TestProperty82_DataLoaderPerRequestIsolation(t *testing.T) {
 		// We use a per-request unique marker injected via QueryRequest.Options.
 		var executeCalls atomic.Int32
 		var mu sync.Mutex
-		resultsByMarker := make(map[string]string) // marker â†?datasource response
+		resultsByMarker := make(map[string]string) // marker â†’datasource response
 
 		registry := datasource.NewAdapterRegistry()
 		err := registry.Register("mock", func(name string, cfg datasource.DataSourceConfig) (datasource.DataSource, error) {

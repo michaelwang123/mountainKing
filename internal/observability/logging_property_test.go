@@ -16,7 +16,7 @@ import (
 )
 
 // =============================================================================
-// Property 32: 结构化日志格�?
+// Property 32: 结构化日志格式
 // **Validates: Requirements 9.2**
 // For any log message written by the Logger, the output should be valid JSON
 // containing "level", "timestamp", and "message" (or "msg") fields.

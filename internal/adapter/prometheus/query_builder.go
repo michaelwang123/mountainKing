@@ -142,9 +142,9 @@ func (b *PromQLQueryBuilder) extractRequiredOption(req datasource.QueryRequest, 
 
 // appendLabelMatchers converts FilterCondition entries to PromQL label matchers
 // and appends them to the query expression. The conversion rules are:
-//   - FilterOpEQ  â†?=  (exact match)
-//   - FilterOpNEQ â†?!= (not equal)
-//   - FilterOpLIKE â†?=~ (regex match)
+//   - FilterOpEQ  â†’ =  (exact match)
+//   - FilterOpNEQ â†’ != (not equal)
+//   - FilterOpLIKE â†’ =~ (regex match)
 //
 // Other filter operators are silently skipped as they have no PromQL equivalent.
 func (b *PromQLQueryBuilder) appendLabelMatchers(query string, filters []datasource.FilterCondition) string {

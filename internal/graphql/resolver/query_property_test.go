@@ -24,7 +24,7 @@ import (
 // and collects all results. All datasource results must be present in the
 // output regardless of execution order.
 //
-// Feature: graphql-multi-datasource-api, Property 24: 跨数据源并行查询与结果合�?
+// Feature: graphql-multi-datasource-api, Property 24: 跨数据源并行查询与结果合并
 // **Validates: Requirements 6.1, 6.2**
 func TestProperty24_CrossDataSourceParallelQueryAndMerge(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -262,7 +262,7 @@ func TestProperty92_FailingDataSourceDoesNotCancelOthers(t *testing.T) {
 						// Fail immediately.
 						return nil, fmt.Errorf("immediate failure")
 					}
-					// Slow success �?simulate work.
+					// Slow success — simulate work.
 					select {
 					case <-time.After(time.Duration(slowDelayMs) * time.Millisecond):
 						slowCompleted.Store(true)
@@ -330,7 +330,7 @@ func TestProperty92_FailingDataSourceDoesNotCancelOthers(t *testing.T) {
 // max_result_rows, the data is truncated to max_result_rows and a warning
 // is added to the result.
 //
-// Feature: graphql-multi-datasource-api, Property 30: 结果集截�?
+// Feature: graphql-multi-datasource-api, Property 30: 结果集截断
 // **Validates: Requirements 8.9**
 func TestProperty30_ResultSetTruncation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {

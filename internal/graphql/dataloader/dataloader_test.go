@@ -116,7 +116,7 @@ func TestLoad_MaxBatchFlush(t *testing.T) {
 		return &datasource.QueryResult{}, nil
 	})
 
-	// Very long window â€?flush should be triggered by max batch size.
+	// Very long window â†’flush should be triggered by max batch size.
 	dl := New(mgr, WithBatchWindow(10*time.Second), WithMaxBatch(3))
 	defer dl.Close()
 

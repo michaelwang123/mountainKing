@@ -50,7 +50,7 @@ func IsTransient(err error) bool {
 
 // IsBusiness returns true if the error is a business (non-retryable) error.
 // Business errors include SQL syntax errors, PromQL syntax errors, etc.
-// This is the inverse of IsTransient â€?if an error is not transient and
+// This is the inverse of IsTransient â€” if an error is not transient and
 // not nil, it is considered a business error.
 func IsBusiness(err error) bool {
 	if err == nil {

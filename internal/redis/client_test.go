@@ -73,7 +73,7 @@ func TestNewRedisClient_DefaultDB(t *testing.T) {
 }
 
 func TestNewRedisClient_NoConnectionAtCreation(t *testing.T) {
-	// Use an unreachable address â€?creation should succeed (lazy connection)
+	// Use an unreachable address â†’creation should succeed (lazy connection)
 	cfg := config.RedisConfig{
 		Addr: "192.0.2.1:6379", // RFC 5737 TEST-NET, guaranteed unreachable
 	}

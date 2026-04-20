@@ -16,7 +16,7 @@ import (
 	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
-// Property 54: 审计日志完整�?
+// Property 54: 审计日志完整性
 // **Validates: Requirements 13.12**
 //
 // For any authenticated request, the audit log entry must contain:

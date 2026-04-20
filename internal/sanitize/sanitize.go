@@ -13,8 +13,8 @@ import (
 )
 
 // DefaultRules returns the built-in sanitization rules:
-//   - SQL string literals ('...') â†?'***'
-//   - 4+ digit numbers â†?***
+//   - SQL string literals ('...') â†’ '***'
+//   - 4+ digit numbers â†’ ***
 func DefaultRules() []config.SanitizationRule {
 	return []config.SanitizationRule{
 		{Pattern: `'[^']*'`, Replacement: "'***'"},

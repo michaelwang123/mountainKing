@@ -248,7 +248,7 @@ func TestMetricsCollector_LabelNames(t *testing.T) {
 		t.Fatalf("Gather() error: %v", err)
 	}
 
-	// Build a map of metric name â†?set of label names.
+	// Build a map of metric name â†’set of label names.
 	labelMap := make(map[string]map[string]bool)
 	for _, mf := range mfs {
 		name := mf.GetName()

@@ -145,7 +145,7 @@ func TestIsTransientAndIsBusiness_Mutually_Exclusive(t *testing.T) {
 		transient := IsTransient(err)
 		business := IsBusiness(err)
 		if transient == business {
-			t.Errorf("error %q: IsTransient=%v IsBusiness=%v â€?expected exactly one to be true",
+			t.Errorf("error %q: IsTransient=%v IsBusiness=%v â€” expected exactly one to be true",
 				err, transient, business)
 		}
 	}
