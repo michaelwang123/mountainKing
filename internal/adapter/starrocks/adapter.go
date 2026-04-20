@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package starrocks
 
 import (
@@ -11,8 +15,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"go.uber.org/zap"
 
-	"github.com/example/graphql-api/internal/datasource"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // Adapter implements the datasource.DataSource interface for StarRocks.

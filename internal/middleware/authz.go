@@ -1,7 +1,11 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
-	apierrors "github.com/example/graphql-api/internal/errors"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // Authorizer checks whether an authenticated identity has permission

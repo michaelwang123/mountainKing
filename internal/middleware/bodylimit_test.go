@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -10,8 +14,8 @@ import (
 	"strings"
 	"testing"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 func TestParseSizeString(t *testing.T) {
@@ -81,7 +85,7 @@ func TestBodyLimit_RejectsOversizedBody(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := io.ReadAll(r.Body)
 		if err != nil {
-			// Body exceeded limit â€” write the 413 error response.
+			// Body exceeded limit â€?write the 413 error response.
 			WriteBodyLimitError(w, r)
 			return
 		}

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package starrocks implements the StarRocks data source adapter, which connects
 // to StarRocks via the MySQL protocol and translates GraphQL query parameters
 // into parameterized SQL statements.
@@ -8,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/example/graphql-api/internal/datasource"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // identifierRe matches valid SQL identifiers: letters, digits, and underscores.
@@ -29,7 +33,7 @@ func ValidateIdentifier(name string) error {
 
 // SQLQueryBuilder converts GraphQL query parameters to parameterized SQL.
 type SQLQueryBuilder struct {
-	allowedTables map[string]map[string]bool // table â†’ allowed columns
+	allowedTables map[string]map[string]bool // table â†?allowed columns
 }
 
 // NewSQLQueryBuilder creates a new SQLQueryBuilder with the given whitelist.

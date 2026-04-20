@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package health provides HTTP health check and readiness probe handlers
 // for Kubernetes liveness and readiness probes.
 package health
@@ -52,7 +56,7 @@ type healthResponse struct {
 }
 
 // LivenessCheck handles GET /health.
-// All core components normal â†’ 200; any abnormal â†’ 503.
+// All core components normal â†?200; any abnormal â†?503.
 func (hc *HealthChecker) LivenessCheck(w http.ResponseWriter, r *http.Request) {
 	hc.mu.RLock()
 	components := make(map[string]func() error, len(hc.components))
@@ -90,7 +94,7 @@ func (hc *HealthChecker) LivenessCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 // ReadinessCheck handles GET /ready.
-// At least one datasource available â†’ 200; all unavailable â†’ 503.
+// At least one datasource available â†?200; all unavailable â†?503.
 func (hc *HealthChecker) ReadinessCheck(w http.ResponseWriter, r *http.Request) {
 	results := hc.dsManager.HealthCheckAll(r.Context())
 

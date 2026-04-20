@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package prometheus
 
 import (
@@ -7,7 +11,7 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
 )
 
 // genPromQLExpression generates a random valid PromQL metric name.

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package server
 
 import (
@@ -16,9 +20,9 @@ import (
 	"go.uber.org/zap"
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/pkg/retry"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/pkg/retry"
 )
 
 // TestProperty26_DatasourceQueryTimeoutCancellation validates that when a
@@ -75,7 +79,7 @@ func TestProperty26_DatasourceQueryTimeoutCancellation(t *testing.T) {
 // request processing exceeds request_timeout, the request is terminated.
 // The server wraps each request with context.WithTimeout(request_timeout).
 //
-// Feature: graphql-multi-datasource-api, Property 27: 总请求超时取消
+// Feature: graphql-multi-datasource-api, Property 27: 总请求超时取�?
 // **Validates: Requirements 8.6**
 func TestProperty27_TotalRequestTimeoutCancellation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -123,13 +127,13 @@ func TestProperty27_TotalRequestTimeoutCancellation(t *testing.T) {
 // TestProperty28_QueryComplexityLimit validates that queries exceeding
 // max_query_complexity are rejected by the GraphQL engine.
 //
-// Feature: graphql-multi-datasource-api, Property 28: 查询复杂度限制
+// Feature: graphql-multi-datasource-api, Property 28: 查询复杂度限�?
 // **Validates: Requirements 8.7**
 func TestProperty28_QueryComplexityLimit(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		// Generate a complexity limit between 1 and 3.
 		// The starrocks query { starrocks(table:"t", fields:["a"]) { nodes { data } totalCount } }
-		// has complexity ≥ 4 (one per field). So limits 1-3 will always reject it.
+		// has complexity �?4 (one per field). So limits 1-3 will always reject it.
 		maxComplexity := rapid.IntRange(1, 3).Draw(t, "maxComplexity")
 
 		s := newPropertyTestServer(func(s *Server) {
@@ -262,7 +266,7 @@ func buildNestedQuery(depth int) string {
 // effective query timeout is min(query_timeout, remaining_request_time),
 // ensuring neither timeout is exceeded.
 //
-// Feature: graphql-multi-datasource-api, Property 88: 请求超时与查询超时组合
+// Feature: graphql-multi-datasource-api, Property 88: 请求超时与查询超时组�?
 // **Validates: Design - 超时组合机制**
 func TestProperty88_RequestTimeoutAndQueryTimeoutCombination(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -300,7 +304,7 @@ func TestProperty88_RequestTimeoutAndQueryTimeoutCombination(t *testing.T) {
 				childDeadline, parentDeadline)
 		}
 
-		// Property: effective timeout ≤ min(queryTimeout, requestTimeout).
+		// Property: effective timeout �?min(queryTimeout, requestTimeout).
 		margin := 5 * time.Millisecond
 		if effectiveTimeout > expectedEffective+margin {
 			t.Fatalf("effective timeout %v exceeds expected min(%v, %v) = %v",
@@ -335,7 +339,7 @@ func TestProperty88_RequestTimeoutAndQueryTimeoutCombination(t *testing.T) {
 // after shutdown is initiated, the server stops accepting new connections
 // while in-flight requests complete.
 //
-// Feature: graphql-multi-datasource-api, Property 60: 优雅关闭 - 停止接受新请求
+// Feature: graphql-multi-datasource-api, Property 60: 优雅关闭 - 停止接受新请�?
 // **Validates: Requirements 15.5, 15.6**
 func TestProperty60_GracefulShutdownStopsAcceptingNewRequests(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -397,8 +401,8 @@ func TestProperty60_GracefulShutdownStopsAcceptingNewRequests(t *testing.T) {
 }
 
 // TestProperty61_GracefulShutdownResourceCleanupOrder validates that graceful
-// shutdown follows the correct order: stop accepting → wait for in-flight →
-// flush traces → flush metrics → close datasources → sync logger.
+// shutdown follows the correct order: stop accepting �?wait for in-flight �?
+// flush traces �?flush metrics �?close datasources �?sync logger.
 //
 // Feature: graphql-multi-datasource-api, Property 61: 优雅关闭 - 资源清理顺序
 // **Validates: Requirements 15.7, 15.8**

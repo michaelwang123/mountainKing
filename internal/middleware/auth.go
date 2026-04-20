@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -15,8 +19,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/example/graphql-api/internal/config"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // Authenticator defines the interface for authenticating HTTP requests.
@@ -299,7 +303,7 @@ func (a *APIKeyAuthenticator) Authenticate(r *http.Request) (*AuthIdentity, erro
 			continue
 		}
 
-		// Key matched â€” check expiration.
+		// Key matched â€?check expiration.
 		if a.keys[i].ExpiresAt != nil && time.Now().After(*a.keys[i].ExpiresAt) {
 			return nil, &AuthError{
 				Code:       apierrors.ErrAuthTokenExpired,

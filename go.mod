@@ -1,4 +1,4 @@
-module github.com/example/graphql-api
+module github.com/michaelwang123/mountainKing
 
 go 1.25.5
 

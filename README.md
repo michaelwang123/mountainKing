@@ -1,6 +1,6 @@
 # GraphQL Multi-DataSource API
 
-A production-grade GraphQL API server in Go that provides a unified query interface across multiple data sources â€” currently StarRocks (OLAP) and Prometheus (metrics). Built with gqlgen, chi, and a comprehensive middleware stack for enterprise-grade security, observability, and resilience.
+A production-grade GraphQL API server in Go that provides a unified query interface across multiple data sources â€?currently StarRocks (OLAP) and Prometheus (metrics). Built with gqlgen, chi, and a comprehensive middleware stack for enterprise-grade security, observability, and resilience.
 
 ## Features
 
@@ -30,7 +30,7 @@ A production-grade GraphQL API server in Go that provides a unified query interf
 - Go 1.25+
 - (Optional) StarRocks instance
 - (Optional) Prometheus instance
-- (Optional) Redis â€” for distributed caching/rate limiting
+- (Optional) Redis â€?for distributed caching/rate limiting
 
 ## Getting Started
 
@@ -40,7 +40,7 @@ Quick start:
 
 ```bash
 # Clone
-git clone https://github.com/example/graphql-api.git
+git clone https://github.com/michaelwang123/mountainKing.git
 cd graphql-api
 
 # Install dependencies

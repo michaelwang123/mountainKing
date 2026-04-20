@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package starrocks
 
 import (
@@ -6,7 +10,7 @@ import (
 
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
 )
 
 // testWhitelist defines the allowed tables and columns used across all property tests.
@@ -303,7 +307,7 @@ func TestProperty17_StarRocksIdentifierWhitelistValidation(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		builder := NewSQLQueryBuilder(testWhitelist)
 
-		// Sub-property A: table not in whitelist â†’ error.
+		// Sub-property A: table not in whitelist â†?error.
 		unknownTable := rapid.StringMatching(`[a-zA-Z][a-zA-Z0-9_]{3,12}`).Draw(t, "unknownTable")
 		// Ensure it's not in the whitelist.
 		if _, ok := testWhitelist[unknownTable]; !ok {
@@ -318,7 +322,7 @@ func TestProperty17_StarRocksIdentifierWhitelistValidation(t *testing.T) {
 			}
 		}
 
-		// Sub-property B: field not in whitelist â†’ error.
+		// Sub-property B: field not in whitelist â†?error.
 		table := genTable(t)
 		unknownField := rapid.StringMatching(`[a-zA-Z][a-zA-Z0-9_]{3,12}`).Draw(t, "unknownField")
 		if !testWhitelist[table][unknownField] {
@@ -333,7 +337,7 @@ func TestProperty17_StarRocksIdentifierWhitelistValidation(t *testing.T) {
 			}
 		}
 
-		// Sub-property C: identifier with invalid characters â†’ ValidateIdentifier error.
+		// Sub-property C: identifier with invalid characters â†?ValidateIdentifier error.
 		// Generate a string that contains at least one non-[a-zA-Z0-9_] character.
 		invalidChars := []string{" ", "-", ".", "/", "@", "#", "$", "%", "!", "`", "'", "\"", ";"}
 		charIdx := rapid.IntRange(0, len(invalidChars)-1).Draw(t, "invalidCharIdx")
@@ -348,7 +352,7 @@ func TestProperty17_StarRocksIdentifierWhitelistValidation(t *testing.T) {
 			t.Fatalf("expected 'invalid characters' error for %q, got: %v", invalidIdent, err)
 		}
 
-		// Sub-property D: empty identifier â†’ ValidateIdentifier error.
+		// Sub-property D: empty identifier â†?ValidateIdentifier error.
 		err = ValidateIdentifier("")
 		if err == nil {
 			t.Fatal("expected ValidateIdentifier error for empty string, got nil")

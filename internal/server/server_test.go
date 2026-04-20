@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package server
 
 import (
@@ -16,11 +20,11 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"go.uber.org/zap"
 
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/internal/graphql/generated"
-	"github.com/example/graphql-api/internal/graphql/resolver"
-	"github.com/example/graphql-api/pkg/retry"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/graphql/generated"
+	"github.com/michaelwang123/mountainKing/internal/graphql/resolver"
+	"github.com/michaelwang123/mountainKing/pkg/retry"
 )
 
 // testSchema creates a minimal executable schema for testing.
@@ -56,8 +60,8 @@ func newTestServer(opts ...func(*Server)) *Server {
 			MaxResultRows:        10000,
 		},
 		config.ShutdownConfig{MaxWaitTime: 5 * time.Second},
-		nil, // dsManager â€” not needed for route tests
-		nil, // resolver â€” not needed for route tests
+		nil, // dsManager â€?not needed for route tests
+		nil, // resolver â€?not needed for route tests
 		testSchema(),
 		zap.NewNop(),
 	)
@@ -165,7 +169,7 @@ func TestSetupRoutes_Playground_Production(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// In production mode, /playground is not registered â†’ 404.
+	// In production mode, /playground is not registered â†?404.
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
 	}

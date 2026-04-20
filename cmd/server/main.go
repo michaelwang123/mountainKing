@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package main is the entry point for the GraphQL Multi-DataSource API server.
 // It orchestrates the full initialization chain: config -> logging -> tracing ->
 // Redis -> adapters -> datasource manager -> cache -> rate limiter -> metrics ->
@@ -17,22 +21,22 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/example/graphql-api/internal/adapter/prometheus"
-	"github.com/example/graphql-api/internal/adapter/starrocks"
-	"github.com/example/graphql-api/internal/audit"
-	"github.com/example/graphql-api/internal/cache"
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/internal/graphql/generated"
-	"github.com/example/graphql-api/internal/graphql/resolver"
-	"github.com/example/graphql-api/internal/health"
-	"github.com/example/graphql-api/internal/middleware"
-	"github.com/example/graphql-api/internal/observability"
-	"github.com/example/graphql-api/internal/ratelimit"
-	redisclient "github.com/example/graphql-api/internal/redis"
-	"github.com/example/graphql-api/internal/sanitize"
-	"github.com/example/graphql-api/internal/server"
-	"github.com/example/graphql-api/pkg/retry"
+	"github.com/michaelwang123/mountainKing/internal/adapter/prometheus"
+	"github.com/michaelwang123/mountainKing/internal/adapter/starrocks"
+	"github.com/michaelwang123/mountainKing/internal/audit"
+	"github.com/michaelwang123/mountainKing/internal/cache"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/graphql/generated"
+	"github.com/michaelwang123/mountainKing/internal/graphql/resolver"
+	"github.com/michaelwang123/mountainKing/internal/health"
+	"github.com/michaelwang123/mountainKing/internal/middleware"
+	"github.com/michaelwang123/mountainKing/internal/observability"
+	"github.com/michaelwang123/mountainKing/internal/ratelimit"
+	redisclient "github.com/michaelwang123/mountainKing/internal/redis"
+	"github.com/michaelwang123/mountainKing/internal/sanitize"
+	"github.com/michaelwang123/mountainKing/internal/server"
+	"github.com/michaelwang123/mountainKing/pkg/retry"
 	goredis "github.com/redis/go-redis/v9"
 )
 

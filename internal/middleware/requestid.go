@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package middleware provides HTTP middleware components for the GraphQL API service.
 package middleware
 
@@ -7,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
 )
 
 const (

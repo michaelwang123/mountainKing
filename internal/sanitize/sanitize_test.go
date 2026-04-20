@@ -1,9 +1,13 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package sanitize
 
 import (
 	"testing"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 func TestSanitizer_Disabled(t *testing.T) {

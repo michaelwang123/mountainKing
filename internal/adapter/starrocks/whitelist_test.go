@@ -1,10 +1,14 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package starrocks
 
 import (
 	"testing"
 
-	"github.com/example/graphql-api/internal/datasource"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 func TestParseAllowedTables_Valid(t *testing.T) {

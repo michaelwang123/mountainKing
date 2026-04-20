@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package observability
 
 import (
@@ -9,7 +13,7 @@ import (
 )
 
 // =============================================================================
-// Property 39: Prometheus 指标注册完整性
+// Property 39: Prometheus 指标注册完整�?
 // **Validates: Requirements 11.3-11.10**
 // For any metric name defined in the requirements, that metric should exist in
 // the registry after creating a MetricsCollector, and its label set should
@@ -155,7 +159,7 @@ func TestProperty40_MetricNamingConvention(t *testing.T) {
 }
 
 // =============================================================================
-// Property 41: 自定义标签附加
+// Property 41: 自定义标签附�?
 // **Validates: Requirements 11.12**
 // For any custom labels defined in the configuration, all registered Prometheus
 // metrics should include those labels with the correct values.

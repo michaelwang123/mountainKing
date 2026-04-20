@@ -1,10 +1,14 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package redis
 
 import (
 	"context"
 	"testing"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 func TestNewRedisClient_ValidConfig(t *testing.T) {
@@ -69,7 +73,7 @@ func TestNewRedisClient_DefaultDB(t *testing.T) {
 }
 
 func TestNewRedisClient_NoConnectionAtCreation(t *testing.T) {
-	// Use an unreachable address â€” creation should succeed (lazy connection)
+	// Use an unreachable address â€?creation should succeed (lazy connection)
 	cfg := config.RedisConfig{
 		Addr: "192.0.2.1:6379", // RFC 5737 TEST-NET, guaranteed unreachable
 	}

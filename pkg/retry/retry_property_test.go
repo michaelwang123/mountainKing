@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package retry
 
 import (
@@ -32,7 +36,7 @@ func TestProperty36_RetryDistinguishesTransientAndBusiness(t *testing.T) {
 			t.Fatalf("transient: expected %d calls, got %d", expectedCalls, transientCalls)
 		}
 
-		// Test 2: Business errors should NOT be retried â€” exactly 1 call
+		// Test 2: Business errors should NOT be retried â€?exactly 1 call
 		businessCalls := 0
 		Do(context.Background(), cfg, func(ctx context.Context) (int, error) {
 			businessCalls++
@@ -44,7 +48,7 @@ func TestProperty36_RetryDistinguishesTransientAndBusiness(t *testing.T) {
 
 		// Test 3: Verify exponential backoff pattern by measuring elapsed time
 		// With RetryInterval=1ms, backoff sequence is: 1ms, 2ms, 4ms, ...
-		// Total expected wait â‰ˆ sum(2^i for i in 0..maxRetries-1) ms
+		// Total expected wait â‰?sum(2^i for i in 0..maxRetries-1) ms
 		start := time.Now()
 		Do(context.Background(), cfg, func(ctx context.Context) (int, error) {
 			return 0, io.EOF
@@ -56,7 +60,7 @@ func TestProperty36_RetryDistinguishesTransientAndBusiness(t *testing.T) {
 		for i := 0; i < maxRetries; i++ {
 			expectedMinBackoff += time.Millisecond * time.Duration(1<<uint(i))
 		}
-		// Allow some tolerance â€” elapsed should be at least 50% of expected
+		// Allow some tolerance â€?elapsed should be at least 50% of expected
 		if elapsed < expectedMinBackoff/2 {
 			t.Fatalf("backoff too fast: elapsed %v, expected at least %v (50%% of %v)",
 				elapsed, expectedMinBackoff/2, expectedMinBackoff)

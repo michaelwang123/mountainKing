@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package sanitize provides sensitive data masking for SQL statements
 // and other strings recorded in logs and trace spans.
 package sanitize
@@ -5,12 +9,12 @@ package sanitize
 import (
 	"regexp"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 // DefaultRules returns the built-in sanitization rules:
-//   - SQL string literals ('...') â†’ '***'
-//   - 4+ digit numbers â†’ ***
+//   - SQL string literals ('...') â†?'***'
+//   - 4+ digit numbers â†?***
 func DefaultRules() []config.SanitizationRule {
 	return []config.SanitizationRule{
 		{Pattern: `'[^']*'`, Replacement: "'***'"},

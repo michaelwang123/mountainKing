@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package dataloader
 
 import (
@@ -10,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/pkg/retry"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/pkg/retry"
 	"go.uber.org/zap"
 )
 
@@ -112,7 +116,7 @@ func TestLoad_MaxBatchFlush(t *testing.T) {
 		return &datasource.QueryResult{}, nil
 	})
 
-	// Very long window â€” flush should be triggered by max batch size.
+	// Very long window â€?flush should be triggered by max batch size.
 	dl := New(mgr, WithBatchWindow(10*time.Second), WithMaxBatch(3))
 	defer dl.Close()
 

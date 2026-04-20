@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package context defines context keys used for propagating request-scoped
 // values (such as request IDs, authentication identities, and trace IDs)
 // across middleware and resolver boundaries.

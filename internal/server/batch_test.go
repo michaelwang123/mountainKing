@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package server
 
 import (
@@ -9,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
 )
 
 // echoHandler is a simple handler that echoes back the request body as a GraphQL-like

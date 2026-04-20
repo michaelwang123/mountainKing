@@ -1,9 +1,13 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
 	"testing"
 
-	apierrors "github.com/example/graphql-api/internal/errors"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 func TestDefaultAuthorizer_NilIdentity(t *testing.T) {
@@ -33,7 +37,7 @@ func TestDefaultAuthorizer_EmptyPermissions_FullAccess(t *testing.T) {
 		Operations:  nil,
 	}
 
-	// Empty slices mean full access â€” any datasource and operation allowed.
+	// Empty slices mean full access â€?any datasource and operation allowed.
 	if err := authz.Authorize(identity, "starrocks", "query"); err != nil {
 		t.Errorf("expected nil, got %v", err)
 	}

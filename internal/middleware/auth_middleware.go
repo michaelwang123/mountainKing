@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -5,8 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	ctxkeys "github.com/example/graphql-api/internal/context"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	ctxkeys "github.com/michaelwang123/mountainKing/internal/context"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // publicEndpoints lists paths that are exempt from authentication.

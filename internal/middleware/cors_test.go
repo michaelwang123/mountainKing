@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -5,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 func TestCORS_Disabled_NoHeaders(t *testing.T) {
@@ -208,7 +212,7 @@ func TestCORS_Preflight_DisallowedOrigin_NoHeaders(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	// Disallowed origin â€” passes through to inner handler, no CORS headers.
+	// Disallowed origin â€?passes through to inner handler, no CORS headers.
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
 		t.Fatalf("expected no CORS headers for disallowed origin preflight, got %q", got)
 	}

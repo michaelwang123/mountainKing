@@ -1,9 +1,13 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package prometheus
 
 import (
 	"testing"
 
-	"github.com/example/graphql-api/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
 )
 
 func TestBuildInstant_BasicQuery(t *testing.T) {

@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package server provides the HTTP server for the GraphQL API service.
 // It wires up chi routing, gqlgen handler configuration, request-level
 // timeout context, and graceful shutdown orchestration.
@@ -23,9 +27,9 @@ import (
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.uber.org/zap"
 
-	"github.com/example/graphql-api/internal/config"
-	"github.com/example/graphql-api/internal/datasource"
-	"github.com/example/graphql-api/internal/graphql/resolver"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/graphql/resolver"
 )
 
 // ShutdownFunc is a function that performs cleanup during graceful shutdown.
@@ -42,7 +46,7 @@ type Server struct {
 	logger        *zap.Logger
 	schema        graphql.ExecutableSchema
 
-	// Optional dependencies â€” nil-safe during shutdown.
+	// Optional dependencies â€?nil-safe during shutdown.
 	tracingShutdown ShutdownFunc
 	metricsFlush    ShutdownFunc
 
@@ -86,20 +90,20 @@ func (s *Server) SetupRoutes() *chi.Mux {
 
 	gqlHandler := s.newGraphQLHandler()
 
-	// POST /graphql â€” always enabled.
+	// POST /graphql â€?always enabled.
 	r.Post("/graphql", s.withRequestTimeout(gqlHandler))
 
-	// GET /graphql â€” controlled by allow_get_queries config.
+	// GET /graphql â€?controlled by allow_get_queries config.
 	if s.serverConfig.AllowGetQueries {
 		r.Get("/graphql", s.withRequestTimeout(gqlHandler))
 	}
 
-	// GET /playground â€” only in development mode.
+	// GET /playground â€?only in development mode.
 	if s.serverConfig.Mode == "development" {
 		r.Get("/playground", playground.Handler("GraphQL Playground", "/graphql"))
 	}
 
-	// Placeholder endpoints â€” will be implemented in later tasks.
+	// Placeholder endpoints â€?will be implemented in later tasks.
 	r.Get("/health", placeholderHandler("health"))
 	r.Get("/ready", placeholderHandler("ready"))
 	r.Get("/metrics", placeholderHandler("metrics"))
@@ -118,7 +122,7 @@ func (s *Server) newGraphQLHandler() http.Handler {
 	srv.AddTransport(transport.GET{})
 	srv.AddTransport(transport.MultipartForm{})
 
-	// Automatic persisted queries (APQ) â€” use in-memory LRU cache.
+	// Automatic persisted queries (APQ) â€?use in-memory LRU cache.
 	srv.SetQueryCache(lru.New[*ast.QueryDocument](1000))
 
 	// Complexity limit.
@@ -126,7 +130,7 @@ func (s *Server) newGraphQLHandler() http.Handler {
 		srv.Use(extension.FixedComplexityLimit(s.graphqlConfig.MaxQueryComplexity))
 	}
 
-	// Query depth limit â€” enforced via AroundOperations middleware.
+	// Query depth limit â€?enforced via AroundOperations middleware.
 	if s.graphqlConfig.MaxQueryDepth > 0 {
 		maxDepth := s.graphqlConfig.MaxQueryDepth
 		srv.AroundOperations(func(ctx context.Context, next graphql.OperationHandler) graphql.ResponseHandler {

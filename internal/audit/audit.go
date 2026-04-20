@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package audit provides an independent audit logger for recording
 // authenticated operations. It is separate from the application logger.
 package audit
@@ -9,7 +13,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/example/graphql-api/internal/config"
+	"github.com/michaelwang123/mountainKing/internal/config"
 )
 
 // LogEntry represents a single audit log record.

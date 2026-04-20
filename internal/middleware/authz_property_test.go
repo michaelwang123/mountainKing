@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 package middleware
 
 import (
@@ -9,8 +13,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"pgregory.net/rapid"
 
-	"github.com/example/graphql-api/internal/config"
-	apierrors "github.com/example/graphql-api/internal/errors"
+	"github.com/michaelwang123/mountainKing/internal/config"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 )
 
 // --- helpers ---
@@ -25,7 +29,7 @@ func genBcryptHash(t *rapid.T, plaintext string) string {
 }
 
 // TestProperty52_APIKeyPermissionIsolation validates that each API Key's
-// permissions are isolated — key A's permissions don't affect key B.
+// permissions are isolated �?key A's permissions don't affect key B.
 //
 // Feature: graphql-multi-datasource-api, Property 52: API Key 权限隔离
 // **Validates: Requirements 13.10**
@@ -396,7 +400,7 @@ func TestProperty87_TrustedProxyIPExtraction(t *testing.T) {
 			t.Fatalf("expected client IP %s, got %s (XFF=%s, RemoteAddr=%s)", clientIP, got, xff, remoteAddr)
 		}
 
-		// --- Test: no trusted proxies → always use RemoteAddr ---
+		// --- Test: no trusted proxies �?always use RemoteAddr ---
 		aflNoProxy, err := NewAuthFailureLimiter(config.AuthFailureConfig{
 			Enabled:     true,
 			Threshold:   100,
@@ -426,7 +430,7 @@ func TestProperty87_TrustedProxyIPExtraction(t *testing.T) {
 			t.Fatalf("no proxy: expected %s, got %s", directIP, got2)
 		}
 
-		// --- Test: RemoteAddr not trusted → use RemoteAddr directly ---
+		// --- Test: RemoteAddr not trusted �?use RemoteAddr directly ---
 		nonTrustedRemote := fmt.Sprintf("%d.%d.%d.%d",
 			rapid.SampledFrom([]int{203, 198, 172, 192}).Draw(t, "ntOctet1"),
 			rapid.IntRange(0, 255).Draw(t, "ntOctet2"),

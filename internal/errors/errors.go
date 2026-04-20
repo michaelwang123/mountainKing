@@ -1,3 +1,7 @@
+// Copyright 2024-2026 mountainKing Contributors
+// Licensed under the Apache License, Version 2.0
+// See LICENSE file for details.
+
 // Package errors defines unified error codes and structured error types
 // for the GraphQL Multi-DataSource API service. Error codes follow the
 // {CATEGORY}_{ERROR_NAME} naming convention as specified in Requirements 9.8.
