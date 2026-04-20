@@ -14,7 +14,7 @@ import (
 	"pgregory.net/rapid"
 )
 
-// knownTypeMappings defines all known StarRocks SQL type â†?expected GraphQL type mappings.
+// knownTypeMappings defines all known StarRocks SQL type â†’ expected GraphQL type mappings.
 var knownTypeMappings = map[string]GraphQLType{
 	"INT":       GraphQLInt,
 	"BIGINT":    GraphQLInt,
@@ -74,13 +74,13 @@ func TestProperty18_StarRocksTypeMapping(t *testing.T) {
 			t.Fatalf("MapType(%q) = %q, want %q", sqlType, got, expected)
 		}
 
-		// Sub-property 3: case-insensitive â€?lowercase maps correctly.
+		// Sub-property 3: case-insensitive â€” lowercase maps correctly.
 		got = mapper.MapType(strings.ToLower(sqlType))
 		if got != expected {
 			t.Fatalf("MapType(%q) = %q, want %q", strings.ToLower(sqlType), got, expected)
 		}
 
-		// Sub-property 3: case-insensitive â€?mixed case maps correctly.
+		// Sub-property 3: case-insensitive â€” mixed case maps correctly.
 		mixed := mixCase(t, sqlType)
 		got = mapper.MapType(mixed)
 		if got != expected {

@@ -24,7 +24,7 @@ type CacheLayer struct {
 	sfGroup    singleflight.Group
 	ttlConfig  map[string]time.Duration // per-datasource TTL overrides
 	defaultTTL time.Duration
-	jitterPct  int           // TTL jitter percentage (default 10 â†?Â±10%)
+	jitterPct  int           // TTL jitter percentage (default 10 â†’ Â±10%)
 	emptyTTL   time.Duration // short TTL for empty results (default 30s)
 	keyGen     *CacheKeyGenerator
 	logger     *zap.Logger
@@ -77,10 +77,10 @@ func NewCacheLayer(cfg CacheLayerConfig) *CacheLayer {
 // to ensure only one goroutine loads from the source, then caches the result.
 //
 // Flow:
-// 1. Check cache â†?hit â†?return (deserialize via gob)
-// 2. Miss â†?singleflight ensures single loader execution
-// 3. Empty result â†?cache with short TTL (emptyTTL)
-// 4. Non-empty result â†?cache with TTL + jitter
+// 1. Check cache â†’ hit â†’ return (deserialize via gob)
+// 2. Miss â†’ singleflight ensures single loader execution
+// 3. Empty result â†’ cache with short TTL (emptyTTL)
+// 4. Non-empty result â†’ cache with TTL + jitter
 //
 // If gob deserialization fails on a cache hit, the corrupted entry is deleted,
 // the loader is called to fetch fresh data, and a WARN log is emitted.
@@ -112,7 +112,7 @@ func (cl *CacheLayer) GetOrLoad(ctx context.Context, key string, datasource stri
 		}
 	}
 
-	// Step 2: Cache miss â†?singleflight
+	// Step 2: Cache miss â†’ singleflight
 	val, sfErr, _ := cl.sfGroup.Do(key, func() (interface{}, error) {
 		result, loadErr := loader()
 		if loadErr != nil {
@@ -122,12 +122,12 @@ func (cl *CacheLayer) GetOrLoad(ctx context.Context, key string, datasource stri
 		ttl := cl.ttlForDatasource(datasource)
 
 		if len(result) == 0 {
-			// Step 3: Empty result â†?short TTL
+			// Step 3: Empty result â†’ short TTL
 			_ = cl.backend.Set(ctx, key, emptyMarker, cl.emptyTTL)
 			return nil, nil
 		}
 
-		// Step 4: Non-empty â†?gob encode and cache with jittered TTL
+		// Step 4: Non-empty â†’ gob encode and cache with jittered TTL
 		encoded, encErr := gobEncode(result)
 		if encErr != nil {
 			cl.logger.Warn("gob encode failed, returning result without caching",

@@ -104,7 +104,7 @@ func TestProperty31_ErrorResponseStructure(t *testing.T) {
 			t.Fatal("extensions missing 'classification' field")
 		}
 
-		// Property: classification matches the code prefix (CATEGORY_ERROR_NAME â†?CATEGORY).
+		// Property: classification matches the code prefix (CATEGORY_ERROR_NAME â†’CATEGORY).
 		expectedClassification := apierrors.Classification(errCode)
 		if classification != expectedClassification {
 			t.Fatalf("classification %q does not match expected %q for code %q",

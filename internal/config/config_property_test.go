@@ -22,7 +22,7 @@ import (
 )
 
 // =============================================================================
-// Property 11: 配置校验拒绝无效�?
+// Property 11: 配置校验拒绝无效值
 // **Validates: Requirements 3.10**
 // For any config with invalid values (negative port, empty connection address,
 // invalid mode, etc.), ValidateConfig should return an error.
@@ -125,8 +125,8 @@ tracing:
 }
 
 // =============================================================================
-// Property 91: StarRocks 白名单必填校�?
-// **Validates: Design - StarRocks 白名单安全默�?*
+// Property 91: StarRocks 白名单必填校验
+// **Validates: Design - StarRocks 白名单安全默认**
 // For any StarRocks datasource config without allowed_tables (or empty),
 // ValidateConfig should return error.
 // =============================================================================
@@ -220,7 +220,7 @@ func TestProperty94_JWTMutualExclusionValidation(t *testing.T) {
 }
 
 // =============================================================================
-// Property 95: 数据源名称唯一�?
+// Property 95: 数据源名称唯一性
 // **Validates: Design - 配置校验规则**
 // For any datasource list with duplicate names, ValidateConfig should return error.
 // =============================================================================

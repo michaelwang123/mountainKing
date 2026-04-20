@@ -223,7 +223,7 @@ func TestProperty49_InsufficientPermissionsReturns403(t *testing.T) {
 // TestProperty50_PublicEndpointsExemptFromAuth validates that public endpoints
 // (/health, /ready, /metrics, /playground) always return 200 regardless of auth state.
 //
-// Feature: graphql-multi-datasource-api, Property 50: 公共端点豁免认证和限�?
+// Feature: graphql-multi-datasource-api, Property 50: 公共端点豁免认证和限→
 // **Validates: Requirements 13.6, 14.6**
 func TestProperty50_PublicEndpointsExemptFromAuth(t *testing.T) {
 	publicPaths := []string{"/health", "/ready", "/metrics", "/playground"}
@@ -362,8 +362,8 @@ func TestProperty51_JWTExpiredTokenReturns401WithTokenExpired(t *testing.T) {
 // TestProperty81_JWTAsymmetricSignatureVerification validates that RS256/ES256
 // signed tokens are correctly verified with the corresponding public key.
 //
-// Feature: graphql-multi-datasource-api, Property 81: JWT 非对称签名验�?
-// **Validates: Design - JWT 非对称签名支�?*
+// Feature: graphql-multi-datasource-api, Property 81: JWT 非对称签名验→
+// **Validates: Design - JWT 非对称签名支→*
 func TestProperty81_JWTAsymmetricSignatureVerification(t *testing.T) {
 	// Pre-generate key pairs (expensive, do once).
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)

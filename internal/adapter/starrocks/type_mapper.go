@@ -41,19 +41,19 @@ func NewTypeMapper(logger *zap.Logger) *TypeMapper {
 // MapType maps a StarRocks SQL type string to a GraphQL type.
 //
 // Mapping rules:
-//   - INT, BIGINT, TINYINT, SMALLINT â†?Int
-//   - FLOAT, DOUBLE â†?Float
-//   - VARCHAR, STRING, CHAR, TEXT â†?String
-//   - BOOLEAN, BOOL â†?Boolean
-//   - DECIMAL, NUMERIC â†?String (preserve precision)
-//   - DATETIME, DATE, TIMESTAMP â†?DateTime
-//   - JSON â†?JSON
-//   - Unsupported types â†?String (with warning log)
+//   - INT, BIGINT, TINYINT, SMALLINT â†’ Int
+//   - FLOAT, DOUBLE â†’ Float
+//   - VARCHAR, STRING, CHAR, TEXT â†’ String
+//   - BOOLEAN, BOOL â†’ Boolean
+//   - DECIMAL, NUMERIC â†’ String (preserve precision)
+//   - DATETIME, DATE, TIMESTAMP â†’ DateTime
+//   - JSON â†’ JSON
+//   - Unsupported types â†’ String (with warning log)
 func (m *TypeMapper) MapType(sqlType string) GraphQLType {
 	// Normalize: uppercase and trim whitespace.
 	normalized := strings.ToUpper(strings.TrimSpace(sqlType))
 
-	// Strip parenthesized parameters, e.g. VARCHAR(255) â†?VARCHAR, DECIMAL(10,2) â†?DECIMAL.
+	// Strip parenthesized parameters, e.g. VARCHAR(255) â†’ VARCHAR, DECIMAL(10,2) â†’ DECIMAL.
 	if idx := strings.IndexByte(normalized, '('); idx >= 0 {
 		normalized = strings.TrimSpace(normalized[:idx])
 	}

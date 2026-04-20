@@ -85,7 +85,7 @@ func TestBodyLimit_RejectsOversizedBody(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := io.ReadAll(r.Body)
 		if err != nil {
-			// Body exceeded limit â€?write the 413 error response.
+			// Body exceeded limit â†’write the 413 error response.
 			WriteBodyLimitError(w, r)
 			return
 		}

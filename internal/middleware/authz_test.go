@@ -37,7 +37,7 @@ func TestDefaultAuthorizer_EmptyPermissions_FullAccess(t *testing.T) {
 		Operations:  nil,
 	}
 
-	// Empty slices mean full access â€?any datasource and operation allowed.
+	// Empty slices mean full access â†’any datasource and operation allowed.
 	if err := authz.Authorize(identity, "starrocks", "query"); err != nil {
 		t.Errorf("expected nil, got %v", err)
 	}

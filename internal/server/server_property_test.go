@@ -118,7 +118,7 @@ func TestProperty1_ValidGraphQLQueryReturnsConformantResponse(t *testing.T) {
 // TestProperty2_InvalidRequestBodyReturns400 validates that any request body
 // that is not valid GraphQL JSON returns HTTP 400.
 //
-// Feature: graphql-multi-datasource-api, Property 2: 无效请求体返�?400
+// Feature: graphql-multi-datasource-api, Property 2: 无效请求体返→400
 // **Validates: Requirements 1.3**
 func TestProperty2_InvalidRequestBodyReturns400(t *testing.T) {
 	s := newPropertyTestServer()
@@ -173,9 +173,9 @@ func TestProperty2_InvalidRequestBodyReturns400(t *testing.T) {
 // http.MaxBytesReader which causes the downstream JSON decoder to fail. gqlgen
 // returns HTTP 200 with an error in the response body containing "request body
 // too large". The property verifies that oversized bodies are never silently
-// accepted �?they always produce an error response.
+// accepted →they always produce an error response.
 //
-// Feature: graphql-multi-datasource-api, Property 3: 超大请求体返�?413
+// Feature: graphql-multi-datasource-api, Property 3: 超大请求体返→413
 // **Validates: Requirements 1.8**
 func TestProperty3_OversizedRequestBodyReturns413(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -210,7 +210,7 @@ func TestProperty3_OversizedRequestBodyReturns413(t *testing.T) {
 		// - 200 with errors containing "request body too large"
 		// - 413 if a custom error handler intercepts it
 		// - 400/422 if the truncated body fails JSON parsing
-		// Property: the response MUST contain an error indication �?never a
+		// Property: the response MUST contain an error indication →never a
 		// successful "data" result without errors.
 		var result map[string]any
 		if err := json.Unmarshal(respBody, &result); err != nil {
@@ -299,7 +299,7 @@ func TestProperty4_HTTPGetQuerySupport(t *testing.T) {
 // TestProperty5_PlaygroundDevProductionModeSwitch validates that the /playground
 // endpoint is available in development mode and returns 404 in production mode.
 //
-// Feature: graphql-multi-datasource-api, Property 5: Playground 开�?生产模式切换
+// Feature: graphql-multi-datasource-api, Property 5: Playground 开→生产模式切换
 // **Validates: Requirements 1.7**
 func TestProperty5_PlaygroundDevProductionModeSwitch(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -325,12 +325,12 @@ func TestProperty5_PlaygroundDevProductionModeSwitch(t *testing.T) {
 		_, _ = io.ReadAll(resp.Body)
 
 		if isDev {
-			// Property: development mode �?playground returns 200.
+			// Property: development mode →playground returns 200.
 			if resp.StatusCode != http.StatusOK {
 				t.Fatalf("development mode: expected 200 for /playground, got %d", resp.StatusCode)
 			}
 		} else {
-			// Property: production mode �?playground returns 404.
+			// Property: production mode →playground returns 404.
 			if resp.StatusCode != http.StatusNotFound {
 				t.Fatalf("production mode: expected 404 for /playground, got %d", resp.StatusCode)
 			}
@@ -341,7 +341,7 @@ func TestProperty5_PlaygroundDevProductionModeSwitch(t *testing.T) {
 // TestProperty6_BatchQueryResultArrayLengthConsistent validates that for any
 // valid batch query, the result array length equals the input query count.
 //
-// Feature: graphql-multi-datasource-api, Property 6: 批量查询结果数组长度一�?
+// Feature: graphql-multi-datasource-api, Property 6: 批量查询结果数组长度一→
 // **Validates: Requirements 1.9**
 func TestProperty6_BatchQueryResultArrayLengthConsistent(t *testing.T) {
 	s := newPropertyTestServer(func(s *Server) {
@@ -502,12 +502,12 @@ func TestProperty83_CSRFProtectionGetQueryDisabledInProduction(t *testing.T) {
 		shouldBlockGet := isProduction && !allowGet
 
 		if shouldBlockGet {
-			// Property: production mode + !allowGet �?GET returns 403.
+			// Property: production mode + !allowGet →GET returns 403.
 			if getResp.StatusCode != http.StatusForbidden {
 				t.Fatalf("production+!allowGet: expected 403 for GET /graphql, got %d", getResp.StatusCode)
 			}
 		} else if !allowGet && !isProduction {
-			// Development mode + !allowGet: GET route not registered �?405.
+			// Development mode + !allowGet: GET route not registered →405.
 			if getResp.StatusCode != http.StatusMethodNotAllowed {
 				t.Fatalf("dev+!allowGet: expected 405 for GET /graphql, got %d", getResp.StatusCode)
 			}
@@ -518,7 +518,7 @@ func TestProperty83_CSRFProtectionGetQueryDisabledInProduction(t *testing.T) {
 			}
 		}
 
-		// Test POST request with application/json �?should always work.
+		// Test POST request with application/json →should always work.
 		postBody := `{"query":"{ __typename }"}`
 		postResp, err := http.Post(ts.URL+"/graphql", "application/json", strings.NewReader(postBody))
 		if err != nil {

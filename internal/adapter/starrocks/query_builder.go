@@ -33,7 +33,7 @@ func ValidateIdentifier(name string) error {
 
 // SQLQueryBuilder converts GraphQL query parameters to parameterized SQL.
 type SQLQueryBuilder struct {
-	allowedTables map[string]map[string]bool // table â†?allowed columns
+	allowedTables map[string]map[string]bool // table â†’ allowed columns
 }
 
 // NewSQLQueryBuilder creates a new SQLQueryBuilder with the given whitelist.

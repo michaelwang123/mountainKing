@@ -60,8 +60,8 @@ func newTestServer(opts ...func(*Server)) *Server {
 			MaxResultRows:        10000,
 		},
 		config.ShutdownConfig{MaxWaitTime: 5 * time.Second},
-		nil, // dsManager â€?not needed for route tests
-		nil, // resolver â€?not needed for route tests
+		nil, // dsManager â†’not needed for route tests
+		nil, // resolver â†’not needed for route tests
 		testSchema(),
 		zap.NewNop(),
 	)
@@ -169,7 +169,7 @@ func TestSetupRoutes_Playground_Production(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	// In production mode, /playground is not registered â†?404.
+	// In production mode, /playground is not registered â†’404.
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
 	}

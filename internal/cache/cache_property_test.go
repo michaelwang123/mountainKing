@@ -27,7 +27,7 @@ import (
 // =============================================================================
 
 // =============================================================================
-// Property 64: 缓存 Key 确定�?
+// Property 64: 缓存 Key 确定性
 // **Validates: Requirements 16.3**
 // For any two queries with the same query, variables, and datasource, the
 // generated cache key should be identical. For any two queries where query,
@@ -50,7 +50,7 @@ func TestProperty64_CacheKeyDeterminism(t *testing.T) {
 			vars[k] = v
 		}
 
-		// Same inputs �?same key (determinism)
+		// Same inputs → same key (determinism)
 		key1 := gen.Generate(ds, query, vars)
 		key2 := gen.Generate(ds, query, vars)
 		if key1 != key2 {
@@ -67,14 +67,14 @@ func TestProperty64_CacheKeyDeterminism(t *testing.T) {
 			rt.Fatalf("hash part %q should be 16 hex chars, got %d", hashPart, len(hashPart))
 		}
 
-		// Different datasource �?different key
+		// Different datasource → different key
 		otherDS := ds + "x"
 		keyOtherDS := gen.Generate(otherDS, query, vars)
 		if key1 == keyOtherDS {
 			rt.Fatalf("different datasource should produce different key")
 		}
 
-		// Different query �?different key
+		// Different query → different key
 		otherQuery := query + " extra"
 		keyOtherQuery := gen.Generate(ds, otherQuery, vars)
 		if key1 == keyOtherQuery {
@@ -84,7 +84,7 @@ func TestProperty64_CacheKeyDeterminism(t *testing.T) {
 }
 
 // =============================================================================
-// Property 65: 客户端绕过缓�?
+// Property 65: 客户端绕过缓存
 // **Validates: Requirements 16.5**
 // For any request where extensions.cache=false, Cache_Layer should bypass
 // cache and always call the loader.
@@ -151,7 +151,7 @@ func TestProperty65_ClientBypassCache(t *testing.T) {
 }
 
 // =============================================================================
-// Property 66: 仅缓�?Query 操作
+// Property 66: 仅缓存 Query 操作
 // **Validates: Requirements 16.7**
 // For any Mutation operation, Cache_Layer should always skip cache and execute
 // directly. We model this by verifying that the loader is always called for
@@ -359,8 +359,8 @@ func TestProperty68_CacheClearOperations(t *testing.T) {
 }
 
 // =============================================================================
-// Property 77: 缓存 Key 查询规范�?
-// **Validates: Design - 缓存命中率优�?*
+// Property 77: 缓存 Key 查询规范化
+// **Validates: Design - 缓存命中率优化**
 // For any two semantically identical GraphQL queries that differ only in
 // whitespace, newlines, or comments, the normalized cache key should be the same.
 // =============================================================================
@@ -395,7 +395,7 @@ func TestProperty77_CacheKeyQueryNormalization(t *testing.T) {
 		for i, variant := range variants[1:] {
 			variantKey := gen.Generate(ds, variant, nil)
 			if variantKey != baseKey {
-				rt.Fatalf("variant %d produced different key:\n  base:    %q �?%q\n  variant: %q �?%q",
+				rt.Fatalf("variant %d produced different key:\n  base:    %q → %q\n  variant: %q → %q",
 					i+1, variants[0], baseKey, variant, variantKey)
 			}
 		}
@@ -408,7 +408,7 @@ func TestProperty77_CacheKeyQueryNormalization(t *testing.T) {
 // =============================================================================
 
 // =============================================================================
-// Property 69: 缓存穿透防�?
+// Property 69: 缓存穿透防护
 // **Validates: Requirements 16.10**
 // For any query where the datasource returns an empty result, Cache_Layer should
 // cache a short-TTL empty marker. Subsequent identical queries within that TTL
@@ -577,8 +577,8 @@ func TestProperty71_CacheBreakdownProtection_Singleflight(t *testing.T) {
 }
 
 // =============================================================================
-// Property 79: totalCount 与数据结果缓存一致�?
-// **Validates: Design - 缓存一致�?*
+// Property 79: totalCount 与数据结果缓存一致性
+// **Validates: Design - 缓存一致性**
 // For any NeedCount=true query, data results and totalCount should be stored
 // as a single cache entry and expire together. There should never be a case
 // where totalCount and actual returned rows are inconsistent.
@@ -765,7 +765,7 @@ func TestProperty86_CacheGobDeserializationFailureRecovery(t *testing.T) {
 			rt.Fatalf("corrupted data should be in cache")
 		}
 
-		// Call GetOrLoad �?should recover gracefully
+		// Call GetOrLoad — should recover gracefully
 		freshData := []byte(rapid.StringMatching(`[a-z]{10,30}`).Draw(rt, "freshData"))
 		var loadCount int32
 		result, err := cl.GetOrLoad(ctx, key, ds, func() ([]byte, error) {

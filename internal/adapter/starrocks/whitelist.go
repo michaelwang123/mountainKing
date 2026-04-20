@@ -12,7 +12,7 @@ import (
 )
 
 // ParseAllowedTables extracts the allowed_tables whitelist from a DataSourceConfig's Options.
-// Returns a map of table name â†?set of allowed column names.
+// Returns a map of table name â†’ set of allowed column names.
 // Returns an error if allowed_tables is missing, empty, or contains invalid identifiers.
 //
 // Expected Options format:

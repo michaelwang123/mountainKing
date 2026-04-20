@@ -40,11 +40,11 @@ const (
 // MapResultType maps a Prometheus result type to the corresponding GraphQL type name.
 //
 // Mapping rules (per Requirements 5.8):
-//   - scalar â†?Float
-//   - string â†?String
-//   - vector â†?PrometheusVector
-//   - matrix â†?PrometheusMatrix
-//   - unknown types â†?String (fallback)
+//   - scalar â†’ Float
+//   - string â†’ String
+//   - vector â†’ PrometheusVector
+//   - matrix â†’ PrometheusMatrix
+//   - unknown types â†’ String (fallback)
 func MapResultType(rt PrometheusResultType) GraphQLTypeName {
 	switch rt {
 	case ResultTypeScalar:
@@ -64,10 +64,10 @@ func MapResultType(rt PrometheusResultType) GraphQLTypeName {
 // Returns the converted value (nil for special values) and any warning message.
 //
 // Conversion rules (per Requirements 5.9):
-//   - NaN  â†?nil + warning "NaN value converted to null"
-//   - +Inf â†?nil + warning "+Inf value converted to null"
-//   - -Inf â†?nil + warning "-Inf value converted to null"
-//   - Normal values â†?*float64 pointer, empty warning
+//   - NaN  â†’ nil + warning "NaN value converted to null"
+//   - +Inf â†’ nil + warning "+Inf value converted to null"
+//   - -Inf â†’ nil + warning "-Inf value converted to null"
+//   - Normal values â†’ *float64 pointer, empty warning
 func ConvertValue(v float64) (*float64, string) {
 	switch {
 	case math.IsNaN(v):

@@ -81,7 +81,7 @@ func Compression(cfg config.CompressionConfig) func(http.Handler) http.Handler {
 				_ = gz.Close()
 				gzipWriterPool.Put(gz)
 			} else {
-				// Below threshold â€?send uncompressed.
+				// Below threshold â€” send uncompressed.
 				if bw.statusCode != 0 {
 					w.WriteHeader(bw.statusCode)
 				}

@@ -15,7 +15,7 @@ import (
 )
 
 // NewRedisClient creates a configured *redis.Client from the given RedisConfig.
-// The client uses lazy connection â€?it does not attempt to connect or ping
+// The client uses lazy connection â€” it does not attempt to connect or ping
 // at creation time. Use Ping to verify connectivity when needed.
 func NewRedisClient(cfg config.RedisConfig) (*goredis.Client, error) {
 	if cfg.Addr == "" {

@@ -104,7 +104,7 @@ func TestCacheKeyGenerator_Generate_NilAndEmptyVars(t *testing.T) {
 func TestCacheKeyGenerator_Generate_NormalizesQuery(t *testing.T) {
 	gen := &CacheKeyGenerator{}
 
-	// These queries differ only in whitespace â€?should produce the same key
+	// These queries differ only in whitespace â†’should produce the same key
 	key1 := gen.Generate("ds", "{  users  {  id  } }", nil)
 	key2 := gen.Generate("ds", "{ users { id } }", nil)
 

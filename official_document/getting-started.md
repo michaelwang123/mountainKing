@@ -1,17 +1,17 @@
-# 快速开�?
+# 快速开始
 
 ## 环境要求
 
-- Go 1.25 或更高版�?
-- （可选）StarRocks 实例 �?OLAP 数据查询
-- （可选）Prometheus 实例 �?时序指标查询
-- （可选）Redis �?分布式缓存和分布式限�?
+- Go 1.25 或更高版本
+- （可选）StarRocks 实例 — OLAP 数据查询
+- （可选）Prometheus 实例 — 时序指标查询
+- （可选）Redis — 分布式缓存和分布式限流
 
 ## 获取源码
 
 ```bash
 git clone https://github.com/michaelwang123/mountainKing.git
-cd graphql-api
+cd mountainKing
 ```
 
 ## 安装依赖
@@ -26,18 +26,18 @@ go mod download
 go run cmd/server/main.go
 ```
 
-服务默认监听 `:8080` 端口�?
+服务默认监听 `:8080` 端口。
 
-## 开发模�?
+## 开发模式
 
-�?`config.yaml` 中的 `server.mode` 设为 `development`，或通过环境变量覆盖�?
+将 `config.yaml` 中的 `server.mode` 设为 `development`，或通过环境变量覆盖：
 
 ```bash
 export GRAPHQL_SERVER_MODE=development
 go run cmd/server/main.go
 ```
 
-开发模式下�?
+开发模式下：
 - GraphQL Playground 可通过 `http://localhost:8080/playground` 访问
 - GET 查询默认启用
 
@@ -73,12 +73,12 @@ curl -X POST http://localhost:8080/graphql \
 
 ### 使用 GraphQL Playground
 
-开发模式下访问 `http://localhost:8080/playground`，在左侧编辑器中输入查询语句即可�?
+开发模式下访问 `http://localhost:8080/playground`，在左侧编辑器中输入查询语句即可。
 
-## 健康检�?
+## 健康检查
 
 ```bash
-# 存活检�?
+# 存活检查
 curl http://localhost:8080/health
 
 # 就绪检查（包含数据源连接状态）
@@ -98,9 +98,9 @@ export GRAPHQL_LOGGING_LEVEL=debug
 export GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED=true
 ```
 
-详细配置说明请参�?[配置参考](configuration.md)�?
+详细配置说明请参阅 [配置参考](configuration.md)。
 
-## Docker 快速启�?
+## Docker 快速启动
 
 ```bash
 # 构建镜像
@@ -119,10 +119,10 @@ cd deploy
 docker compose up -d
 ```
 
-服务启动后可通过 `http://localhost:8080/graphql` 访问 API�?
+服务启动后可通过 `http://localhost:8080/graphql` 访问 API。
 
-## 下一�?
+## 下一步
 
-- [配置参考](configuration.md) �?了解所有配置项
-- [GraphQL API 参考](graphql-api.md) �?查看完整�?Schema 和查询示�?
-- [安全指南](security.md) �?配置认证和授�?
+- [配置参考](configuration.md) — 了解所有配置项
+- [GraphQL API 参考](graphql-api.md) — 查看完整的 Schema 和查询示例
+- [安全指南](security.md) — 配置认证和授权

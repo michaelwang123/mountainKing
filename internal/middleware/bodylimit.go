@@ -100,7 +100,7 @@ func ParseSizeString(s string) (int64, error) {
 		}
 	}
 
-	// No suffix â€?treat as raw bytes.
+	// No suffix â€” treat as raw bytes.
 	val, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid size string %q: %w", s, err)

@@ -29,9 +29,9 @@ type IPExtractor interface {
 // /playground) are exempt from rate limiting.
 //
 // Rate limit key priority:
-//  1. API Key auth â†?"apikey:{id}"
-//  2. JWT auth â†?"jwt:{sub}"
-//  3. Fallback â†?"ip:{addr}"
+//  1. API Key auth â†’ "apikey:{id}"
+//  2. JWT auth â†’ "jwt:{sub}"
+//  3. Fallback â†’ "ip:{addr}"
 //
 // Batch queries consume tokens equal to the number of queries in the batch.
 // Response headers X-RateLimit-Limit, X-RateLimit-Remaining, and

@@ -3,7 +3,7 @@
 // See LICENSE file for details.
 
 // Package datasource provides the circuit breaker implementation for data source resilience.
-// The CircuitBreaker follows the standard three-state pattern (CLOSED â†?OPEN â†?HALF_OPEN)
+// The CircuitBreaker follows the standard three-state pattern (CLOSED â†’ OPEN â†’ HALF_OPEN)
 // and is fully thread-safe: all state checks and transitions happen within a single lock acquisition.
 package datasource
 
@@ -105,7 +105,7 @@ func (cb *CircuitBreaker) AllowRequest() bool {
 		} else {
 			return false
 		}
-		// Transitioned to HALF_OPEN â€?check if we can allow a probe request.
+		// Transitioned to HALF_OPEN â€” check if we can allow a probe request.
 		if cb.halfOpenRequests < cb.config.HalfOpenMaxRequests {
 			cb.halfOpenRequests++
 			return true

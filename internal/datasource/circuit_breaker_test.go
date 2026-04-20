@@ -13,13 +13,13 @@ import (
 
 // TestProperty74_CircuitBreakerStateTransitions validates the four state
 // transitions of the circuit breaker:
-//  1. CLOSED �?OPEN: consecutive failures >= FailureThreshold
-//  2. OPEN �?HALF_OPEN: after OpenDuration elapses
-//  3. HALF_OPEN �?CLOSED: consecutive successes >= SuccessThreshold
-//  4. HALF_OPEN �?OPEN: any failure
+//  1. CLOSED → OPEN: consecutive failures >= FailureThreshold
+//  2. OPEN → HALF_OPEN: after OpenDuration elapses
+//  3. HALF_OPEN → CLOSED: consecutive successes >= SuccessThreshold
+//  4. HALF_OPEN → OPEN: any failure
 //
-// Feature: graphql-multi-datasource-api, Property 74: 熔断器状态转�?
-// **Validates: Design - 熔断器弹性设�?*
+// Feature: graphql-multi-datasource-api, Property 74: 熔断器状态转换
+// **Validates: Design - 熔断器弹性设计**
 func TestProperty74_CircuitBreakerStateTransitions(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		failureThreshold := rapid.IntRange(1, 10).Draw(t, "failureThreshold")
@@ -34,7 +34,7 @@ func TestProperty74_CircuitBreakerStateTransitions(t *testing.T) {
 
 		cb := NewCircuitBreaker(cfg)
 
-		// --- Transition 1: CLOSED �?OPEN ---
+		// --- Transition 1: CLOSED → OPEN ---
 		// Verify starts CLOSED.
 		if cb.State() != CircuitClosed {
 			t.Fatalf("expected initial state CLOSED, got %s", cb.State())
@@ -55,7 +55,7 @@ func TestProperty74_CircuitBreakerStateTransitions(t *testing.T) {
 			t.Fatalf("after %d failures, expected OPEN, got %s", failureThreshold, cb.State())
 		}
 
-		// --- Transition 2: OPEN �?HALF_OPEN ---
+		// --- Transition 2: OPEN → HALF_OPEN ---
 		// Wait for OpenDuration to elapse.
 		time.Sleep(2 * time.Millisecond)
 
@@ -68,13 +68,13 @@ func TestProperty74_CircuitBreakerStateTransitions(t *testing.T) {
 			t.Fatalf("expected HALF_OPEN after OpenDuration, got %s", cb.State())
 		}
 
-		// --- Transition 4: HALF_OPEN �?OPEN (any failure) ---
+		// --- Transition 4: HALF_OPEN → OPEN (any failure) ---
 		cb.RecordFailure()
 		if cb.State() != CircuitOpen {
 			t.Fatalf("expected OPEN after failure in HALF_OPEN, got %s", cb.State())
 		}
 
-		// --- Transition 3: HALF_OPEN �?CLOSED ---
+		// --- Transition 3: HALF_OPEN → CLOSED ---
 		// Wait again for OpenDuration.
 		time.Sleep(2 * time.Millisecond)
 
@@ -109,8 +109,8 @@ func TestProperty74_CircuitBreakerStateTransitions(t *testing.T) {
 // circuit breaker is in OPEN state (and OpenDuration has NOT elapsed),
 // AllowRequest returns false (fast fail) for every call.
 //
-// Feature: graphql-multi-datasource-api, Property 75: 熔断�?OPEN 状态快速失�?
-// **Validates: Design - 熔断器弹性设�?*
+// Feature: graphql-multi-datasource-api, Property 75: 熔断器OPEN 状态快速失败
+// **Validates: Design - 熔断器弹性设计**
 func TestProperty75_CircuitBreakerOpenStateFastFail(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		failureThreshold := rapid.IntRange(1, 10).Draw(t, "failureThreshold")

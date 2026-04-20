@@ -65,7 +65,7 @@ func TestProperty9_IntrospectionSupport(t *testing.T) {
 
 		// Property: The schema MUST define a Query root type (required for introspection).
 		if !strings.Contains(content, "type Query") {
-			t.Fatal("schema does not define 'type Query' �?introspection requires a Query root type")
+			t.Fatal("schema does not define 'type Query' — introspection requires a Query root type")
 		}
 
 		// Property: The schema must NOT define a Subscription type (per Requirements 2.11, 2.12).
@@ -85,7 +85,7 @@ func TestProperty9_IntrospectionSupport(t *testing.T) {
 			t.Fatalf("schema missing prerequisite %q for valid introspection", prereq)
 		}
 
-		// Property: Schema files are modular (Requirements 2.7) �?at least base.graphql exists.
+		// Property: Schema files are modular (Requirements 2.7) — at least base.graphql exists.
 		hasBase := false
 		for _, f := range files {
 			if f == "base.graphql" {
@@ -94,7 +94,7 @@ func TestProperty9_IntrospectionSupport(t *testing.T) {
 			}
 		}
 		if !hasBase {
-			t.Fatal("base.graphql not found �?schema must have a base file")
+			t.Fatal("base.graphql not found — schema must have a base file")
 		}
 	})
 }
@@ -103,7 +103,7 @@ func TestProperty9_IntrospectionSupport(t *testing.T) {
 // does NOT define a Subscription root type and that the Mutation type only
 // contains management operations (no data write mutations).
 //
-// Feature: graphql-multi-datasource-api, Property 10: 不支持的操作类型被拒�?
+// Feature: graphql-multi-datasource-api, Property 10: 不支持的操作类型被拒绝
 // **Validates: Requirements 2.11, 2.12**
 func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 	content, _ := readAllSchemaFiles(t)
@@ -188,12 +188,12 @@ func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 		// Currently only clearCache is defined.
 		for _, fn := range fieldNames {
 			if fn != "clearCache" {
-				t.Fatalf("Mutation type contains unexpected field %q �?only management operations are allowed (Requirements 2.9, 2.10)", fn)
+				t.Fatalf("Mutation type contains unexpected field %q — only management operations are allowed (Requirements 2.9, 2.10)", fn)
 			}
 		}
 
 		if len(fieldNames) == 0 {
-			t.Fatal("Mutation type has no fields �?expected at least clearCache (Requirements 2.9)")
+			t.Fatal("Mutation type has no fields — expected at least clearCache (Requirements 2.9)")
 		}
 
 		// Property 3: Randomly verify that data-write mutation keywords are absent.
@@ -203,7 +203,7 @@ func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 
 		for _, fn := range fieldNames {
 			if strings.Contains(strings.ToLower(fn), forbiddenOp) {
-				t.Fatalf("Mutation contains data-write operation %q (contains %q) �?only management operations allowed",
+				t.Fatalf("Mutation contains data-write operation %q (contains %q) — only management operations allowed",
 					fn, forbiddenOp)
 			}
 		}

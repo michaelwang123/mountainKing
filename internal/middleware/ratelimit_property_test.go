@@ -45,7 +45,7 @@ func (m *mockPropertyIPExtractor) ExtractClientIP(_ *http.Request) string {
 // X-RateLimit-Limit, X-RateLimit-Remaining, and X-RateLimit-Reset headers
 // are present on ALL non-public endpoint responses (both allowed and denied).
 //
-// Feature: graphql-multi-datasource-api, Property 57: 限流响应头始终存�?
+// Feature: graphql-multi-datasource-api, Property 57: 限流响应头始终存在
 // **Validates: Requirements 14.4**
 func TestProperty57_RateLimitResponseHeadersAlwaysPresent(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -125,7 +125,7 @@ func TestProperty57_RateLimitResponseHeadersAlwaysPresent(t *testing.T) {
 // TestProperty93_RateLimitKeyPriority validates that the rate limit key follows
 // the priority: apikey:{id} > jwt:{sub} > ip:{addr}.
 //
-// Feature: graphql-multi-datasource-api, Property 93: 限流 Key 优先�?
+// Feature: graphql-multi-datasource-api, Property 93: 限流 Key 优先级
 // **Validates: Design - 限流 Key 选择策略**
 func TestProperty93_RateLimitKeyPriority(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
@@ -152,7 +152,7 @@ func TestProperty93_RateLimitKeyPriority(t *testing.T) {
 		})
 		handler := RateLimitMiddleware(limiter, extractor)(innerHandler)
 
-		// Scenario 1: API Key identity �?key should be "apikey:{subject}".
+		// Scenario 1: API Key identity → key should be "apikey:{subject}".
 		{
 			identity := &AuthIdentity{Subject: subject, Method: "apikey"}
 			ctx := context.WithValue(context.Background(), ctxkeys.CtxKeyAuthIdentity, identity)
@@ -167,7 +167,7 @@ func TestProperty93_RateLimitKeyPriority(t *testing.T) {
 			}
 		}
 
-		// Scenario 2: JWT identity �?key should be "jwt:{subject}".
+		// Scenario 2: JWT identity → key should be "jwt:{subject}".
 		{
 			identity := &AuthIdentity{Subject: subject, Method: "jwt"}
 			ctx := context.WithValue(context.Background(), ctxkeys.CtxKeyAuthIdentity, identity)
@@ -182,7 +182,7 @@ func TestProperty93_RateLimitKeyPriority(t *testing.T) {
 			}
 		}
 
-		// Scenario 3: No identity �?key should be "ip:{clientIP}".
+		// Scenario 3: No identity → key should be "ip:{clientIP}".
 		{
 			req := httptest.NewRequest(http.MethodPost, "/graphql", nil)
 			req.RemoteAddr = clientIP + ":9999"
@@ -196,9 +196,9 @@ func TestProperty93_RateLimitKeyPriority(t *testing.T) {
 		}
 
 		// Scenario 4: API Key takes priority over IP even when extractor is present.
-		// (Already tested in scenario 1 with extractor set �?the key is apikey:, not ip:)
+		// (Already tested in scenario 1 with extractor set — the key is apikey:, not ip:)
 
-		// Scenario 5: Nil identity in context �?falls back to IP.
+		// Scenario 5: Nil identity in context → falls back to IP.
 		{
 			ctx := context.WithValue(context.Background(), ctxkeys.CtxKeyAuthIdentity, (*AuthIdentity)(nil))
 			req := httptest.NewRequest(http.MethodPost, "/graphql", nil).WithContext(ctx)

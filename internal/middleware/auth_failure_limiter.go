@@ -80,7 +80,7 @@ func (afl *AuthFailureLimiter) Check(ip string) bool {
 		if time.Since(*rec.bannedAt) < afl.banDur {
 			return false
 		}
-		// Ban has expired â€?allow through; cleanup goroutine will remove the record.
+		// Ban has expired â€” allow through; cleanup goroutine will remove the record.
 		return true
 	}
 
@@ -221,7 +221,7 @@ func (afl *AuthFailureLimiter) isTrusted(ipStr string) bool {
 	return false
 }
 
-// stripPort removes the port from an address string (e.g. "1.2.3.4:8080" â†?"1.2.3.4").
+// stripPort removes the port from an address string (e.g. "1.2.3.4:8080" â†’ "1.2.3.4").
 func stripPort(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
