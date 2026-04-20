@@ -14,7 +14,7 @@
 
 ```powershell
 $env:GRAPHQL_SERVER_MODE="development"
-$env:GRAPHQL_AUTH_METHOD=""
+$env:GRAPHQL_AUTH_METHOD="none"
 $env:GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED="true"
 go run cmd/server/main.go
 ```
@@ -23,7 +23,7 @@ go run cmd/server/main.go
 
 ```bash
 export GRAPHQL_SERVER_MODE=development
-export GRAPHQL_AUTH_METHOD=
+export GRAPHQL_AUTH_METHOD=none
 export GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED=true
 go run cmd/server/main.go
 ```
@@ -32,11 +32,11 @@ go run cmd/server/main.go
 
 ## 为什么需要这些环境变量
 
-| 环境变量　　　　　　　　　　　　　　　　| 值　　　　　　| 原因　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 |
-| -----------------------------------------| ---------------| ------------------------------------------------------------------------------------------------------------|
-| `GRAPHQL_SERVER_MODE`　　　　　　　　　 | `development` | 启用 GraphQL Playground（`/playground`）和 GET 查询支持　　　　　　　　　　　　　　　　　　　　　　　　　　|
-| `GRAPHQL_AUTH_METHOD`　　　　　　　　　 | 空字符串　　　| 禁用认证。默认配置为 `jwt` 并指向 `/etc/secrets/jwt-public.pem` 公钥文件，本地不存在该文件会导致启动 fatal |
-| `GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED` | `true`　　　　| 启用 GraphQL Introspection 查询，Playground 和客户端工具需要它来获取 Schema 信息　　　　　　　　　　　　　 |
+| 环境变量 | 值 | 原因 |
+|---------|---|------|
+| `GRAPHQL_SERVER_MODE` | `development` | 启用 GraphQL Playground（`/playground`）和 GET 查询支持 |
+| `GRAPHQL_AUTH_METHOD` | `none` | 禁用认证。设为 `none` 表示不启用任何认证方式。默认配置为 `jwt` 并指向公钥文件，本地不存在会导致启动 fatal |
+| `GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED` | `true` | 启用 GraphQL Introspection 查询，Playground 和客户端工具需要它来获取 Schema 信息 |
 
 ## 启动后验证
 
@@ -125,7 +125,7 @@ docker compose up -d
 
 原因：`auth.method` 配置为 `jwt`，但公钥文件不存在。
 
-解决：设置 `GRAPHQL_AUTH_METHOD=""` 禁用认证，或提供有效的公钥文件。
+解决：设置 `GRAPHQL_AUTH_METHOD="none"` 禁用认证，或提供有效的公钥文件。
 
 ### 数据源连接失败的 WARN 日志
 

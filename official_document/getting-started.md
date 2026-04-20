@@ -36,7 +36,7 @@ go run cmd/server/main.go
 
 ```powershell
 $env:GRAPHQL_SERVER_MODE="development"
-$env:GRAPHQL_AUTH_METHOD=""
+$env:GRAPHQL_AUTH_METHOD="none"
 $env:GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED="true"
 go run cmd/server/main.go
 ```
@@ -45,7 +45,7 @@ go run cmd/server/main.go
 
 ```bash
 export GRAPHQL_SERVER_MODE=development
-export GRAPHQL_AUTH_METHOD=
+export GRAPHQL_AUTH_METHOD=none
 export GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED=true
 go run cmd/server/main.go
 ```
