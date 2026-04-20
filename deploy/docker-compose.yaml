@@ -1,0 +1,73 @@
+# Docker Compose integration test environment
+# Requirements: 17.11 - StarRocks FE/BE, Prometheus, Redis, and the API service
+version: "3.8"
+
+services:
+  starrocks-fe:
+    image: starrocks/fe-ubuntu:latest
+    hostname: starrocks-fe
+    ports:
+      - "8030:8030"
+      - "9020:9020"
+      - "9030:9030"
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8030/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  starrocks-be:
+    image: starrocks/be-ubuntu:latest
+    hostname: starrocks-be
+    ports:
+      - "8040:8040"
+    depends_on:
+      starrocks-fe:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  graphql-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        VERSION: integration-test
+        BUILD_TIME: "2024-01-01T00:00:00Z"
+    ports:
+      - "8080:8080"
+    depends_on:
+      starrocks-fe:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    environment:
+      - GRAPHQL_SERVER_MODE=development
+      - GRAPHQL_STARROCKS_PASSWORD=
+    volumes:
+      - ../config.yaml:/config.yaml:ro

@@ -1,0 +1,17 @@
+# Service for GraphQL API
+# Requirements: 18.4
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-api
+  labels:
+    app: graphql-api
+spec:
+  type: ClusterIP
+  selector:
+    app: graphql-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

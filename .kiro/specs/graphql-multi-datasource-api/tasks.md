@@ -311,31 +311,31 @@ Go + gqlgen GraphQL API 服务的增量实现计划。按 P0 → P1 → P2 优�
 - [ ] 23. Checkpoint - 确保可观测性完整
   - 验证：golangci-lint 通过 + /metrics 端点返回所有指标 + Tracing Span 层级正确（Root→Resolver→DataSource+Redis）+ 审计日志包含必要字段 + 脱敏规则生效
 
-- [ ] 24. 主入口与端到端集成
-  - [-] 24.1 实现 main.go（cmd/server/main.go）：加载配置 → 初始化日志 → 初始化 TracingProvider → 初始化共享 Redis 客户端 → 注册适配器 → 初始化 DataSourceManager → 初始化 CacheLayer → 初始化 RateLimiter → 初始化 MetricsCollector → 初始化 HealthChecker → 构建中间件链（RequestID → BodyLimit → CORS → CSRF → Auth → AuthFailureLimiter → RateLimit → Compression）→ 启动 HTTP 服务器 → 优雅关闭
+- [x] 24. 主入口与端到端集成
+  - [x] 24.1 实现 main.go（cmd/server/main.go）：加载配置 → 初始化日志 → 初始化 TracingProvider → 初始化共享 Redis 客户端 → 注册适配器 → 初始化 DataSourceManager → 初始化 CacheLayer → 初始化 RateLimiter → 初始化 MetricsCollector → 初始化 HealthChecker → 构建中间件链（RequestID → BodyLimit → CORS → CSRF → Auth → AuthFailureLimiter → RateLimit → Compression）→ 启动 HTTP 服务器 → 优雅关闭
     - _Requirements: 1.1, 1.4, 1.5_
-  - [ ] 24.2 创建示例配置文件（config.yaml）：包含所有配置项的完整示例，与 requirements.md 附录中的 YAML 配置一致
+  - [x] 24.2 创建示例配置文件（config.yaml）：包含所有配置项的完整示例，与 requirements.md 附录中的 YAML 配置一致
     - _Requirements: 3.1_
 
 - [ ] 25. Checkpoint - 确保端到端集成可用
   - 验证：golangci-lint 通过 + 服务可启动 + GraphQL 查询端到端可用（使用 MockDataSource）+ 所有中间件按正确顺序执行 + 覆盖率 ≥ 70%
 
-- [ ] 26. 容器化与部署
-  - [ ] 26.1 创建多阶段 Dockerfile：构建阶段（Go 编译）+ 最终阶段（scratch/distroless），非 root 用户（UID≠0），构建参数注入版本号和构建时间（--build-arg）
+- [x] 26. 容器化与部署
+  - [x] 26.1 创建多阶段 Dockerfile：构建阶段（Go 编译）+ 最终阶段（scratch/distroless），非 root 用户（UID≠0），构建参数注入版本号和构建时间（--build-arg）
     - _Requirements: 18.1, 18.2, 18.3_
-  - [ ] 26.2 创建 Kubernetes 部署清单：Deployment（含 startupProbe(failureThreshold:30,periodSeconds:2) + livenessProbe(/health) + readinessProbe(/ready)、资源 requests/limits 通过 ConfigMap 管理）、Service、ConfigMap、HPA（基于 graphql_requests_in_flight 自定义指标）
+  - [x] 26.2 创建 Kubernetes 部署清单：Deployment（含 startupProbe(failureThreshold:30,periodSeconds:2) + livenessProbe(/health) + readinessProbe(/ready)、资源 requests/limits 通过 ConfigMap 管理）、Service、ConfigMap、HPA（基于 graphql_requests_in_flight 自定义指标）
     - _Requirements: 18.4, 18.5, 18.6_
-  - [ ] 26.3 创建 Docker Compose 集成测试环境（deploy/docker-compose.yaml）：StarRocks FE/BE、Prometheus、Redis
+  - [x] 26.3 创建 Docker Compose 集成测试环境（deploy/docker-compose.yaml）：StarRocks FE/BE、Prometheus、Redis
     - _Requirements: 17.11_
-  - [ ] 26.4 创建 CI/CD 流水线配置示例（GitHub Actions）：lint（golangci-lint）、单元测试、覆盖率报告、镜像构建和推送
+  - [x] 26.4 创建 CI/CD 流水线配置示例（GitHub Actions）：lint（golangci-lint）、单元测试、覆盖率报告、镜像构建和推送
     - _Requirements: 17.3, 18.7_
 
-- [ ] 27. 性能基准测试
-  - [ ] 27.1 编写性能基准测试（使用 Go testing.B）：单数据源简单查询延迟、跨数据源混合查询延迟、并发查询吞吐量、缓存命中/未命中场景对比，验证需求 8 中定义的延迟目标（P95 单数据源 ≤200ms，P95 混合查询 ≤500ms）
+- [x] 27. 性能基准测试
+  - [x] 27.1 编写性能基准测试（使用 Go testing.B）：单数据源简单查询延迟、跨数据源混合查询延迟、并发查询吞吐量、缓存命中/未命中场景对比，验证需求 8 中定义的延迟目标（P95 单数据源 ≤200ms，P95 混合查询 ≤500ms）
     - _Requirements: 17.12_
 
-- [ ] 28. 代码质量收尾
-  - [ ] 28.1 添加 GoDoc 注释：所有导出函数、类型和接口添加符合 GoDoc 规范的注释，关键业务逻辑代码块添加行内注释
+- [x] 28. 代码质量收尾
+  - [x] 28.1 添加 GoDoc 注释：所有导出函数、类型和接口添加符合 GoDoc 规范的注释，关键业务逻辑代码块添加行内注释
     - _Requirements: 17.1, 17.2_
 
 - [ ] 29. Final checkpoint - 确保所有测试通过，代码质量达标

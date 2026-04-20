@@ -1,3 +1,6 @@
+// Package scalar provides custom GraphQL scalar type implementations for
+// DateTime and JSON, handling serialization and deserialization between
+// GraphQL wire format and Go native types.
 package scalar
 
 import (

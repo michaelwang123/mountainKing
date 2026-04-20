@@ -1,0 +1,8 @@
+# Minimal Prometheus config for integration test environment
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: graphql-api
+    static_configs:
+      - targets: ["graphql-api:8080"]

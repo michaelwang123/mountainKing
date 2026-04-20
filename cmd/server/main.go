@@ -36,6 +36,12 @@ import (
 	goredis "github.com/redis/go-redis/v9"
 )
 
+// version and buildTime are injected at build time via ldflags.
+var (
+	version   = "dev"
+	buildTime = "unknown"
+)
+
 func main() {
 	// 1. Load config (Viper YAML + env vars).
 	cfg, err := config.LoadConfig("config.yaml")
@@ -63,7 +69,7 @@ func main() {
 		logger.Fatal("failed to init tracing", zap.Error(err))
 	}
 
-	// 4. Init shared Redis client (if needed).
+	// 4. Init shared Redis client (if needed for distributed rate limiting or Redis cache).
 	var redisClient *goredis.Client
 	if needsRedis(cfg) {
 		addr := resolveRedisAddr(cfg)
@@ -160,7 +166,7 @@ func main() {
 	})
 
 	// 10. Init HealthChecker.
-	healthChecker := health.NewHealthChecker(dsManager, "dev", "unknown")
+	healthChecker := health.NewHealthChecker(dsManager, version, buildTime)
 
 	// 11. Init AuditLogger.
 	auditLogger, err := audit.NewAuditLogger(cfg.Logging.Audit)
@@ -238,60 +244,57 @@ func main() {
 	}
 	router.Use(middleware.RateLimitMiddleware(rateLimiter, authFailureLimiter))
 	router.Use(middleware.Compression(cfg.Compression))
-	// 15. Create HTTP server and build middleware chain.
-	srv := server.NewServer(
-		cfg.Server,
-		cfg.GraphQL,
-		cfg.Shutdown,
-		dsManager,
-		res,
-		schema,
-		logger.Logger,
-	)
-	srv.SetTracingShutdown(tracingProvider.Shutdown)
 
-	// Get the server's chi router with GraphQL, playground, and placeholder routes.
-	router := srv.SetupRoutes()
-
-	// Override placeholder health/ready/metrics with real handlers.
-	router.Get("/health", healthChecker.LivenessCheck)
-	router.Get("/ready", healthChecker.ReadinessCheck)
-	router.Get("/metrics", metricsCollector.Handler().ServeHTTP)
-
-	// Build middleware chain: RequestID -> BodyLimit -> CORS -> CSRF -> Auth -> AuthFailureLimiter -> RateLimit -> Compression.
-	router.Use(middleware.RequestID)
-	router.Use(middleware.BodyLimit(cfg.Server.MaxRequestBodySize))
-	router.Use(middleware.CORS(cfg.CORS))
-	router.Use(middleware.CSRFProtection(cfg.Server.AllowGetQueries, cfg.Server.Mode))
-
-	if authenticator != nil {
-		router.Use(middleware.AuthMiddleware(authenticator))
-	}
-
-	if authFailureLimiter != nil {
-		router.Use(authFailureLimiterMiddleware(authFailureLimiter))
-	}
-
-	router.Use(middleware.RateLimitMiddleware(rateLimiter, authFailureLimiter))
-	router.Use(middleware.Compression(cfg.Compression))
-
-	// Start HTTP server with the middleware-configured router (bypass srv.Start
-	// which would create a second router without our middleware).
+	// 16. Start HTTP server directly with our middleware-configured router.
+	// We bypass srv.Start() because it calls SetupRoutes() again, creating
+	// a new router without our middleware chain.
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	httpSrv := &http.Server{Addr: addr, Handler: router}
 	logger.Info("HTTP server starting", zap.String("addr", addr), zap.String("mode", cfg.Server.Mode))
 
-	httpSrv := &http.Server{
-		Addr:    addr,
-		Handler: router,
-	}
 	go func() {
-		if listenErr := httpSrv.ListenAndServe(); listenErr != nil && listenErr != http.ErrServerClosed {
-			logger.Fatal("HTTP server error", zap.Error(listenErr))
+		if srvErr := httpSrv.ListenAndServe(); srvErr != nil && srvErr != http.ErrServerClosed {
+			logger.Fatal("HTTP server error", zap.Error(srvErr))
 		}
 	}()
 
-	// 16. Graceful shutdown (SIGTERM/SIGINT).
-	srv.WaitForShutdown()
+	// 17. Graceful shutdown (SIGTERM/SIGINT).
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	sig := <-quit
+	logger.Info("received shutdown signal", zap.String("signal", sig.String()))
+
+	maxWait := cfg.Shutdown.MaxWaitTime
+	if maxWait <= 0 {
+		maxWait = 30 * time.Second
+	}
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), maxWait)
+	defer shutdownCancel()
+	logger.Info("shutting down HTTP server", zap.Duration("max_wait", maxWait))
+	if shutErr := httpSrv.Shutdown(shutdownCtx); shutErr != nil {
+		logger.Error("HTTP server shutdown error", zap.Error(shutErr))
+	}
+
+	// TracingProvider.Shutdown (independent 5s timeout).
+	if tpErr := tracingProvider.Shutdown(context.Background()); tpErr != nil {
+		logger.Error("tracing provider shutdown error", zap.Error(tpErr))
+	}
+
+	// Close all data source connections.
+	closeCtx, closeCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer closeCancel()
+	if closeErr := dsManager.CloseAll(closeCtx); closeErr != nil {
+		logger.Error("datasource close error", zap.Error(closeErr))
+	}
+
+	logger.Info("shutdown complete")
+}
+
+// needsRedis returns true if any feature requires a Redis connection.
+func needsRedis(cfg *config.Config) bool {
+	return cfg.RateLimit.Mode == "distributed" || (cfg.Cache.Enabled && cfg.Cache.Backend == "redis")
+}
+
 // resolveRedisAddr returns the Redis address from the first available config source.
 func resolveRedisAddr(cfg *config.Config) string {
 	if cfg.RateLimit.Redis.Addr != "" {
