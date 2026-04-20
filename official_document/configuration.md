@@ -23,36 +23,36 @@
 
 ### server — 服务基础配置
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `port` | int | `8080` | HTTP 监听端口 |
-| `mode` | string | `production` | 运行模式：`production` 或 `development` |
-| `max_request_body_size` | string | `1MB` | 请求体最大大小，超限返回 413 |
-| `request_timeout` | duration | `30s` | 单个 HTTP 请求的总超时时间 |
-| `max_batch_queries` | int | `10` | 批量查询最大查询数，超限返回 400 |
-| `allow_get_queries` | bool | `false` | 是否允许 HTTP GET 查询（生产模式建议禁用以防 CSRF） |
+| 配置项　　　　　　　　　| 类型　　 | 默认值　　　 | 说明　　　　　　　　　　　　　　　　　　　　　　　　|
+| -------------------------| ----------| --------------| -----------------------------------------------------|
+| `port`　　　　　　　　　| int　　　| `8080`　　　 | HTTP 监听端口　　　　　　　　　　　　　　　　　　　 |
+| `mode`　　　　　　　　　| string　 | `production` | 运行模式：`production` 或 `development`　　　　　　 |
+| `max_request_body_size` | string　 | `1MB`　　　　| 请求体最大大小，超限返回 413　　　　　　　　　　　　|
+| `request_timeout`　　　 | duration | `30s`　　　　| 单个 HTTP 请求的总超时时间　　　　　　　　　　　　　|
+| `max_batch_queries`　　 | int　　　| `10`　　　　 | 批量查询最大查询数，超限返回 400　　　　　　　　　　|
+| `allow_get_queries`　　 | bool　　 | `false`　　　| 是否允许 HTTP GET 查询（生产模式建议禁用以防 CSRF） |
 
 ### graphql — GraphQL 引擎配置
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `introspection_enabled` | bool | `false` | 是否启用 Introspection 查询（生产环境建议禁用） |
-| `max_query_complexity` | int | `100` | 查询复杂度上限 |
-| `max_query_depth` | int | `10` | 查询嵌套深度上限 |
-| `max_result_rows` | int | `10000` | 单次查询最大返回行数，超限截断并在 warnings 中提示 |
-| `apq_enabled` | bool | `false` | 是否启用 Automatic Persisted Queries |
+| 配置项　　　　　　　　　| 类型 | 默认值　| 说明　　　　　　　　　　　　　　　　　　　　　　　 |
+| -------------------------| ------| ---------| ----------------------------------------------------|
+| `introspection_enabled` | bool | `false` | 是否启用 Introspection 查询（生产环境建议禁用）　　|
+| `max_query_complexity`　| int　| `100`　 | 查询复杂度上限　　　　　　　　　　　　　　　　　　 |
+| `max_query_depth`　　　 | int　| `10`　　| 查询嵌套深度上限　　　　　　　　　　　　　　　　　 |
+| `max_result_rows`　　　 | int　| `10000` | 单次查询最大返回行数，超限截断并在 warnings 中提示 |
+| `apq_enabled`　　　　　 | bool | `false` | 是否启用 Automatic Persisted Queries　　　　　　　 |
 
 ### datasources — 数据源配置
 
 数据源配置为数组，每个条目包含：
 
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| `name` | string | 数据源唯一名称 |
-| `type` | string | 数据源类型（`starrocks` 或 `prometheus`） |
-| `enabled` | bool | 是否启用 |
-| `connection` | map | 连接参数（因类型而异） |
-| `options` | map | 适配器特有选项 |
+| 配置项　　　 | 类型　 | 说明　　　　　　　　　　　　　　　　　　　|
+| --------------| --------| -------------------------------------------|
+| `name`　　　 | string | 数据源唯一名称　　　　　　　　　　　　　　|
+| `type`　　　 | string | 数据源类型（`starrocks` 或 `prometheus`） |
+| `enabled`　　| bool　 | 是否启用　　　　　　　　　　　　　　　　　|
+| `connection` | map　　| 连接参数（因类型而异）　　　　　　　　　　|
+| `options`　　| map　　| 适配器特有选项　　　　　　　　　　　　　　|
 
 #### StarRocks 连接参数
 
@@ -168,10 +168,10 @@ apikey:
 
 ### sanitization — 敏感信息脱敏
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `enabled` | bool | `false` | 是否启用脱敏 |
-| `rules` | []object | — | 脱敏规则列表（pattern + replacement） |
+| 配置项　　| 类型　　 | 默认值　| 说明　　　　　　　　　　　　　　　　　|
+| -----------| ----------| ---------| ---------------------------------------|
+| `enabled` | bool　　 | `false` | 是否启用脱敏　　　　　　　　　　　　　|
+| `rules`　 | []object | —　　　 | 脱敏规则列表（pattern + replacement） |
 
 ### metrics — Prometheus 指标
 
@@ -181,29 +181,29 @@ apikey:
 
 ### tracing — OpenTelemetry 链路追踪
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `enabled` | bool | `false` | 是否启用链路追踪 |
-| `sampling_rate` | float | `1.0` | 采样率（0.0 ~ 1.0） |
-| `otlp.endpoint` | string | — | OTLP 导出端点 |
-| `otlp.protocol` | string | — | 传输协议：`grpc` 或 `http` |
+| 配置项　　　　　| 类型　 | 默认值　| 说明　　　　　　　　　　　 |
+| -----------------| --------| ---------| ----------------------------|
+| `enabled`　　　 | bool　 | `false` | 是否启用链路追踪　　　　　 |
+| `sampling_rate` | float　| `1.0`　 | 采样率（0.0 ~ 1.0）　　　　|
+| `otlp.endpoint` | string | —　　　 | OTLP 导出端点　　　　　　　|
+| `otlp.protocol` | string | —　　　 | 传输协议：`grpc` 或 `http` |
 
 ### retry — 错误重试
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `max_retries` | int | `3` | 最大重试次数 |
-| `retry_interval` | duration | `100ms` | 初始重试间隔 |
-| `backoff` | string | `exponential` | 退避策略 |
+| 配置项　　　　　 | 类型　　 | 默认值　　　　| 说明　　　　 |
+| ------------------| ----------| ---------------| --------------|
+| `max_retries`　　| int　　　| `3`　　　　　 | 最大重试次数 |
+| `retry_interval` | duration | `100ms`　　　 | 初始重试间隔 |
+| `backoff`　　　　| string　 | `exponential` | 退避策略　　 |
 
 ### circuit_breaker — 熔断器
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `failure_threshold` | int | `5` | 连续失败次数阈值，超过后熔断 |
-| `open_duration` | duration | `30s` | 熔断持续时间 |
-| `half_open_max_requests` | int | `1` | 半开状态最大探测请求数 |
-| `success_threshold` | int | `2` | 半开状态恢复所需连续成功次数 |
+| 配置项　　　　　　　　　 | 类型　　 | 默认值 | 说明　　　　　　　　　　　　 |
+| --------------------------| ----------| --------| ------------------------------|
+| `failure_threshold`　　　| int　　　| `5`　　| 连续失败次数阈值，超过后熔断 |
+| `open_duration`　　　　　| duration | `30s`　| 熔断持续时间　　　　　　　　 |
+| `half_open_max_requests` | int　　　| `1`　　| 半开状态最大探测请求数　　　 |
+| `success_threshold`　　　| int　　　| `2`　　| 半开状态恢复所需连续成功次数 |
 
 ### auth_failure — 暴力破解防护
 
