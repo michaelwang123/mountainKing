@@ -243,7 +243,13 @@ func main() {
 	if authFailureLimiter != nil {
 		router.Use(newAuthFailureLimiterMiddleware(authFailureLimiter))
 	}
-	router.Use(middleware.RateLimitMiddleware(rateLimiter, authFailureLimiter))
+	// Pass nil interface (not nil pointer) when authFailureLimiter is not initialized,
+	// to avoid Go's nil interface vs nil pointer pitfall.
+	var ipExtractor middleware.IPExtractor
+	if authFailureLimiter != nil {
+		ipExtractor = authFailureLimiter
+	}
+	router.Use(middleware.RateLimitMiddleware(rateLimiter, ipExtractor))
 	router.Use(middleware.Compression(cfg.Compression))
 
 	// Register health/ready/metrics with real handlers.
