@@ -9,7 +9,6 @@ package middleware
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -113,7 +112,7 @@ func writeRateLimitError(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{
 		"error": map[string]any{
 			"code":           apierrors.ErrRateLimitExceeded,
-			"message":        fmt.Sprintf("rate limit exceeded, retry after reset"),
+			"message":        "rate limit exceeded, retry after reset",
 			"classification": apierrors.Classification(apierrors.ErrRateLimitExceeded),
 		},
 	}
