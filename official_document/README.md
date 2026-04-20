@@ -16,6 +16,16 @@
 | [部署指南](deployment.md) | Docker、Kubernetes 部署、CI/CD 流水线 | DevOps、运维人员 |
 | [性能调优](performance.md) | 缓存策略、连接池、熔断器、基准测试 | 开发者、运维人员 |
 | [开发者指南](developer-guide.md) | 项目结构、代码规范、测试策略、贡献流程 | 贡献者、开发者 |
+| [错误码参考](error-reference.md) | 完整错误码列表、HTTP 状态码映射、客户端处理建议 | 客户端开发者 |
+| [故障排查](troubleshooting.md) | 常见问题诊断与解决方案 | 运维人员、开发者 |
+| [常见问题 (FAQ)](faq.md) | 高频问题解答 | 所有用户 |
+
+## 项目根目录文档
+
+| 文档 | 说明 |
+|------|------|
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献指南、代码规范、PR 检查清单 |
+| [CHANGELOG.md](../CHANGELOG.md) | 版本变更记录 |
 
 ## 项目简介
 

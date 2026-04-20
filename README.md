@@ -34,6 +34,10 @@ A production-grade GraphQL API server in Go that provides a unified query interf
 
 ## Getting Started
 
+For a comprehensive guide including first query examples, Docker setup, and development mode, see the [Getting Started Guide](official_document/getting-started.md).
+
+Quick start:
+
 ```bash
 # Clone
 git clone https://github.com/example/graphql-api.git
@@ -50,7 +54,7 @@ The server listens on `:8080` by default. Set `GRAPHQL_SERVER_MODE=development` 
 
 ## Configuration
 
-Configuration is loaded from `config.yaml` with environment variable overrides using the `GRAPHQL_` prefix (12-Factor style).
+Configuration is loaded from `config.yaml` with environment variable overrides using the `GRAPHQL_` prefix (12-Factor style). For the complete configuration reference, see [Configuration Reference](official_document/configuration.md).
 
 ```bash
 export GRAPHQL_SERVER_PORT=9090
@@ -62,37 +66,37 @@ Hot-reloadable at runtime: log level, rate limit params, cache TTL.
 
 Key config sections:
 
-| Section           | Description                                                 |
-| -------------------| -------------------------------------------------------------|
-| `server`          | Port, mode, timeouts, batch limits                          |
-| `graphql`         | Introspection, complexity/depth limits, max result rows     |
-| `datasources`     | StarRocks/Prometheus connection configs with whitelist      |
-| `auth`            | JWT (HS256/RS256/ES256) or API Key authentication           |
-| `rate_limit`      | Local or distributed (Redis) rate limiting                  |
-| `cache`           | Memory/Redis backend, TTL, jitter, per-datasource TTL       |
-| `tracing`         | OpenTelemetry OTLP export (gRPC/HTTP)                       |
-| `metrics`         | Custom Prometheus labels                                    |
-| `circuit_breaker` | Failure threshold, open duration                            |
-| `retry`           | Max retries, exponential backoff                            |
-| `cors`            | Cross-origin resource sharing                               |
-| `compression`     | gzip response compression                                   |
-| `logging`         | Level, formatields: [String!], filters: [StarRocksFilter!], |
+| Section | Description |
+|---------|-------------|
+| `server` | Port, mode, timeouts, batch limits |
+| `graphql` | Introspection, complexity/depth limits, max result rows |
+| `datasources` | StarRocks/Prometheus connection configs with whitelist |
+| `auth` | JWT (HS256/RS256/ES256) or API Key authentication |
+| `rate_limit` | Local or distributed (Redis) rate limiting |
+| `cache` | Memory/Redis backend, TTL, jitter, per-datasource TTL |
+| `tracing` | OpenTelemetry OTLP export (gRPC/HTTP) |
+| `metrics` | Custom Prometheus labels |
+| `circuit_breaker` | Failure threshold, open duration |
+| `retry` | Max retries, exponential backoff |
+| `cors` | Cross-origin resource sharing |
+| `compression` | gzip response compression |
+| `logging` | Level, format, audit log |
+| `sanitization` | Regex-based sensitive data masking |
+| `shutdown` | Graceful shutdown max wait time |
+
+## GraphQL Schema
+
+### Queries
+
+```graphql
+# StarRocks OLAP query with filtering, sorting, and Relay pagination
+starrocks(table: String!, fields: [String!], filters: [StarRocksFilter!],
           orderBy: [StarRocksOrderBy!], first: Int, after: String,
           offset: Int, limit: Int): StarRocksConnection!
 
 # Prometheus instant query
 prometheusInstant(query: String!, time: DateTime,
                   filters: [PrometheusLabelFilter!]): PrometheusInstantResult!
-
-# Prometheus range query
-prometheusRange(query: String!, startTime: DateTime!, endTime: DateTime!,
-                step: String!, filters: [PrometheusLabelFilter!]): PrometheusRangeResult!
-```
-
-### Mutations
-
-```graphql
-# Clear c         filters: [PrometheusLabelFilter!]): PrometheusInstantResult!
 
 # Prometheus range query
 prometheusRange(query: String!, startTime: DateTime!, endTime: DateTime!,
@@ -116,6 +120,8 @@ clearCache(datasource: String): Boolean!
 | `/health` | GET | Liveness check (200/503) |
 | `/ready` | GET | Readiness probe with datasource status (200/503) |
 | `/metrics` | GET | Prometheus metrics |
+
+For detailed query examples, pagination, error codes, and more, see the [GraphQL API Reference](official_document/graphql-api.md).
 
 ## Project Structure
 
@@ -169,6 +175,11 @@ Comprehensive Apache-style project documentation is available in the [`official_
 | [Deployment Guide](official_document/deployment.md) | Docker, Kubernetes, CI/CD, production checklist |
 | [Performance Tuning](official_document/performance.md) | Caching, connection pools, circuit breaker, benchmarks |
 | [Developer Guide](official_document/developer-guide.md) | Project structure, code standards, testing, contribution |
+| [Error Code Reference](official_document/error-reference.md) | Complete error codes, HTTP status mapping, client handling |
+| [Troubleshooting](official_document/troubleshooting.md) | Common issues diagnosis and solutions |
+| [FAQ](official_document/faq.md) | Frequently asked questions |
+
+See also: [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md)
 
 ## Code Generation
 
