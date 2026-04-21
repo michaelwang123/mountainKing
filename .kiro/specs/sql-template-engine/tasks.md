@@ -132,9 +132,11 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 55: totalCount 独立缓存** — Validates: Requirements 8.6
 
 - [ ] 12. TemplateEngine 核心与 RawExecutor 实现
-  - [ ] 12.1 实现 TemplateEngine 主体（internal/template/engine.go）：NewTemplateEngine（FuncMap 构建 + 信号量初始化 + loadAll）、Execute 完整流程（defer 审计日志 + executeErr 追踪 + 信号量等待计时 + 缓存命中/未命中指标）、ListTemplates、DatasourceName、Close
+  - [ ] 12.1 实现 TemplateEngine 主体：
+    - engine.go：NewTemplateEngine（FuncMap 构建 + 信号量初始化 + loadAll）、Execute 完整流程（defer 审计日志 + executeErr 追踪 + 信号量等待计时 + 缓存命中/未命中指标）、ListTemplates、DatasourceName、Close
+    - metrics.go（结构体定义部分）：TemplateMetrics 结构体声明（QueryDuration、QueriesTotal、RenderDuration、SemaphoreWait、CacheHitsTotal、RenderGoroutineLeaks 共 6 个字段）。注意：此处仅定义结构体，NewTemplateMetrics 注册函数在 Task 15.1 中实现。Execute 中的指标调用依赖此结构体，因此必须在 Task 12 中创建
     - _Requirements: 1.1, 2.1, 4.9, 5.1, 5.2, 5.5, 5.6_
-    - _Design: 组件与接口 §4 (TemplateEngine), Execute 伪代码, §18 (并发控制)_
+    - _Design: 组件与接口 §4 (TemplateEngine), Execute 伪代码, §18 (并发控制), §13 (TemplateMetrics 结构体)_
   - [ ] 12.2 实现 StarRocks Adapter ExecuteRaw 方法（internal/adapter/starrocks/adapter.go）：复用 *sql.DB 和 scanRows，不经过 SQLQueryBuilder 和白名单
     - _Requirements: 5.1, 5.2, 5.3_
     - _Design: 组件与接口 §1 (StarRocks Adapter 实现)_
@@ -170,9 +172,9 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 16: 功能禁用行为** — Validates: Requirements 3.9
 
 - [ ] 15. 可观测性集成
-  - [ ] 15.1 实现 Prometheus 指标注册（internal/template/metrics.go）：TemplateMetrics 结构体（QueryDuration、QueriesTotal、RenderDuration、SemaphoreWait、CacheHitsTotal、RenderGoroutineLeaks），NewTemplateMetrics 注册到现有 Registry
+  - [ ] 15.1 实现 Prometheus 指标注册函数（internal/template/metrics.go 追加）：NewTemplateMetrics 函数（接收 *prometheus.Registry 和 customLabels，创建并注册 6 个指标到 Registry，返回 *TemplateMetrics）。注意：TemplateMetrics 结构体已在 Task 12.1 中定义，此处仅添加注册函数
     - _Requirements: 9.1, 9.2, 9.6_
-    - _Design: 组件与接口 §13 (Prometheus 指标)_
+    - _Design: 组件与接口 §13 (Prometheus 指标注册)_
   - [ ] 15.2 集成 OpenTelemetry Tracing：在 Execute 中创建 "Template Query {name}" 子 Span，设置 template.name/db.system/db.statement 属性
     - _Requirements: 9.3_
     - _Design: 组件与接口 §13 (OpenTelemetry Tracing)_
