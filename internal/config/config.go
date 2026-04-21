@@ -36,6 +36,7 @@ type Config struct {
 	CircuitBreaker CircuitBreakerConfig `mapstructure:"circuit_breaker"`
 	AuthFailure    AuthFailureConfig    `mapstructure:"auth_failure"`
 	Shutdown       ShutdownConfig       `mapstructure:"shutdown"`
+	SQLTemplates   SQLTemplatesConfig   `mapstructure:"sql_templates"`
 }
 
 // ServerConfig holds HTTP server settings including port, mode, body size limits,
@@ -253,6 +254,41 @@ type ShutdownConfig struct {
 	MaxWaitTime time.Duration `mapstructure:"max_wait_time"`
 }
 
+// SQLTemplatesConfig holds SQL template engine configuration.
+type SQLTemplatesConfig struct {
+	Enabled              bool             `mapstructure:"enabled"`
+	DatasourceName       string           `mapstructure:"datasource_name"` // Associated StarRocks datasource name (required when enabled)
+	BaseDir              string           `mapstructure:"base_dir"`
+	SharedDir            string           `mapstructure:"shared_dir"`
+	RenderTimeout        time.Duration    `mapstructure:"render_timeout"`
+	MaxRenderedSQLLen    int              `mapstructure:"max_rendered_sql_length"`
+	MaxConcurrentQueries int              `mapstructure:"max_concurrent_queries"`
+	Templates            []TemplateConfig `mapstructure:"templates"`
+}
+
+// TemplateConfig holds the configuration for a single SQL template.
+type TemplateConfig struct {
+	Name         string                `mapstructure:"name"`
+	File         string                `mapstructure:"file"`
+	Description  string                `mapstructure:"description"`
+	CacheEnabled *bool                 `mapstructure:"cache_enabled"` // nil = true (default enabled)
+	CacheTTL     *time.Duration        `mapstructure:"cache_ttl"`     // nil = use datasource default TTL
+	CountEnabled *bool                 `mapstructure:"count_enabled"` // nil = true (default enabled)
+	Parameters   []TemplateParamConfig `mapstructure:"parameters"`
+}
+
+// TemplateParamConfig holds the parameter schema for a template parameter.
+type TemplateParamConfig struct {
+	Name      string   `mapstructure:"name"`
+	Type      string   `mapstructure:"type"` // string, int, float, boolean, string[]
+	Required  bool     `mapstructure:"required"`
+	Default   *string  `mapstructure:"default"`
+	Enum      []string `mapstructure:"enum"`
+	MaxLength *int     `mapstructure:"max_length"` // string type, default 1024
+	MaxItems  *int     `mapstructure:"max_items"`  // string[] type, default 1000
+	Pattern   *string  `mapstructure:"pattern"`    // RE2 regex constraint
+}
+
 // LoadConfig loads configuration from a YAML file and environment variables.
 // Environment variables use the GRAPHQL_ prefix (e.g., GRAPHQL_SERVER_PORT)
 // and override values from the YAML file, following the 12-Factor App convention.
@@ -385,4 +421,12 @@ func setDefaults(v *viper.Viper) {
 
 	// Shutdown defaults
 	v.SetDefault("shutdown.max_wait_time", 30*time.Second)
+
+	// SQL templates defaults
+	v.SetDefault("sql_templates.enabled", false)
+	v.SetDefault("sql_templates.datasource_name", "")
+	v.SetDefault("sql_templates.base_dir", "./templates")
+	v.SetDefault("sql_templates.render_timeout", 5*time.Second)
+	v.SetDefault("sql_templates.max_rendered_sql_length", 65536)
+	v.SetDefault("sql_templates.max_concurrent_queries", 10)
 }

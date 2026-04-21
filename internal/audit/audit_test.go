@@ -110,6 +110,88 @@ func TestNewAuditLogger_FileError(t *testing.T) {
 	}
 }
 
+func TestAuditLogger_ExtraFields(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "audit_extra.log")
+
+	al, err := NewAuditLogger(config.AuditConfig{Enabled: true, Output: "file", FilePath: fp})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	now := time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)
+
+	// Log with ExtraFields.
+	al.Log(LogEntry{
+		Principal:   "user-456",
+		Time:        now,
+		Operation:   "query",
+		Datasource:  "analytics_db",
+		Success:     true,
+		ExtraFields: map[string]string{"template_name": "fleet_report", "custom_key": "custom_val"},
+	})
+
+	// Log without ExtraFields (nil) — backward compatible.
+	al.Log(LogEntry{
+		Principal:  "user-789",
+		Time:       now,
+		Operation:  "mutation",
+		Datasource: "cache",
+		Success:    false,
+	})
+
+	// Log with empty ExtraFields map — backward compatible.
+	al.Log(LogEntry{
+		Principal:   "user-000",
+		Time:        now,
+		Operation:   "query",
+		Datasource:  "ds1",
+		Success:     true,
+		ExtraFields: map[string]string{},
+	})
+	_ = al.Close()
+
+	data, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatalf("failed to read audit log file: %v", err)
+	}
+
+	lines := splitLines(data)
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 log lines, got %d", len(lines))
+	}
+
+	// First entry: ExtraFields present.
+	var first map[string]interface{}
+	if err := json.Unmarshal(lines[0], &first); err != nil {
+		t.Fatalf("line 0: invalid JSON: %v", err)
+	}
+	if first["template_name"] != "fleet_report" {
+		t.Errorf("expected template_name=fleet_report, got %v", first["template_name"])
+	}
+	if first["custom_key"] != "custom_val" {
+		t.Errorf("expected custom_key=custom_val, got %v", first["custom_key"])
+	}
+
+	// Second entry: no ExtraFields — should not have template_name.
+	var second map[string]interface{}
+	if err := json.Unmarshal(lines[1], &second); err != nil {
+		t.Fatalf("line 1: invalid JSON: %v", err)
+	}
+	if _, ok := second["template_name"]; ok {
+		t.Errorf("expected no template_name field in entry without ExtraFields")
+	}
+
+	// Third entry: empty ExtraFields — should not have extra keys.
+	var third map[string]interface{}
+	if err := json.Unmarshal(lines[2], &third); err != nil {
+		t.Fatalf("line 2: invalid JSON: %v", err)
+	}
+	if _, ok := third["template_name"]; ok {
+		t.Errorf("expected no template_name field in entry with empty ExtraFields")
+	}
+}
+
 // splitLines splits data by newlines, ignoring trailing empty line.
 func splitLines(data []byte) [][]byte {
 	var lines [][]byte
