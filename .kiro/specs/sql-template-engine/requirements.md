@@ -144,7 +144,7 @@
 5. THE `templateList` 查询 SHALL 返回 `[TemplateInfo!]!` 类型，`TemplateInfo` 包含 `name`（String!）、`description`（String!）、`countEnabled`（Boolean!，是否支持 totalCount）和 `parameters`（[TemplateParameterInfo!]!）字段，`TemplateParameterInfo` 包含 `name`（String!）、`type`（String!）、`required`（Boolean!）和 `defaultValue`（String）字段。`countEnabled` 字段让 Client 在请求前即可知道某模板是否支持 totalCount，避免请求后才发现返回 -1
 6. THE Schema 定义 SHALL 放置在 `internal/graphql/schema/template.graphql` 文件中，遵循现有的模块化 Schema 结构
 7. THE `TemplateOrderBy` input 类型定义为 `input TemplateOrderBy { field: String!, direction: SortDirection! }`，复用现有的 `SortDirection` 枚举（`ASC` / `DESC`）
-8. THE `templateList` 查询 SHALL 支持可选的分页参数 `first`（Int, 默认返回全部）和 `offset`（Int, 默认 0），WHEN 已注册模板数量较多时，Client 可通过分页控制返回数量。IF 未指定 `first`，THEN 返回所有已注册模板
+8. THE `templateList` 查询 SHALL 支持可选的分页参数 `first`（Int, 默认返回全部）和 `offset`（Int, 默认 0），WHEN 已注册模板数量较多时，Client 可通过分页控制返回数量。IF 未指定 `first`，THEN 返回所有已注册模板，此时返回数组的长度即为已注册模板总数（隐式 totalCount）
 9. WHEN 配置文件中 `sql_templates.enabled` 为 false 时，THE Template_Engine SHALL 不初始化（不加载模板、不注册信号量）。`templateQuery` 对任何模板名称 SHALL 返回 VALIDATION_TEMPLATE_NOT_FOUND 错误，`templateList` SHALL 返回空数组 `[]`，`reloadTemplates` Mutation SHALL 返回 successCount=0 的空结果。GraphQL Schema 中的类型定义不受影响（编译时生成）
 
 ### 需求 4：分页与字段选择 `P0`
@@ -259,7 +259,7 @@
 | VALIDATION_UNSAFE_SQL | 400 | 渲染结果包含多条 SQL 语句或超过最大长度限制 | 需求 6.6, 2.10 |
 | VALIDATION_MISSING_PARAMETER | 400 | 必填参数缺失 | 需求 7.2 |
 | VALIDATION_INVALID_PARAMETER_TYPE | 400 | 参数值的数据类型与 Schema 定义不匹配 | 需求 7.4 |
-| VALIDATION_INVALID_PARAMETER_VALUE | 400 | 参数值不在枚举范围内、超过长度限制或超过数组元素数量限制 | 需求 7.6, 7.7, 7.8 |
+| VALIDATION_INVALID_PARAMETER_VALUE | 400 | 参数值不在枚举范围内、超过长度限制、超过数组元素数量限制或不匹配正则约束 | 需求 7.6, 7.7, 7.8, 7.9 |
 | VALIDATION_INVALID_FIELD | 400 | 分页包装器中的字段名包含非法字符 | 需求 4.3 |
 | DATASOURCE_TEMPLATE_QUERY_ERROR | 200 | StarRocks 执行模板 SQL 失败（在 GraphQL errors 数组中返回） | 需求 5.4 |
 | DATASOURCE_TIMEOUT | 200 | 模板查询执行超时（复用现有错误码） | 需求 5.5 |
