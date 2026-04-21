@@ -66,4 +66,7 @@ const (
 
 	// ErrInternalUnexpected indicates an unexpected internal server error.
 	ErrInternalUnexpected = "INTERNAL_UNEXPECTED"
+
+	// ErrServiceUnavailable indicates the server is at capacity and cannot accept new requests.
+	ErrServiceUnavailable = "SERVICE_UNAVAILABLE"
 )

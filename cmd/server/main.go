@@ -232,9 +232,10 @@ func main() {
 	// Chi requires all middleware to be defined before any routes.
 	router := chi.NewRouter()
 
-	// Apply middleware chain: RequestID -> BodyLimit -> CORS -> CSRF -> Auth -> AuthFailureLimiter -> RateLimit -> Compression.
+	// Apply middleware chain: RequestID -> BodyLimit -> MaxConcurrent -> CORS -> CSRF -> Auth -> AuthFailureLimiter -> RateLimit -> Compression.
 	router.Use(middleware.RequestID)
 	router.Use(middleware.BodyLimit(cfg.Server.MaxRequestBodySize))
+	router.Use(middleware.MaxConcurrentRequests(cfg.Server.MaxConcurrentRequests))
 	router.Use(middleware.CORS(cfg.CORS))
 	router.Use(middleware.CSRFProtection(cfg.Server.AllowGetQueries, cfg.Server.Mode))
 	if authenticator != nil {
@@ -271,7 +272,14 @@ func main() {
 	// We bypass srv.Start() because it calls SetupRoutes() again, creating
 	// a new router without our middleware chain.
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
-	httpSrv := &http.Server{Addr: addr, Handler: router}
+	httpSrv := &http.Server{
+		Addr:              addr,
+		Handler:           router,
+		ReadHeaderTimeout: cfg.Server.ReadHeaderTimeout,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		IdleTimeout:       cfg.Server.IdleTimeout,
+	}
 	logger.Info("HTTP server starting", zap.String("addr", addr), zap.String("mode", cfg.Server.Mode))
 
 	go func() {

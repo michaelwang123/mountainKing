@@ -9,6 +9,11 @@ server:
   mode: production                    # production | development
   max_request_body_size: 1MB
   request_timeout: 30s
+  read_header_timeout: 10s            # Slowloris protection: max time to read request headers
+  read_timeout: 30s                   # Max time to read entire request (headers + body)
+  write_timeout: 60s                  # Max time to write response (> request_timeout to allow response flush)
+  idle_timeout: 120s                  # Max time for keep-alive connections to stay idle
+  max_concurrent_requests: 0          # Global in-flight request limit; 0 = unlimited (use rate limiting + HPA)
   max_batch_queries: 10               # Maximum queries in a single batch request
   allow_get_queries: false            # GET queries disabled in production (CSRF protection)
 
