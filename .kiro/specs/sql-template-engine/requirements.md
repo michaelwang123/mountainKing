@@ -271,6 +271,7 @@
 # config.yaml 新增段
 sql_templates:
   enabled: true
+  datasource_name: analytics_db              # 关联的 StarRocks 数据源名称（必填）
   base_dir: ./templates                    # 模板文件基础目录
   shared_dir: ./templates/_shared          # 共享模板片段目录（默认 base_dir/_shared）
   render_timeout: 5s                       # 模板渲染超时

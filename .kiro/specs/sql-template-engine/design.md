@@ -277,6 +277,7 @@ type Config struct {
 // SQLTemplatesConfig SQL 模板引擎配置
 type SQLTemplatesConfig struct {
     Enabled             bool                  `mapstructure:"enabled"`
+    DatasourceName      string                `mapstructure:"datasource_name"` // 关联的 StarRocks 数据源名称
     BaseDir             string                `mapstructure:"base_dir"`
     SharedDir           string                `mapstructure:"shared_dir"`
     RenderTimeout       time.Duration         `mapstructure:"render_timeout"`
@@ -314,6 +315,7 @@ type TemplateParamConfig struct {
 ```go
 // sql_templates defaults
 v.SetDefault("sql_templates.enabled", false)
+v.SetDefault("sql_templates.datasource_name", "")  // 必须显式配置，无默认值
 v.SetDefault("sql_templates.base_dir", "./templates")
 v.SetDefault("sql_templates.render_timeout", 5*time.Second)
 v.SetDefault("sql_templates.max_rendered_sql_length", 65536)
@@ -373,6 +375,7 @@ type TemplateEngine struct {
     semaphore      chan struct{}            // 并发控制信号量
     reloadMu       sync.Mutex              // 热加载互斥锁（独立于 Registry 读写锁）
     lastReloadAt   time.Time               // 上次成功 Reload 的时间（用于冷却时间控制）
+    lastReloadResult *ReloadResult          // 上次 Reload 结果（供 health check 或诊断查询使用）
     funcMap        template.FuncMap        // 自定义模板函数
 }
 
@@ -682,6 +685,8 @@ func safeInList(v interface{}) (string, error)
 // safeLike 转义 LIKE 通配符。
 // % → \%，_ → \_，\ → \\
 // 注意：先转义反斜杠，再转义 % 和 _。
+// 重要：模板 SQL 中使用 safeLike 时必须配合 ESCAPE '\\' 子句，否则转义不生效。
+// 示例：WHERE name LIKE CONCAT('%', {{.Params.keyword | safeLike}}, '%') ESCAPE '\\'
 func safeLike(v interface{}) (string, error)
 ```
 
@@ -762,6 +767,9 @@ IN_HINT:
 // - first: LIMIT 值（nil 时使用 graphql.max_result_rows）
 // - offset: OFFSET 值（nil 时为 0）
 //
+// Over-fetch 策略：实际 LIMIT 设为 first+1（多取一行），用于准确判断 hasNextPage。
+// Resolver 层在返回前截断到 first 行。当 first 为 nil 时使用 max_result_rows，同样 +1。
+//
 // 注意：子查询别名使用 __tq_wrapper__ 而非简单的 t，避免与模板 SQL 内部别名冲突。
 //
 // 返回包装后的 SQL 和参数化的 args（LIMIT/OFFSET 值）。
@@ -806,8 +814,11 @@ func generateCacheKey(
 ) string
 
 // generateCountCacheKey 生成 totalCount 查询的独立缓存 key。
-// 格式：在数据查询 key 后追加 ":count" 后缀。
-func generateCountCacheKey(dataCacheKey string) string
+// 格式：cache:template:{template_name}:{xxhash64(sorted_params)}:count
+// 注意：count key 仅基于 templateName + params，不包含 fields/first/offset/orderBy，
+// 因为 COUNT(*) 结果不依赖分页和字段选择参数。这避免了相同模板+参数但不同分页的请求
+// 产生不同的 count 缓存 key，减少不必要的 COUNT 查询。
+func generateCountCacheKey(templateName string, params map[string]interface{}) string
 ```
 
 缓存集成流程（在 `Execute` 方法中）：
@@ -819,7 +830,7 @@ func generateCountCacheKey(dataCacheKey string) string
 4. 调用 CacheLayer.GetOrLoad(key, datasource, loader)
    - loader 函数内执行 ExecuteRaw
 5. 如果请求 totalCount：
-   a. 生成 count 缓存 key（data key + ":count"）
+   a. 生成 count 缓存 key（仅基于 templateName + validatedParams，不含分页参数）
    b. 独立调用 CacheLayer.GetOrLoad(countKey, datasource, countLoader)
 6. 缓存 TTL 优先级：模板级 cache_ttl > 数据源级 per_datasource TTL > 全局 default_ttl
 ```
@@ -837,9 +848,12 @@ func generateCountCacheKey(dataCacheKey string) string
 ```go
 // TemplateMetrics 模板查询相关的 Prometheus 指标
 type TemplateMetrics struct {
-    QueryDuration  *prometheus.HistogramVec // graphql_template_query_duration_seconds
-    QueriesTotal   *prometheus.CounterVec   // graphql_template_queries_total
-    RenderDuration *prometheus.HistogramVec // graphql_template_render_duration_seconds
+    QueryDuration      *prometheus.HistogramVec // graphql_template_query_duration_seconds
+    QueriesTotal       *prometheus.CounterVec   // graphql_template_queries_total
+    RenderDuration     *prometheus.HistogramVec // graphql_template_render_duration_seconds
+    SemaphoreWait      *prometheus.HistogramVec // graphql_template_semaphore_wait_seconds
+    CacheHitsTotal     *prometheus.CounterVec   // graphql_template_cache_hits_total
+    RenderGoroutineLeaks prometheus.Gauge       // graphql_template_render_goroutine_leaks
 }
 
 // NewTemplateMetrics 注册模板查询指标到现有的 Prometheus Registry
@@ -866,7 +880,28 @@ func NewTemplateMetrics(registry *prometheus.Registry, customLabels prometheus.L
         }, []string{"template_name"}),
     }
 
-    registry.MustRegister(m.QueryDuration, m.QueriesTotal, m.RenderDuration)
+        SemaphoreWait: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+            Name:        "graphql_template_semaphore_wait_seconds",
+            Help:        "Histogram of time spent waiting for template query semaphore.",
+            Buckets:     []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5, 10, 30},
+            ConstLabels: customLabels,
+        }, []string{"template_name"}),
+
+        CacheHitsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+            Name:        "graphql_template_cache_hits_total",
+            Help:        "Total number of template query cache hits and misses.",
+            ConstLabels: customLabels,
+        }, []string{"template_name", "result"}), // result: "hit" or "miss"
+
+        RenderGoroutineLeaks: prometheus.NewGauge(prometheus.GaugeOpts{
+            Name:        "graphql_template_render_goroutine_leaks",
+            Help:        "Number of template render goroutines that outlived their timeout.",
+            ConstLabels: customLabels,
+        }),
+    }
+
+    registry.MustRegister(m.QueryDuration, m.QueriesTotal, m.RenderDuration,
+        m.SemaphoreWait, m.CacheHitsTotal, m.RenderGoroutineLeaks)
     return m
 }
 ```
@@ -1096,10 +1131,16 @@ func (r *queryResolver) TemplateQuery(
         return nil, err
     }
 
-    // 5. 结果截断检查
+    // 5. 结果截断检查（over-fetch 截断 + max_result_rows 截断）
     maxRows := r.GraphQLConfig.MaxResultRows
     data := result.Data
     originalLen := len(data) // 截断前保存原始长度，用于 hasNextPage 计算
+
+    // Over-fetch 截断：wrapWithPagination 请求了 first+1 行，此处截断回 first
+    if first != nil && len(data) > *first {
+        data = data[:*first]
+    }
+
     var warnings []string
     warnings = append(warnings, result.Warnings...)
     if maxRows > 0 && len(data) > maxRows {
@@ -1212,9 +1253,11 @@ cacheLayer := cache.NewCacheLayer(cacheLayerCfg)
 var templateEngine *template.TemplateEngine
 if cfg.SQLTemplates.Enabled {
     // 查找 StarRocks 数据源的 Adapter 实例
-    srDS, err := dsManager.Get("analytics_db")
+    srDS, err := dsManager.Get(cfg.SQLTemplates.DatasourceName)
     if err != nil {
-        logger.Fatal("sql_templates enabled but StarRocks datasource not available", zap.Error(err))
+        logger.Fatal("sql_templates enabled but configured datasource not available",
+            zap.String("datasource_name", cfg.SQLTemplates.DatasourceName),
+            zap.Error(err))
     }
     srAdapter, ok := srDS.(*starrocks.Adapter)
     if !ok {
@@ -1299,18 +1342,33 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
     start := time.Now()
     dsName := te.datasourceName // 从 Adapter.Name() 获取，非硬编码
 
+    // 0. 审计日志（defer 确保成功和失败都记录，用于安全审计）
+    var executeErr error
+    defer func() {
+        te.auditLogger.Log(audit.LogEntry{
+            Principal:   extractPrincipal(ctx),
+            Time:        time.Now(),
+            Operation:   "query",
+            Datasource:  dsName,
+            Success:     executeErr == nil,
+            ExtraFields: map[string]string{"template_name": req.TemplateName},
+        })
+    }()
+
     // 1. 查找模板
     tmpl, ok := te.registry.Get(req.TemplateName)
     if !ok {
         te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "error").Inc()
-        return nil, apierrors.ValidationError(ErrValidationTemplateNotFound, ...)
+        executeErr = apierrors.ValidationError(ErrValidationTemplateNotFound, ...)
+        return nil, executeErr
     }
 
     // 2. 参数校验
     validatedParams, err := te.validateParams(req.Parameters, tmpl.ParamSchemas)
     if err != nil {
         te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "error").Inc()
-        return nil, err
+        executeErr = err
+        return nil, executeErr
     }
 
     // 3. 创建 Tracing Span
@@ -1325,14 +1383,16 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
     if err != nil {
         span.SetStatus(codes.Error, err.Error())
         te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "error").Inc()
-        return nil, err
+        executeErr = err
+        return nil, executeErr
     }
 
     // 5. 安全检查（sanitizeSQL）
     cleanSQL, err := sanitizeSQL(renderedSQL)
     if err != nil {
         te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "error").Inc()
-        return nil, err
+        executeErr = err
+        return nil, executeErr
     }
 
     // 6. 记录渲染后 SQL（脱敏）
@@ -1347,12 +1407,15 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
     // 8. 获取信号量
     // 注意：defer 释放确保信号量覆盖数据查询和 totalCount 查询两个阶段。
     // 一个请求 totalCount 的模板查询会持有信号量执行最多 2 次 SQL（参见并发控制章节说明）。
+    semWaitStart := time.Now()
     select {
     case te.semaphore <- struct{}{}:
         defer func() { <-te.semaphore }()
     case <-ctx.Done():
-        return nil, apierrors.DatasourceError(ErrDatasourceTimeout, "semaphore wait timeout")
+        executeErr = apierrors.DatasourceError(ErrDatasourceTimeout, "semaphore wait timeout")
+        return nil, executeErr
     }
+    te.metrics.SemaphoreWait.WithLabelValues(req.TemplateName).Observe(time.Since(semWaitStart).Seconds())
 
     // 9. 执行查询（含缓存）
     var data []map[string]interface{}
@@ -1371,19 +1434,23 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
     if err != nil {
         span.SetStatus(codes.Error, err.Error())
         te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "error").Inc()
-        return nil, err
+        executeErr = err
+        return nil, executeErr
     }
 
     // 10. 执行 totalCount 查询（如需要）
+    // 注意：使用 validatedParams（而非 req.Parameters）生成 count 缓存 key，
+    // 确保与数据查询使用相同的类型化参数，避免 hash 不一致。
     var totalCount *int64
     var warnings []string
     if req.NeedCount {
         if tmpl.CountEnabled {
-            tc, tcErr := te.executeCount(ctx, cleanSQL, dsName, tmpl, req)
+            tc, tcErr := te.executeCount(ctx, cleanSQL, dsName, tmpl, req.TemplateName, validatedParams, req.SkipCache)
             if tcErr != nil {
                 span.SetStatus(codes.Error, tcErr.Error())
                 te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "error").Inc()
-                return nil, tcErr
+                executeErr = tcErr
+                return nil, executeErr
             }
             totalCount = &tc
         } else {
@@ -1399,15 +1466,7 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
     te.metrics.QueryDuration.WithLabelValues(req.TemplateName, dsName).Observe(queryDuration.Seconds())
     te.metrics.QueriesTotal.WithLabelValues(req.TemplateName, "success").Inc()
 
-    // 12. 审计日志
-    te.auditLogger.Log(audit.LogEntry{
-        Principal:    extractPrincipal(ctx),
-        Time:         time.Now(),
-        Operation:    "query",
-        Datasource:   dsName,
-        Success:      true,
-        ExtraFields:  map[string]string{"template_name": req.TemplateName},
-    })
+    // 12. 审计日志已通过 defer 在步骤 0 中统一处理（成功和失败均记录）
 
     return &TemplateQueryResult{
         Data:       data,
@@ -1502,6 +1561,24 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
 
 > **JSON 序列化类型注意事项：** StarRocks `scanRows` 返回的 `map[string]interface{}` 中可能包含 `time.Time` 类型值。`encoding/json` 将 `time.Time` 序列化为 RFC 3339 字符串，反序列化时还原为 `string` 而非 `time.Time`。由于模板查询结果最终以 GraphQL `JSON` 标量返回（本身就是 JSON 格式），此行为不影响功能正确性——客户端收到的始终是 JSON 字符串。但在 property test 中应验证：对于包含 `time.Time` 值的结果集，JSON 序列化往返后值的字符串表示一致（即 `json.Marshal → json.Unmarshal` 后 `time_value.(string)` 与原始 `time.Time.Format(time.RFC3339Nano)` 一致）。同理，`int64` 大数值（>2^53）经 JSON 往返后可能丢失精度（JSON number 为 float64），但 StarRocks 的 BIGINT 范围内（≤2^63-1）在实际业务中极少超过 2^53，此风险可接受。
 
+### D12: ExecuteRaw 不集成熔断器
+
+**决策：** `ExecuteRaw` 直接调用 `db.QueryContext`，不经过现有的熔断器（CircuitBreaker）。
+
+**理由：** 1) 现有熔断器封装在 `DataSourceManager.ExecuteWithRetry` 中，作用于 `DataSource.Execute` 调用链。`ExecuteRaw` 是独立的接口方法，不经过 `DataSourceManager`；2) 模板查询已有信号量限制并发（`max_concurrent_queries`）和超时控制（`server.request_timeout` + `query_timeout`），这两层保护在实践中足以防止连接池耗尽和请求堆积；3) 如果 StarRocks 不可用，`db.QueryContext` 会快速返回连接错误，信号量会释放，不会导致请求无限堆积。未来如需为模板查询添加熔断器，可在 `TemplateEngine` 内部包装 `RawExecutor` 调用，无需修改 Adapter。
+
+### D13: 与现有 HotReloader 的交互
+
+**决策：** 模板引擎的热加载（`Reload`）与现有 `HotReloader`（config.yaml 热加载）完全独立，互不影响。
+
+**理由：** 1) `HotReloader` 监听 `config.yaml` 变更并重新加载配置，但不触发 TemplateEngine 的 `Reload`（因为 D9 决定 Reload 不重新读取 config.yaml）；2) 如果 `HotReloader` 将 `sql_templates.enabled` 从 `true` 改为 `false`，已初始化的 `TemplateEngine` 仍然运行——这是已知限制，`sql_templates.enabled` 的变更需要重启服务；3) 如果 `HotReloader` 修改了 `sql_templates.templates` 列表（新增/删除模板），这些变更不会生效，同样需要重启。此行为与现有 `HotReloader` 对数据源配置变更的处理一致（新增/删除数据源也需要重启）。
+
+### D14: hasNextPage 使用 Over-Fetch 策略
+
+**决策：** `wrapWithPagination` 实际请求 `first+1` 行（over-fetch），Resolver 层截断回 `first` 行，通过多出的那一行准确判断 `hasNextPage`。
+
+**理由：** 原方案 `hasNextPage = originalLen >= first` 无法区分"恰好 first 行"和"超过 first 行"两种情况。Over-fetch 是 offset 分页中判断 hasNextPage 的标准做法，额外多取一行的开销可忽略不计。注意：over-fetch 的 +1 不影响缓存 key（缓存 key 基于客户端传入的 `first` 值，不包含内部的 +1 调整）。
+
 ## 辅助函数定义
 
 ### Resolver 辅助函数
@@ -1560,6 +1637,18 @@ func extractPrincipal(ctx context.Context) string {
     return identity.Subject
 }
 
+// fieldRequested 检查 GraphQL 查询中是否请求了指定字段。
+// 使用 gqlgen 的 graphql.CollectFieldsCtx 收集当前选择集中的字段名。
+func fieldRequested(ctx context.Context, fieldName string) bool {
+    fields := graphql.CollectFieldsCtx(ctx, nil)
+    for _, f := range fields {
+        if f.Name == fieldName {
+            return true
+        }
+    }
+    return false
+}
+
 // buildTemplateQueryConnection 构建 TemplateQueryConnection 响应
 // originalLen: 截断前的原始数据长度，用于正确计算 hasNextPage
 func buildTemplateQueryConnection(
@@ -1580,7 +1669,8 @@ func buildTemplateQueryConnection(
     }
 
     // 使用截断前的原始长度计算 hasNextPage，避免 max_result_rows 截断导致误判
-    hasNextPage := first != nil && originalLen >= *first
+    // 注意：wrapWithPagination 请求 first+1 行（over-fetch），如果返回行数 > first 则有下一页
+    hasNextPage := first != nil && originalLen > *first
     tc := 0
     if totalCount != nil {
         tc = int(*totalCount)
@@ -1632,7 +1722,9 @@ func (te *TemplateEngine) executeWithCache(
     // CacheLayer.GetOrLoad 的 loader 返回 []byte，CacheLayer 内部再做 gob 包装存储。
     // 为避免双重 gob 编码开销，loader 使用 encoding/json 序列化结果。
     // 缓存命中时：CacheLayer 返回 gob 解码后的 []byte → json.Unmarshal → []map[string]interface{}
+    loaderCalled := false
     cached, err := te.cacheLayer.GetOrLoad(ctx, cacheKey, "template:"+tmpl.Name, func() ([]byte, error) {
+        loaderCalled = true
         result, execErr := te.executor.ExecuteRaw(ctx, wrappedSQL, args...)
         if execErr != nil {
             return nil, execErr
@@ -1641,6 +1733,16 @@ func (te *TemplateEngine) executeWithCache(
     })
     if err != nil {
         return nil, err
+    }
+    // 记录缓存命中/未命中指标（使用 loaderCalled 标志避免双重计数）
+    // 注意：CacheLayer 内部使用 singleflight 去重，当多个 goroutine 同时请求相同 key 时，
+    // 只有一个 goroutine 执行 loader（记录 miss），其余 goroutine 等待结果返回后
+    // loaderCalled 仍为 false（记录 hit）。这导致高并发下 miss 计数可能偏低、hit 偏高，
+    // 但不影响功能正确性，且符合"从调用者视角看是否命中缓存"的语义。
+    if loaderCalled {
+        te.metrics.CacheHitsTotal.WithLabelValues(tmpl.Name, "miss").Inc()
+    } else {
+        te.metrics.CacheHitsTotal.WithLabelValues(tmpl.Name, "hit").Inc()
     }
     if cached == nil {
         return nil, nil
@@ -1653,17 +1755,19 @@ func (te *TemplateEngine) executeWithCache(
 }
 
 // executeCount 执行 totalCount 查询（含独立缓存）
+// 注意：使用 validatedParams 生成缓存 key，确保与数据查询的参数来源一致。
 func (te *TemplateEngine) executeCount(
     ctx context.Context,
     cleanSQL, dsName string,
     tmpl *RegisteredTemplate,
-    req *TemplateQueryRequest,
+    templateName string,
+    validatedParams map[string]interface{},
+    skipCache bool,
 ) (int64, error) {
     countSQL := wrapWithCount(cleanSQL)
-    // 如果缓存启用，使用独立的 count 缓存 key
-    if te.shouldCache(tmpl, req.SkipCache) {
-        dataCacheKey := generateCacheKey(req.TemplateName, req.Parameters, req.Fields, req.First, req.Offset, req.OrderBy)
-        countCacheKey := generateCountCacheKey(dataCacheKey)
+    // 如果缓存启用，使用独立的 count 缓存 key（仅基于 templateName + params）
+    if te.shouldCache(tmpl, skipCache) {
+        countCacheKey := generateCountCacheKey(templateName, validatedParams)
         // 通过 CacheLayer 缓存 count 结果
         cached, err := te.cacheLayer.GetOrLoad(ctx, countCacheKey, "template:"+tmpl.Name, func() ([]byte, error) {
             result, execErr := te.executor.ExecuteRaw(ctx, countSQL)
@@ -1722,6 +1826,11 @@ func validateSQLTemplates(cfg *SQLTemplatesConfig) []string {
     // base_dir 必须非空
     if cfg.BaseDir == "" {
         errs = append(errs, "sql_templates.base_dir must not be empty")
+    }
+
+    // datasource_name 必须非空
+    if cfg.DatasourceName == "" {
+        errs = append(errs, "sql_templates.datasource_name must not be empty when enabled")
     }
 
     // render_timeout 必须 > 0
@@ -1803,7 +1912,7 @@ TemplateEngine 的关闭顺序在现有优雅关闭流程中的位置：
 | pagination.go | pagination_test.go | 字段选择 SQL 生成、ORDER BY 生成、LIMIT/OFFSET 参数化、默认 LIMIT |
 | registry.go | registry_test.go | 并发读取安全、原子更新、hash 比较 |
 | loader.go | loader_test.go | 名称格式校验、文件大小限制、UTF-8 校验、共享片段加载、名称冲突处理 |
-| cache.go | cache_test.go | 缓存 key 确定性、fields 包含在 key 中、count 独立缓存 key、JSON 序列化/反序列化正确性（含 time.Time 往返一致性验证） |
+| cache.go | cache_test.go | 缓存 key 确定性、fields 包含在 key 中、count 独立缓存 key（仅含 templateName+params）、JSON 序列化/反序列化正确性（含 time.Time 往返一致性验证） |
 
 ### Property-Based Testing（对应需求文档 P1-P66）
 
@@ -1820,7 +1929,7 @@ TemplateEngine 的关闭顺序在现有优雅关闭流程中的位置：
 | resolver_property_test.go | P13-P16 | 验证 templateList 完整性/countEnabled 一致性/禁用行为 |
 | pagination_property_test.go | P17-P23 | 随机生成分页参数，验证 LIMIT/OFFSET 参数化/默认值/并发限制 |
 | execution_property_test.go | P24-P27 | 验证结果截断+警告/超时保护/权限检查/接口隔离 |
-| metrics_property_test.go | P56-P60 | 验证每次查询后指标递增/Span 创建/审计日志记录 |
+| metrics_property_test.go | P56-P60 | 验证每次查询后指标递增/Span 创建/审计日志记录（含失败场景审计）/信号量等待时间记录/缓存命中率统计 |
 
 ### 集成测试
 
