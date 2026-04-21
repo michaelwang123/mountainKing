@@ -41,6 +41,16 @@ const (
 	ErrValidationInvalidField = "VALIDATION_INVALID_FIELD"
 	// ErrValidationPromQLInjection indicates a PromQL injection attempt was detected.
 	ErrValidationPromQLInjection = "VALIDATION_PROMQL_INJECTION"
+	// ErrValidationTemplateNotFound indicates the requested template name is not registered.
+	ErrValidationTemplateNotFound = "VALIDATION_TEMPLATE_NOT_FOUND"
+	// ErrValidationUnsafeSQL indicates the rendered SQL failed security checks.
+	ErrValidationUnsafeSQL = "VALIDATION_UNSAFE_SQL"
+	// ErrValidationMissingParameter indicates a required template parameter is missing.
+	ErrValidationMissingParameter = "VALIDATION_MISSING_PARAMETER"
+	// ErrValidationInvalidParameterType indicates a parameter type mismatch.
+	ErrValidationInvalidParameterType = "VALIDATION_INVALID_PARAMETER_TYPE"
+	// ErrValidationInvalidParameterValue indicates a parameter value constraint violation.
+	ErrValidationInvalidParameterValue = "VALIDATION_INVALID_PARAMETER_VALUE"
 
 	// DATASOURCE - Data source errors.
 
@@ -56,6 +66,8 @@ const (
 	ErrDatasourceQueryError = "DATASOURCE_QUERY_ERROR"
 	// ErrDatasourceMaxDataPoints indicates the query result exceeds the max data points limit.
 	ErrDatasourceMaxDataPoints = "DATASOURCE_MAX_DATA_POINTS"
+	// ErrDatasourceTemplateQueryError indicates a StarRocks execution error for template SQL.
+	ErrDatasourceTemplateQueryError = "DATASOURCE_TEMPLATE_QUERY_ERROR"
 
 	// RATELIMIT - Rate limiting errors.
 
@@ -66,6 +78,8 @@ const (
 
 	// ErrInternalUnexpected indicates an unexpected internal server error.
 	ErrInternalUnexpected = "INTERNAL_UNEXPECTED"
+	// ErrInternalTemplateRenderError indicates a template rendering failure.
+	ErrInternalTemplateRenderError = "INTERNAL_TEMPLATE_RENDER_ERROR"
 
 	// ErrServiceUnavailable indicates the server is at capacity and cannot accept new requests.
 	ErrServiceUnavailable = "SERVICE_UNAVAILABLE"

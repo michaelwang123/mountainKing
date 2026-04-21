@@ -130,6 +130,9 @@ func ValidateConfig(cfg *Config) ([]ValidationWarning, error) {
 		errs = append(errs, fmt.Sprintf("tracing.sampling_rate must be between 0.0 and 1.0, got %f", cfg.Tracing.SamplingRate))
 	}
 
+	// === SQL Templates validation ===
+	errs = append(errs, validateSQLTemplates(&cfg.SQLTemplates)...)
+
 	if len(errs) > 0 {
 		return warnings, fmt.Errorf("configuration validation failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
@@ -259,6 +262,86 @@ func validateStarRocksWhitelist(ds DataSourceConfig, prefix string) []string {
 			}
 			if !identifierRegex.MatchString(colStr) {
 				errs = append(errs, fmt.Sprintf("%s.columns[%d] %q: must match [a-zA-Z0-9_]", tablePrefix, j, colStr))
+			}
+		}
+	}
+
+	return errs
+}
+
+// templateNameRegex validates template names: alphanumeric, underscore, hyphen, 1-64 chars.
+var templateNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+// validParamTypes is the set of supported template parameter types.
+var validParamTypes = map[string]bool{
+	"string":   true,
+	"int":      true,
+	"float":    true,
+	"boolean":  true,
+	"string[]": true,
+}
+
+// validateSQLTemplates validates the sql_templates configuration section.
+// If sql_templates.enabled is false, all validation is skipped.
+func validateSQLTemplates(cfg *SQLTemplatesConfig) []string {
+	if !cfg.Enabled {
+		return nil
+	}
+
+	var errs []string
+
+	if strings.TrimSpace(cfg.DatasourceName) == "" {
+		errs = append(errs, "sql_templates.datasource_name must not be empty when enabled")
+	}
+
+	if strings.TrimSpace(cfg.BaseDir) == "" {
+		errs = append(errs, "sql_templates.base_dir must not be empty")
+	}
+
+	if cfg.RenderTimeout <= 0 {
+		errs = append(errs, "sql_templates.render_timeout must be positive")
+	}
+
+	if cfg.MaxRenderedSQLLen <= 0 {
+		errs = append(errs, "sql_templates.max_rendered_sql_length must be positive")
+	}
+
+	if cfg.MaxConcurrentQueries <= 0 {
+		errs = append(errs, "sql_templates.max_concurrent_queries must be positive")
+	}
+
+	seen := make(map[string]bool)
+	for i, t := range cfg.Templates {
+		prefix := fmt.Sprintf("sql_templates.templates[%d]", i)
+
+		if !templateNameRegex.MatchString(t.Name) {
+			errs = append(errs, fmt.Sprintf("%s.name %q: invalid format (must match ^[a-zA-Z0-9_-]{1,64}$)", prefix, t.Name))
+		}
+
+		if seen[t.Name] {
+			errs = append(errs, fmt.Sprintf("%s.name %q: duplicate", prefix, t.Name))
+		}
+		seen[t.Name] = true
+
+		if strings.TrimSpace(t.File) == "" {
+			errs = append(errs, fmt.Sprintf("%s.file must not be empty", prefix))
+		}
+
+		for j, p := range t.Parameters {
+			paramPrefix := fmt.Sprintf("%s.parameters[%d]", prefix, j)
+
+			if strings.TrimSpace(p.Name) == "" {
+				errs = append(errs, fmt.Sprintf("%s.name must not be empty", paramPrefix))
+			}
+
+			if !validParamTypes[p.Type] {
+				errs = append(errs, fmt.Sprintf("%s.type %q: unsupported (must be one of: string, int, float, boolean, string[])", paramPrefix, p.Type))
+			}
+
+			if p.Pattern != nil {
+				if _, err := regexp.Compile(*p.Pattern); err != nil {
+					errs = append(errs, fmt.Sprintf("%s.pattern: invalid regex: %v", paramPrefix, err))
+				}
 			}
 		}
 	}

@@ -193,3 +193,56 @@ auth_failure:
 # Graceful shutdown configuration
 shutdown:
   max_wait_time: 30s
+
+# SQL Template Engine configuration
+# Enables complex SQL queries via pre-defined Go text/template files,
+# executed against a StarRocks datasource via the RawExecutor interface.
+sql_templates:
+  enabled: false                           # Set to true to activate the template engine
+  datasource_name: analytics_db            # Associated StarRocks datasource name (required when enabled)
+  base_dir: ./templates                    # Template file base directory
+  # shared_dir: ./templates/_shared        # Shared template fragments directory (default: base_dir/_shared)
+  render_timeout: 5s                       # Template rendering timeout
+  max_rendered_sql_length: 65536           # Max rendered SQL length in bytes (64KB)
+  max_concurrent_queries: 10               # Semaphore limit to protect shared connection pool
+  templates:
+    - name: fleet_report
+      file: fleet/fleet_report.sql.tmpl
+      description: 车队综合报表
+      cache_enabled: true
+      cache_ttl: 300s
+      count_enabled: true
+      parameters:
+        - name: eerid
+          type: string
+          required: true
+          max_length: 64
+        - name: period
+          type: string
+          required: false
+          default: monthly
+          enum: [daily, weekly, monthly]
+        - name: vehicle_ids
+          type: "string[]"
+          required: false
+          max_items: 500
+
+    - name: driver_score
+      file: driver/driver_score.sql.tmpl
+      description: 驾驶员评分报表
+      cache_enabled: false
+      count_enabled: false
+      parameters:
+        - name: driver_id
+          type: int
+          required: true
+        - name: start_date
+          type: string
+          required: true
+          max_length: 10
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: end_date
+          type: string
+          required: true
+          max_length: 10
+          pattern: '^\d{4}-\d{2}-\d{2}$'

@@ -13,9 +13,12 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"pgregory.net/rapid"
 )
 
 // validBaseConfig returns a minimal valid Config for testing.
@@ -648,4 +651,500 @@ func createTempECPEM(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return pemPath
+}
+
+// =============================================================================
+// SQL Templates validation tests (validateSQLTemplates)
+// =============================================================================
+
+// validSQLTemplatesConfig returns a valid enabled SQLTemplatesConfig for testing.
+func validSQLTemplatesConfig() SQLTemplatesConfig {
+	return SQLTemplatesConfig{
+		Enabled:              true,
+		DatasourceName:       "analytics_db",
+		BaseDir:              "./templates",
+		RenderTimeout:        5 * time.Second,
+		MaxRenderedSQLLen:    65536,
+		MaxConcurrentQueries: 10,
+		Templates: []TemplateConfig{
+			{
+				Name: "fleet_report",
+				File: "fleet/fleet_report.sql.tmpl",
+				Parameters: []TemplateParamConfig{
+					{Name: "eerid", Type: "string", Required: true},
+				},
+			},
+		},
+	}
+}
+
+func TestValidateSQLTemplates_DisabledPassesValidation(t *testing.T) {
+	cfg := validBaseConfig()
+	cfg.SQLTemplates = SQLTemplatesConfig{
+		Enabled: false,
+		// All other fields invalid/empty — should not matter
+	}
+	_, err := ValidateConfig(cfg)
+	if err != nil {
+		t.Fatalf("disabled sql_templates should pass validation, got: %v", err)
+	}
+}
+
+func TestValidateSQLTemplates_EnabledEmptyDatasourceName(t *testing.T) {
+	cfg := validBaseConfig()
+	sqlCfg := validSQLTemplatesConfig()
+	sqlCfg.DatasourceName = ""
+	cfg.SQLTemplates = sqlCfg
+	_, err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for empty datasource_name")
+	}
+	if !strings.Contains(err.Error(), "datasource_name") {
+		t.Fatalf("expected datasource_name error, got: %v", err)
+	}
+}
+
+func TestValidateSQLTemplates_EnabledEmptyBaseDir(t *testing.T) {
+	cfg := validBaseConfig()
+	sqlCfg := validSQLTemplatesConfig()
+	sqlCfg.BaseDir = ""
+	cfg.SQLTemplates = sqlCfg
+	_, err := ValidateConfig(cfg)
+	if err == nil {
+		t.Fatal("expected error for empty base_dir")
+	}
+	if !strings.Contains(err.Error(), "base_dir") {
+		t.Fatalf("expected base_dir error, got: %v", err)
+	}
+}
+
+func TestValidateSQLTemplates_TableDriven(t *testing.T) {
+	tests := []struct {
+		name      string
+		modify    func(*SQLTemplatesConfig)
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "render_timeout_zero",
+			modify: func(c *SQLTemplatesConfig) {
+				c.RenderTimeout = 0
+			},
+			wantErr:   true,
+			errSubstr: "render_timeout",
+		},
+		{
+			name: "render_timeout_negative",
+			modify: func(c *SQLTemplatesConfig) {
+				c.RenderTimeout = -1 * time.Second
+			},
+			wantErr:   true,
+			errSubstr: "render_timeout",
+		},
+		{
+			name: "max_rendered_sql_length_zero",
+			modify: func(c *SQLTemplatesConfig) {
+				c.MaxRenderedSQLLen = 0
+			},
+			wantErr:   true,
+			errSubstr: "max_rendered_sql_length",
+		},
+		{
+			name: "max_rendered_sql_length_negative",
+			modify: func(c *SQLTemplatesConfig) {
+				c.MaxRenderedSQLLen = -100
+			},
+			wantErr:   true,
+			errSubstr: "max_rendered_sql_length",
+		},
+		{
+			name: "max_concurrent_queries_zero",
+			modify: func(c *SQLTemplatesConfig) {
+				c.MaxConcurrentQueries = 0
+			},
+			wantErr:   true,
+			errSubstr: "max_concurrent_queries",
+		},
+		{
+			name: "max_concurrent_queries_negative",
+			modify: func(c *SQLTemplatesConfig) {
+				c.MaxConcurrentQueries = -5
+			},
+			wantErr:   true,
+			errSubstr: "max_concurrent_queries",
+		},
+		{
+			name: "template_name_invalid_chars",
+			modify: func(c *SQLTemplatesConfig) {
+				c.Templates = []TemplateConfig{
+					{Name: "invalid name!", File: "test.sql.tmpl"},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "invalid format",
+		},
+		{
+			name: "template_name_too_long",
+			modify: func(c *SQLTemplatesConfig) {
+				longName := strings.Repeat("a", 65)
+				c.Templates = []TemplateConfig{
+					{Name: longName, File: "test.sql.tmpl"},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "invalid format",
+		},
+		{
+			name: "template_name_empty",
+			modify: func(c *SQLTemplatesConfig) {
+				c.Templates = []TemplateConfig{
+					{Name: "", File: "test.sql.tmpl"},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "invalid format",
+		},
+		{
+			name: "duplicate_template_names",
+			modify: func(c *SQLTemplatesConfig) {
+				c.Templates = []TemplateConfig{
+					{Name: "report", File: "a.sql.tmpl"},
+					{Name: "report", File: "b.sql.tmpl"},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "duplicate",
+		},
+		{
+			name: "empty_template_file",
+			modify: func(c *SQLTemplatesConfig) {
+				c.Templates = []TemplateConfig{
+					{Name: "report", File: ""},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "file must not be empty",
+		},
+		{
+			name: "invalid_parameter_type",
+			modify: func(c *SQLTemplatesConfig) {
+				c.Templates = []TemplateConfig{
+					{
+						Name: "report",
+						File: "test.sql.tmpl",
+						Parameters: []TemplateParamConfig{
+							{Name: "p1", Type: "date"},
+						},
+					},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "unsupported",
+		},
+		{
+			name: "invalid_pattern_regex",
+			modify: func(c *SQLTemplatesConfig) {
+				badPattern := "[invalid"
+				c.Templates = []TemplateConfig{
+					{
+						Name: "report",
+						File: "test.sql.tmpl",
+						Parameters: []TemplateParamConfig{
+							{Name: "p1", Type: "string", Pattern: &badPattern},
+						},
+					},
+				}
+			},
+			wantErr:   true,
+			errSubstr: "invalid regex",
+		},
+		{
+			name: "valid_configuration",
+			modify: func(c *SQLTemplatesConfig) {
+				validPattern := `^\d{4}-\d{2}-\d{2}$`
+				c.Templates = []TemplateConfig{
+					{
+						Name: "fleet_report",
+						File: "fleet/fleet_report.sql.tmpl",
+						Parameters: []TemplateParamConfig{
+							{Name: "eerid", Type: "string", Required: true},
+							{Name: "limit", Type: "int"},
+							{Name: "threshold", Type: "float"},
+							{Name: "active", Type: "boolean"},
+							{Name: "ids", Type: "string[]"},
+							{Name: "date", Type: "string", Pattern: &validPattern},
+						},
+					},
+					{
+						Name: "driver-score",
+						File: "driver/driver_score.sql.tmpl",
+					},
+				}
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validBaseConfig()
+			sqlCfg := validSQLTemplatesConfig()
+			tt.modify(&sqlCfg)
+			cfg.SQLTemplates = sqlCfg
+
+			_, err := ValidateConfig(cfg)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected validation error, got nil")
+				}
+				if tt.errSubstr != "" && !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Fatalf("expected error containing %q, got: %v", tt.errSubstr, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// =============================================================================
+// Property 4: 模板名称格式校验（配置层）
+// **Validates: Requirements 1.9**
+// For any template name, validateSQLTemplates accepts it iff it matches
+// ^[a-zA-Z0-9_-]{1,64}$
+// =============================================================================
+
+func TestProperty4_TemplateNameFormatValidation_Config(t *testing.T) {
+	nameRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
+
+	t.Run("valid_names_accepted", func(t *testing.T) {
+		rapid.Check(t, func(rt *rapid.T) {
+			name := rapid.StringMatching(`[a-zA-Z0-9_-]{1,64}`).Draw(rt, "validName")
+
+			errs := validateSQLTemplates(&SQLTemplatesConfig{
+				Enabled:              true,
+				DatasourceName:       "db",
+				BaseDir:              "./templates",
+				RenderTimeout:        5 * time.Second,
+				MaxRenderedSQLLen:    65536,
+				MaxConcurrentQueries: 10,
+				Templates: []TemplateConfig{
+					{Name: name, File: "test.sql.tmpl"},
+				},
+			})
+
+			for _, e := range errs {
+				if strings.Contains(e, "invalid format") {
+					rt.Fatalf("valid name %q rejected: %s", name, e)
+				}
+			}
+
+			if !nameRegex.MatchString(name) {
+				rt.Fatalf("generated name %q should match regex", name)
+			}
+		})
+	})
+
+	t.Run("invalid_names_rejected", func(t *testing.T) {
+		rapid.Check(t, func(rt *rapid.T) {
+			// Generate names that should fail: either contain invalid chars or are too long
+			strategy := rapid.IntRange(0, 2).Draw(rt, "strategy")
+			var name string
+			switch strategy {
+			case 0:
+				// Name with invalid characters (spaces, special chars)
+				name = rapid.StringMatching(`[a-zA-Z0-9_-]{0,10}[^a-zA-Z0-9_-]+[a-zA-Z0-9_-]{0,10}`).Draw(rt, "invalidCharsName")
+			case 1:
+				// Name too long (>64 chars)
+				name = rapid.StringMatching(`[a-zA-Z0-9_-]{65,100}`).Draw(rt, "tooLongName")
+			case 2:
+				// Empty name
+				name = ""
+			}
+
+			errs := validateSQLTemplates(&SQLTemplatesConfig{
+				Enabled:              true,
+				DatasourceName:       "db",
+				BaseDir:              "./templates",
+				RenderTimeout:        5 * time.Second,
+				MaxRenderedSQLLen:    65536,
+				MaxConcurrentQueries: 10,
+				Templates: []TemplateConfig{
+					{Name: name, File: "test.sql.tmpl"},
+				},
+			})
+
+			hasFormatErr := false
+			for _, e := range errs {
+				if strings.Contains(e, "invalid format") {
+					hasFormatErr = true
+					break
+				}
+			}
+
+			if nameRegex.MatchString(name) {
+				// If the name actually matches the regex, it should be accepted
+				if hasFormatErr {
+					rt.Fatalf("name %q matches regex but was rejected", name)
+				}
+			} else {
+				if !hasFormatErr {
+					rt.Fatalf("name %q does not match regex but was accepted", name)
+				}
+			}
+		})
+	})
+}
+
+// =============================================================================
+// Property 5: 文件大小限制（配置层）
+// **Validates: Requirements 1.10**
+// Config-level validation: positive value checks for render_timeout,
+// max_rendered_sql_length, and max_concurrent_queries.
+// =============================================================================
+
+func TestProperty5_ConfigPositiveValueValidation(t *testing.T) {
+	rapid.Check(t, func(rt *rapid.T) {
+		// Generate non-positive values for the three fields
+		field := rapid.IntRange(0, 2).Draw(rt, "field")
+		nonPositive := rapid.IntRange(-1000, 0).Draw(rt, "nonPositive")
+
+		sqlCfg := SQLTemplatesConfig{
+			Enabled:              true,
+			DatasourceName:       "db",
+			BaseDir:              "./templates",
+			RenderTimeout:        5 * time.Second,
+			MaxRenderedSQLLen:    65536,
+			MaxConcurrentQueries: 10,
+			Templates:            []TemplateConfig{},
+		}
+
+		var expectedSubstr string
+		switch field {
+		case 0:
+			sqlCfg.RenderTimeout = time.Duration(nonPositive) * time.Second
+			expectedSubstr = "render_timeout"
+		case 1:
+			sqlCfg.MaxRenderedSQLLen = nonPositive
+			expectedSubstr = "max_rendered_sql_length"
+		case 2:
+			sqlCfg.MaxConcurrentQueries = nonPositive
+			expectedSubstr = "max_concurrent_queries"
+		}
+
+		errs := validateSQLTemplates(&sqlCfg)
+
+		hasExpectedErr := false
+		for _, e := range errs {
+			if strings.Contains(e, expectedSubstr) {
+				hasExpectedErr = true
+				break
+			}
+		}
+		if !hasExpectedErr {
+			rt.Fatalf("expected error containing %q for non-positive value %d (field=%d), got: %v",
+				expectedSubstr, nonPositive, field, errs)
+		}
+	})
+}
+
+// =============================================================================
+// Property 48: 正则预编译
+// **Validates: Requirements 7.9**
+// For any pattern string, validateSQLTemplates catches invalid regex patterns
+// and accepts valid ones.
+// =============================================================================
+
+func TestProperty48_PatternRegexValidation(t *testing.T) {
+	t.Run("valid_patterns_accepted", func(t *testing.T) {
+		rapid.Check(t, func(rt *rapid.T) {
+			// Generate known-valid regex patterns
+			pattern := rapid.SampledFrom([]string{
+				`^\d{4}-\d{2}-\d{2}$`,
+				`^[a-zA-Z]+$`,
+				`^\w+@\w+\.\w+$`,
+				`^[0-9]{1,10}$`,
+				`^(daily|weekly|monthly)$`,
+				`.*`,
+				`^.{1,100}$`,
+				`^[A-Z]{2,3}\d{3,6}$`,
+			}).Draw(rt, "validPattern")
+
+			errs := validateSQLTemplates(&SQLTemplatesConfig{
+				Enabled:              true,
+				DatasourceName:       "db",
+				BaseDir:              "./templates",
+				RenderTimeout:        5 * time.Second,
+				MaxRenderedSQLLen:    65536,
+				MaxConcurrentQueries: 10,
+				Templates: []TemplateConfig{
+					{
+						Name: "test_tmpl",
+						File: "test.sql.tmpl",
+						Parameters: []TemplateParamConfig{
+							{Name: "p1", Type: "string", Pattern: &pattern},
+						},
+					},
+				},
+			})
+
+			for _, e := range errs {
+				if strings.Contains(e, "invalid regex") {
+					rt.Fatalf("valid pattern %q was rejected: %s", pattern, e)
+				}
+			}
+		})
+	})
+
+	t.Run("invalid_patterns_rejected", func(t *testing.T) {
+		rapid.Check(t, func(rt *rapid.T) {
+			// Generate known-invalid regex patterns
+			pattern := rapid.SampledFrom([]string{
+				`[invalid`,
+				`(unclosed`,
+				`*bad`,
+				`+bad`,
+				`?bad`,
+				`[z-a]`,
+				`(?P<name>unclosed`,
+				`\p{Invalid}`,
+			}).Draw(rt, "invalidPattern")
+
+			// Verify it's actually invalid
+			if _, err := regexp.Compile(pattern); err == nil {
+				return // skip if it happens to be valid
+			}
+
+			errs := validateSQLTemplates(&SQLTemplatesConfig{
+				Enabled:              true,
+				DatasourceName:       "db",
+				BaseDir:              "./templates",
+				RenderTimeout:        5 * time.Second,
+				MaxRenderedSQLLen:    65536,
+				MaxConcurrentQueries: 10,
+				Templates: []TemplateConfig{
+					{
+						Name: "test_tmpl",
+						File: "test.sql.tmpl",
+						Parameters: []TemplateParamConfig{
+							{Name: "p1", Type: "string", Pattern: &pattern},
+						},
+					},
+				},
+			})
+
+			hasRegexErr := false
+			for _, e := range errs {
+				if strings.Contains(e, "invalid regex") {
+					hasRegexErr = true
+					break
+				}
+			}
+			if !hasRegexErr {
+				rt.Fatalf("invalid pattern %q was accepted, expected 'invalid regex' error", pattern)
+			}
+		})
+	})
 }

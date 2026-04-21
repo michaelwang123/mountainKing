@@ -18,11 +18,12 @@ import (
 
 // LogEntry represents a single audit log record.
 type LogEntry struct {
-	Principal  string // JWT sub or API Key ID
-	Time       time.Time
-	Operation  string // e.g. "query", "mutation"
-	Datasource string // target datasource name
-	Success    bool
+	Principal   string // JWT sub or API Key ID
+	Time        time.Time
+	Operation   string // e.g. "query", "mutation"
+	Datasource  string // target datasource name
+	Success     bool
+	ExtraFields map[string]string // optional extra fields (e.g. "template_name")
 }
 
 // AuditLogger writes audit entries to a dedicated output, independent
@@ -82,13 +83,17 @@ func (a *AuditLogger) Log(entry LogEntry) {
 		result = "success"
 	}
 
-	a.logger.Info("audit",
+	fields := []zap.Field{
 		zap.String("principal", entry.Principal),
 		zap.Time("operation_time", entry.Time),
 		zap.String("operation", entry.Operation),
 		zap.String("datasource", entry.Datasource),
 		zap.String("result", result),
-	)
+	}
+	for k, v := range entry.ExtraFields {
+		fields = append(fields, zap.String(k, v))
+	}
+	a.logger.Info("audit", fields...)
 }
 
 // Sync flushes any buffered log entries.
