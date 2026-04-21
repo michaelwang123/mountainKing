@@ -1,7 +1,3 @@
-// Copyright 2024-2026 mountainKing Contributors
-// Licensed under the Apache License, Version 2.0
-// See LICENSE file for details.
-
 package resolver
 
 // This file will be automatically regenerated based on the schema, any resolver

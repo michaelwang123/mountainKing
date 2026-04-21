@@ -14,6 +14,7 @@ import (
 
 	"github.com/michaelwang123/mountainKing/internal/config"
 	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/template"
 )
 
 // CacheClearer is the interface needed by the mutation resolver for cache
@@ -37,4 +38,7 @@ type Resolver struct {
 	// CacheClearer provides cache clearing capability for the clearCache
 	// mutation. It can be nil when caching is disabled.
 	CacheClearer CacheClearer
+	// TemplateEngine provides SQL template query capability.
+	// nil means the feature is disabled (sql_templates.enabled=false).
+	TemplateEngine *template.TemplateEngine
 }

@@ -191,6 +191,42 @@ func (a *Adapter) Execute(ctx context.Context, req datasource.QueryRequest) (*da
 	return result, nil
 }
 
+// ExecuteRaw implements template.RawExecutor.
+// It reuses the existing *sql.DB connection pool and scanRows function to
+// execute arbitrary SQL. It does not go through SQLQueryBuilder or whitelist
+// validation — the caller (TemplateEngine) is responsible for security checks.
+func (a *Adapter) ExecuteRaw(ctx context.Context, query string, args ...interface{}) (*datasource.QueryResult, error) {
+	a.mu.RLock()
+	db := a.db
+	a.mu.RUnlock()
+
+	if db == nil {
+		return nil, apierrors.DatasourceError(
+			apierrors.ErrDatasourceUnavailable,
+			fmt.Sprintf("starrocks adapter %q is not connected", a.name),
+		)
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, apierrors.DatasourceError(
+			apierrors.ErrDatasourceTemplateQueryError,
+			fmt.Sprintf("template query failed: %v", err),
+		)
+	}
+	defer rows.Close()
+
+	data, err := scanRows(rows)
+	if err != nil {
+		return nil, apierrors.DatasourceError(
+			apierrors.ErrDatasourceTemplateQueryError,
+			fmt.Sprintf("template query scan failed: %v", err),
+		)
+	}
+
+	return &datasource.QueryResult{Data: data}, nil
+}
+
 // HealthCheck pings the database to verify the connection is alive.
 func (a *Adapter) HealthCheck(ctx context.Context) error {
 	a.mu.RLock()
