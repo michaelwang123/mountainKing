@@ -103,9 +103,13 @@ func newTestTracerForTemplate() (trace.Tracer, *tracetest.InMemoryExporter, *sdk
 }
 
 // createTestAuditLogger creates an AuditLogger that writes to a temp file.
-func createTestAuditLogger(t *testing.T) (*audit.AuditLogger, string) {
+// The caller is responsible for closing the logger and cleaning up the directory.
+func createTestAuditLogger(t *testing.T) (*audit.AuditLogger, string, string) {
 	t.Helper()
-	tmpDir := t.TempDir()
+	tmpDir, err := os.MkdirTemp("", "audit-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
 	auditFile := filepath.Join(tmpDir, "audit.log")
 
 	al, err := audit.NewAuditLogger(config.AuditConfig{
@@ -114,9 +118,10 @@ func createTestAuditLogger(t *testing.T) (*audit.AuditLogger, string) {
 		FilePath: auditFile,
 	})
 	if err != nil {
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("failed to create audit logger: %v", err)
 	}
-	return al, auditFile
+	return al, auditFile, tmpDir
 }
 
 // gatherMetricValue collects metrics from a registry and returns the count of
@@ -307,8 +312,11 @@ func TestProperty59_TracingSpanCreated(t *testing.T) {
 
 func TestProperty60_AuditLogRecorded(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
-		al, auditFile := createTestAuditLogger(t)
-		defer func() { _ = al.Close() }()
+		al, auditFile, tmpDir := createTestAuditLogger(t)
+		defer func() {
+			_ = al.Close()
+			_ = os.RemoveAll(tmpDir)
+		}()
 
 		te, _ := createTestEngineWithMetrics(t, nil, nil, nil, al)
 
@@ -379,8 +387,11 @@ func TestMetrics_ErrorQueryIncrementsCounter(t *testing.T) {
 // TestMetrics_AuditLogRecordsFailure verifies that a failed query also
 // produces an audit log entry with success=false.
 func TestMetrics_AuditLogRecordsFailure(t *testing.T) {
-	al, auditFile := createTestAuditLogger(t)
-	defer func() { _ = al.Close() }()
+	al, auditFile, tmpDir := createTestAuditLogger(t)
+	defer func() {
+		_ = al.Close()
+		_ = os.RemoveAll(tmpDir)
+	}()
 
 	te, _ := createTestEngineWithMetrics(t, nil, nil, nil, al)
 
