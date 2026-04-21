@@ -13,7 +13,7 @@ import (
 
 // 本服务仅支持管理类 Mutation 操作，不支持数据写入。
 // 所有数据获取均通过 Query 完成。
-// Mutation 操作需要认证主体具备 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
+// Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
 type Mutation struct {
 }
 
@@ -64,6 +64,13 @@ type PrometheusVector struct {
 type Query struct {
 }
 
+// 模板重新加载结果
+type ReloadTemplatesResult struct {
+	SuccessCount int                    `json:"successCount"`
+	Failures     []*TemplateLoadFailure `json:"failures"`
+	Duration     string                 `json:"duration"`
+}
+
 type StarRocksConnection struct {
 	Edges      []*StarRocksEdge `json:"edges"`
 	Nodes      []*StarRocksRow  `json:"nodes"`
@@ -95,6 +102,41 @@ type StarRocksOrderBy struct {
 type StarRocksRow struct {
 	// 动态字段数据，key 为列名，value 为列值
 	Data scalar.JSON `json:"data"`
+}
+
+// 模板元信息
+type TemplateInfo struct {
+	Name         string                   `json:"name"`
+	Description  string                   `json:"description"`
+	CountEnabled bool                     `json:"countEnabled"`
+	Parameters   []*TemplateParameterInfo `json:"parameters"`
+}
+
+// 模板加载失败详情
+type TemplateLoadFailure struct {
+	Name  string `json:"name"`
+	Error string `json:"error"`
+}
+
+// 模板查询排序条件
+type TemplateOrderBy struct {
+	Field     string        `json:"field"`
+	Direction SortDirection `json:"direction"`
+}
+
+// 模板参数元信息
+type TemplateParameterInfo struct {
+	Name         string  `json:"name"`
+	Type         string  `json:"type"`
+	Required     bool    `json:"required"`
+	DefaultValue *string `json:"defaultValue,omitempty"`
+}
+
+// 模板查询结果（使用 offset 分页，不使用 Relay cursor）
+type TemplateQueryConnection struct {
+	Nodes      []scalar.JSON `json:"nodes"`
+	PageInfo   *PageInfo     `json:"pageInfo"`
+	TotalCount int           `json:"totalCount"`
 }
 
 type FilterOperator string

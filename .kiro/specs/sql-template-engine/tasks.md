@@ -103,11 +103,11 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 11: 不存在模板返回错误** — Validates: Requirements 2.3
     - **Property 12: 渲染确定性** — Validates: Requirements 2.1
 
-- [ ] 9. 分页包装器
-  - [-] 9.1 实现分页包装（internal/template/pagination.go）：wrapWithPagination（over-fetch first+1 策略、safeIdentifier 校验 fields/orderBy、参数化 LIMIT/OFFSET、__tq_wrapper__ 别名）、wrapWithCount（SELECT COUNT(*) AS total_count、__tq_cnt__ 别名）
+- [x] 9. 分页包装器
+  - [x] 9.1 实现分页包装（internal/template/pagination.go）：wrapWithPagination（over-fetch first+1 策略、safeIdentifier 校验 fields/orderBy、参数化 LIMIT/OFFSET、__tq_wrapper__ 别名）、wrapWithCount（SELECT COUNT(*) AS total_count、__tq_cnt__ 别名）
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
     - _Design: 组件与接口 §11 (分页包装器), D14 (over-fetch)_
-  - [~] 9.2 编写分页包装器单元测试和属性测试
+  - [x] 9.2 编写分页包装器单元测试和属性测试
     - **Property 17: LIMIT 参数化** — Validates: Requirements 4.7
     - **Property 18: OFFSET 参数化** — Validates: Requirements 4.7
     - **Property 19: 默认 LIMIT 强制** — Validates: Requirements 4.6
@@ -115,14 +115,14 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 21: OrderBy 字段安全性** — Validates: Requirements 4.4
     - **Property 22: totalCount 独立性** — Validates: Requirements 4.5
 
-- [ ] 10. Checkpoint - 确保模板引擎核心组件就绪
+- [x] 10. Checkpoint - 确保模板引擎核心组件就绪
   - 验证：golangci-lint 通过 + Registry/Loader/Renderer/Pagination 所有测试通过
 
-- [ ] 11. 缓存集成
-  - [~] 11.1 实现缓存 key 生成与缓存集成（internal/template/cache.go）：generateCacheKey（canonical_string 确定性构建）、generateCountCacheKey（仅 templateName+params）、executeWithCache（JSON 序列化 + loaderCalled 标志 + singleflight 语义文档）、executeCount（validatedParams 参数来源一致性）、shouldCache 辅助方法
+- [x] 11. 缓存集成
+  - [x] 11.1 实现缓存 key 生成与缓存集成（internal/template/cache.go）：generateCacheKey（canonical_string 确定性构建）、generateCountCacheKey（仅 templateName+params）、executeWithCache（JSON 序列化 + loaderCalled 标志 + singleflight 语义文档）、executeCount（validatedParams 参数来源一致性）、shouldCache 辅助方法
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
     - _Design: 组件与接口 §12 (缓存集成), D3, D4, D8, D11_
-  - [~] 11.2 编写缓存集成单元测试和属性测试
+  - [x] 11.2 编写缓存集成单元测试和属性测试
     - **Property 49: 缓存 key 确定性** — Validates: Requirements 8.2
     - **Property 50: 缓存 key 区分性** — Validates: Requirements 8.2
     - **Property 51: 缓存 key 含 fields** — Validates: Requirements 8.2
@@ -131,57 +131,57 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 54: 客户端缓存绕过** — Validates: Requirements 8.5
     - **Property 55: totalCount 独立缓存** — Validates: Requirements 8.6
 
-- [ ] 12. TemplateEngine 核心与 RawExecutor 实现
-  - [~] 12.1 实现 TemplateEngine 主体：
+- [x] 12. TemplateEngine 核心与 RawExecutor 实现
+  - [x] 12.1 实现 TemplateEngine 主体：
     - engine.go：NewTemplateEngine（FuncMap 构建 + 信号量初始化 + loadAll）、Execute 完整流程（defer 审计日志 + executeErr 追踪 + 信号量等待计时 + 缓存命中/未命中指标）、ListTemplates、DatasourceName、Close
     - metrics.go（结构体定义部分）：TemplateMetrics 结构体声明（QueryDuration、QueriesTotal、RenderDuration、SemaphoreWait、CacheHitsTotal、RenderGoroutineLeaks 共 6 个字段）。注意：此处仅定义结构体，NewTemplateMetrics 注册函数在 Task 15.1 中实现。Execute 中的指标调用依赖此结构体，因此必须在 Task 12 中创建
     - _Requirements: 1.1, 2.1, 4.9, 5.1, 5.2, 5.5, 5.6_
     - _Design: 组件与接口 §4 (TemplateEngine), Execute 伪代码, §18 (并发控制), §13 (TemplateMetrics 结构体)_
-  - [~] 12.2 实现 StarRocks Adapter ExecuteRaw 方法（internal/adapter/starrocks/adapter.go）：复用 *sql.DB 和 scanRows，不经过 SQLQueryBuilder 和白名单
+  - [x] 12.2 实现 StarRocks Adapter ExecuteRaw 方法（internal/adapter/starrocks/adapter.go）：复用 *sql.DB 和 scanRows，不经过 SQLQueryBuilder 和白名单
     - _Requirements: 5.1, 5.2, 5.3_
     - _Design: 组件与接口 §1 (StarRocks Adapter 实现)_
-  - [~] 12.3 编写 TemplateEngine 单元测试（使用 MockRawExecutor）
+  - [x] 12.3 编写 TemplateEngine 单元测试（使用 MockRawExecutor）
     - **Property 23: 并发限制** — Validates: Requirements 4.9
     - **Property 24: 结果截断 + 警告** — Validates: Requirements 5.6
     - **Property 25: 查询超时保护** — Validates: Requirements 5.5
     - **Property 27: 接口隔离** — Validates: Requirements 5.1
-  - [~] 12.4 实现 Reload 方法（internal/template/engine.go）：reloadMu 互斥锁保护、10s Mutation 冷却时间（fsnotify 不受冷却限制）、错误隔离合并（失败模板从旧 Registry 复制旧版本）、hash 比较仅清除变更模板缓存、lastReloadResult 记录
+  - [x] 12.4 实现 Reload 方法（internal/template/engine.go）：reloadMu 互斥锁保护、10s Mutation 冷却时间（fsnotify 不受冷却限制）、错误隔离合并（失败模板从旧 Registry 复制旧版本）、hash 比较仅清除变更模板缓存、lastReloadResult 记录
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.7, 10.9_
     - _Design: 组件与接口 §4 (Reload 方法), D5 (热加载原子性), D9 (不重新读取 config.yaml)_
 
-- [ ] 13. Checkpoint - 确保 TemplateEngine 端到端可用
+- [x] 13. Checkpoint - 确保 TemplateEngine 端到端可用
   - 验证：golangci-lint 通过 + TemplateEngine.Execute 通过 MockRawExecutor 端到端测试 + 缓存命中/未命中行为正确
 
-- [ ] 14. GraphQL Schema 与 Resolver
-  - [~] 14.1 定义 GraphQL Schema（internal/graphql/schema/template.graphql）：TemplateOrderBy input、TemplateQueryConnection type、TemplateInfo/TemplateParameterInfo type、ReloadTemplatesResult/TemplateLoadFailure type、extend Query（templateQuery/templateList）、extend Mutation（reloadTemplates）。注意：gqlgen.yml 已使用 `*.graphql` 通配符，无需更新 schema 路径
+- [x] 14. GraphQL Schema 与 Resolver
+  - [x] 14.1 定义 GraphQL Schema（internal/graphql/schema/template.graphql）：TemplateOrderBy input、TemplateQueryConnection type、TemplateInfo/TemplateParameterInfo type、ReloadTemplatesResult/TemplateLoadFailure type、extend Query（templateQuery/templateList）、extend Mutation（reloadTemplates）。注意：gqlgen.yml 已使用 `*.graphql` 通配符，无需更新 schema 路径
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
     - _Design: 组件与接口 §15 (GraphQL Schema)_
-  - [~] 14.2 运行 gqlgen 代码生成：go generate ./... 生成 generated.go 和 models_gen.go
+  - [x] 14.2 运行 gqlgen 代码生成：go generate ./... 生成 generated.go 和 models_gen.go
     - _Design: §15 gqlgen 代码生成说明_
-  - [~] 14.3 修改 Resolver 结构体（internal/graphql/resolver/resolver.go）：新增 TemplateEngine *template.TemplateEngine 字段（nil 表示功能禁用），此为跨文件变更，影响 NewResolver 调用方
+  - [x] 14.3 修改 Resolver 结构体（internal/graphql/resolver/resolver.go）：新增 TemplateEngine *template.TemplateEngine 字段（nil 表示功能禁用），此为跨文件变更，影响 NewResolver 调用方
     - _Design: 组件与接口 §16 (Resolver 依赖注入)_
-  - [~] 14.4 实现 Resolver（internal/graphql/resolver/template.resolvers.go）：TemplateQuery（over-fetch 截断 + max_result_rows 截断 + warnings）、TemplateList、ReloadTemplates
+  - [x] 14.4 实现 Resolver（internal/graphql/resolver/template.resolvers.go）：TemplateQuery（over-fetch 截断 + max_result_rows 截断 + warnings）、TemplateList、ReloadTemplates
     - _Requirements: 3.1, 3.4, 3.8, 3.9_
     - _Design: 组件与接口 §16 (Resolver 实现)_
-  - [~] 14.5 实现 Resolver 辅助函数：convertJSONToMap、convertOrderBy、skipCacheRequested、extractPrincipal、fieldRequested（graphql.CollectFieldsCtx）、buildTemplateQueryConnection（hasNextPage over-fetch 逻辑）、convertReloadResult、setExtensionWarnings
+  - [x] 14.5 实现 Resolver 辅助函数：convertJSONToMap、convertOrderBy、skipCacheRequested、extractPrincipal、fieldRequested（graphql.CollectFieldsCtx）、buildTemplateQueryConnection（hasNextPage over-fetch 逻辑）、convertReloadResult、setExtensionWarnings
     - _Design: 辅助函数定义_
-  - [~] 14.6 编写 Resolver 单元测试和属性测试
+  - [x] 14.6 编写 Resolver 单元测试和属性测试
     - **Property 13: templateList 完整性** — Validates: Requirements 3.4
     - **Property 14: templateList 参数一致性** — Validates: Requirements 3.5
     - **Property 15: countEnabled 一致性** — Validates: Requirements 3.5
     - **Property 16: 功能禁用行为** — Validates: Requirements 3.9
 
 - [ ] 15. 可观测性集成
-  - [~] 15.1 实现 Prometheus 指标注册函数（internal/template/metrics.go 追加）：NewTemplateMetrics 函数（接收 *prometheus.Registry 和 customLabels，创建并注册 6 个指标到 Registry，返回 *TemplateMetrics）。注意：TemplateMetrics 结构体已在 Task 12.1 中定义，此处仅添加注册函数
+  - [x] 15.1 实现 Prometheus 指标注册函数（internal/template/metrics.go 追加）：NewTemplateMetrics 函数（接收 *prometheus.Registry 和 customLabels，创建并注册 6 个指标到 Registry，返回 *TemplateMetrics）。注意：TemplateMetrics 结构体已在 Task 12.1 中定义，此处仅添加注册函数
     - _Requirements: 9.1, 9.2, 9.6_
     - _Design: 组件与接口 §13 (Prometheus 指标注册)_
-  - [~] 15.2 集成 OpenTelemetry Tracing：在 Execute 中创建 "Template Query {name}" 子 Span，设置 template.name/db.system/db.statement 属性
+  - [x] 15.2 集成 OpenTelemetry Tracing：在 Execute 中创建 "Template Query {name}" 子 Span，设置 template.name/db.system/db.statement 属性
     - _Requirements: 9.3_
     - _Design: 组件与接口 §13 (OpenTelemetry Tracing)_
-  - [~] 15.3 集成结构化日志：模板查询执行日志（Info 级别）、渲染后 SQL 日志（Debug 级别，脱敏后）
+  - [x] 15.3 集成结构化日志：模板查询执行日志（Info 级别）、渲染后 SQL 日志（Debug 级别，脱敏后）
     - _Requirements: 9.4, 6.7_
     - _Design: 组件与接口 §13 (结构化日志)_
-  - [~] 15.4 编写可观测性属性测试
+  - [-] 15.4 编写可观测性属性测试
     - **Property 56: 查询延迟指标记录** — Validates: Requirements 9.1
     - **Property 57: 查询计数指标记录** — Validates: Requirements 9.2
     - **Property 58: 渲染延迟指标记录** — Validates: Requirements 9.6

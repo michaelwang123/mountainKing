@@ -1,0 +1,63 @@
+# ===== SQL 模板查询类型 =====
+
+"""模板查询排序条件"""
+input TemplateOrderBy {
+  field: String!
+  direction: SortDirection!
+}
+
+"""模板查询结果（使用 offset 分页，不使用 Relay cursor）"""
+type TemplateQueryConnection {
+  nodes: [JSON!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+"""模板元信息"""
+type TemplateInfo {
+  name: String!
+  description: String!
+  countEnabled: Boolean!
+  parameters: [TemplateParameterInfo!]!
+}
+
+"""模板参数元信息"""
+type TemplateParameterInfo {
+  name: String!
+  type: String!
+  required: Boolean!
+  defaultValue: String
+}
+
+"""模板重新加载结果"""
+type ReloadTemplatesResult {
+  successCount: Int!
+  failures: [TemplateLoadFailure!]!
+  duration: String!
+}
+
+"""模板加载失败详情"""
+type TemplateLoadFailure {
+  name: String!
+  error: String!
+}
+
+extend type Query {
+  """执行 SQL 模板查询"""
+  templateQuery(
+    templateName: String!
+    parameters: JSON
+    fields: [String!]
+    first: Int
+    offset: Int
+    orderBy: [TemplateOrderBy!]
+  ): TemplateQueryConnection!
+
+  """列出所有已注册的模板"""
+  templateList(first: Int, offset: Int): [TemplateInfo!]!
+}
+
+extend type Mutation {
+  """重新加载 SQL 模板（需要 mutation 权限）"""
+  reloadTemplates: ReloadTemplatesResult!
+}

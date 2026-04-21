@@ -36,7 +36,8 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		ClearCache func(childComplexity int, datasource *string) int
+		ClearCache      func(childComplexity int, datasource *string) int
+		ReloadTemplates func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -80,6 +81,14 @@ type ComplexityRoot struct {
 		PrometheusInstant func(childComplexity int, query string, time *scalar.DateTime, filters []*PrometheusLabelFilter) int
 		PrometheusRange   func(childComplexity int, query string, startTime scalar.DateTime, endTime scalar.DateTime, step string, filters []*PrometheusLabelFilter) int
 		Starrocks         func(childComplexity int, table string, fields []string, filters []*StarRocksFilter, orderBy []*StarRocksOrderBy, first *int, after *string, offset *int, limit *int) int
+		TemplateList      func(childComplexity int, first *int, offset *int) int
+		TemplateQuery     func(childComplexity int, templateName string, parameters scalar.JSON, fields []string, first *int, offset *int, orderBy []*TemplateOrderBy) int
+	}
+
+	ReloadTemplatesResult struct {
+		Duration     func(childComplexity int) int
+		Failures     func(childComplexity int) int
+		SuccessCount func(childComplexity int) int
 	}
 
 	StarRocksConnection struct {
@@ -97,15 +106,43 @@ type ComplexityRoot struct {
 	StarRocksRow struct {
 		Data func(childComplexity int) int
 	}
+
+	TemplateInfo struct {
+		CountEnabled func(childComplexity int) int
+		Description  func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Parameters   func(childComplexity int) int
+	}
+
+	TemplateLoadFailure struct {
+		Error func(childComplexity int) int
+		Name  func(childComplexity int) int
+	}
+
+	TemplateParameterInfo struct {
+		DefaultValue func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Required     func(childComplexity int) int
+		Type         func(childComplexity int) int
+	}
+
+	TemplateQueryConnection struct {
+		Nodes      func(childComplexity int) int
+		PageInfo   func(childComplexity int) int
+		TotalCount func(childComplexity int) int
+	}
 }
 
 type MutationResolver interface {
 	ClearCache(ctx context.Context, datasource *string) (bool, error)
+	ReloadTemplates(ctx context.Context) (*ReloadTemplatesResult, error)
 }
 type QueryResolver interface {
 	Starrocks(ctx context.Context, table string, fields []string, filters []*StarRocksFilter, orderBy []*StarRocksOrderBy, first *int, after *string, offset *int, limit *int) (*StarRocksConnection, error)
 	PrometheusInstant(ctx context.Context, query string, time *scalar.DateTime, filters []*PrometheusLabelFilter) (*PrometheusInstantResult, error)
 	PrometheusRange(ctx context.Context, query string, startTime scalar.DateTime, endTime scalar.DateTime, step string, filters []*PrometheusLabelFilter) (*PrometheusRangeResult, error)
+	TemplateQuery(ctx context.Context, templateName string, parameters scalar.JSON, fields []string, first *int, offset *int, orderBy []*TemplateOrderBy) (*TemplateQueryConnection, error)
+	TemplateList(ctx context.Context, first *int, offset *int) ([]*TemplateInfo, error)
 }
 
 type executableSchema graphql.ExecutableSchemaState[ResolverRoot, DirectiveRoot, ComplexityRoot]
@@ -133,6 +170,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClearCache(childComplexity, args["datasource"].(*string)), true
+	case "Mutation.reloadTemplates":
+		if e.ComplexityRoot.Mutation.ReloadTemplates == nil {
+			break
+		}
+
+		return e.ComplexityRoot.Mutation.ReloadTemplates(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -270,6 +313,47 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Query.Starrocks(childComplexity, args["table"].(string), args["fields"].([]string), args["filters"].([]*StarRocksFilter), args["orderBy"].([]*StarRocksOrderBy), args["first"].(*int), args["after"].(*string), args["offset"].(*int), args["limit"].(*int)), true
+	case "Query.templateList":
+		if e.ComplexityRoot.Query.TemplateList == nil {
+			break
+		}
+
+		args, err := ec.field_Query_templateList_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.TemplateList(childComplexity, args["first"].(*int), args["offset"].(*int)), true
+	case "Query.templateQuery":
+		if e.ComplexityRoot.Query.TemplateQuery == nil {
+			break
+		}
+
+		args, err := ec.field_Query_templateQuery_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Query.TemplateQuery(childComplexity, args["templateName"].(string), args["parameters"].(scalar.JSON), args["fields"].([]string), args["first"].(*int), args["offset"].(*int), args["orderBy"].([]*TemplateOrderBy)), true
+
+	case "ReloadTemplatesResult.duration":
+		if e.ComplexityRoot.ReloadTemplatesResult.Duration == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReloadTemplatesResult.Duration(childComplexity), true
+	case "ReloadTemplatesResult.failures":
+		if e.ComplexityRoot.ReloadTemplatesResult.Failures == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReloadTemplatesResult.Failures(childComplexity), true
+	case "ReloadTemplatesResult.successCount":
+		if e.ComplexityRoot.ReloadTemplatesResult.SuccessCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.ReloadTemplatesResult.SuccessCount(childComplexity), true
 
 	case "StarRocksConnection.edges":
 		if e.ComplexityRoot.StarRocksConnection.Edges == nil {
@@ -316,6 +400,88 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.ComplexityRoot.StarRocksRow.Data(childComplexity), true
 
+	case "TemplateInfo.countEnabled":
+		if e.ComplexityRoot.TemplateInfo.CountEnabled == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateInfo.CountEnabled(childComplexity), true
+	case "TemplateInfo.description":
+		if e.ComplexityRoot.TemplateInfo.Description == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateInfo.Description(childComplexity), true
+	case "TemplateInfo.name":
+		if e.ComplexityRoot.TemplateInfo.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateInfo.Name(childComplexity), true
+	case "TemplateInfo.parameters":
+		if e.ComplexityRoot.TemplateInfo.Parameters == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateInfo.Parameters(childComplexity), true
+
+	case "TemplateLoadFailure.error":
+		if e.ComplexityRoot.TemplateLoadFailure.Error == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateLoadFailure.Error(childComplexity), true
+	case "TemplateLoadFailure.name":
+		if e.ComplexityRoot.TemplateLoadFailure.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateLoadFailure.Name(childComplexity), true
+
+	case "TemplateParameterInfo.defaultValue":
+		if e.ComplexityRoot.TemplateParameterInfo.DefaultValue == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateParameterInfo.DefaultValue(childComplexity), true
+	case "TemplateParameterInfo.name":
+		if e.ComplexityRoot.TemplateParameterInfo.Name == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateParameterInfo.Name(childComplexity), true
+	case "TemplateParameterInfo.required":
+		if e.ComplexityRoot.TemplateParameterInfo.Required == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateParameterInfo.Required(childComplexity), true
+	case "TemplateParameterInfo.type":
+		if e.ComplexityRoot.TemplateParameterInfo.Type == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateParameterInfo.Type(childComplexity), true
+
+	case "TemplateQueryConnection.nodes":
+		if e.ComplexityRoot.TemplateQueryConnection.Nodes == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateQueryConnection.Nodes(childComplexity), true
+	case "TemplateQueryConnection.pageInfo":
+		if e.ComplexityRoot.TemplateQueryConnection.PageInfo == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateQueryConnection.PageInfo(childComplexity), true
+	case "TemplateQueryConnection.totalCount":
+		if e.ComplexityRoot.TemplateQueryConnection.TotalCount == nil {
+			break
+		}
+
+		return e.ComplexityRoot.TemplateQueryConnection.TotalCount(childComplexity), true
+
 	}
 	return 0, false
 }
@@ -327,6 +493,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 		ec.unmarshalInputPrometheusLabelFilter,
 		ec.unmarshalInputStarRocksFilter,
 		ec.unmarshalInputStarRocksOrderBy,
+		ec.unmarshalInputTemplateOrderBy,
 	)
 	first := true
 
@@ -578,6 +745,70 @@ input StarRocksOrderBy {
   direction: SortDirection!
 }
 `, BuiltIn: false},
+	{Name: "../schema/template.graphql", Input: `# ===== SQL 模板查询类型 =====
+
+"""模板查询排序条件"""
+input TemplateOrderBy {
+  field: String!
+  direction: SortDirection!
+}
+
+"""模板查询结果（使用 offset 分页，不使用 Relay cursor）"""
+type TemplateQueryConnection {
+  nodes: [JSON!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+"""模板元信息"""
+type TemplateInfo {
+  name: String!
+  description: String!
+  countEnabled: Boolean!
+  parameters: [TemplateParameterInfo!]!
+}
+
+"""模板参数元信息"""
+type TemplateParameterInfo {
+  name: String!
+  type: String!
+  required: Boolean!
+  defaultValue: String
+}
+
+"""模板重新加载结果"""
+type ReloadTemplatesResult {
+  successCount: Int!
+  failures: [TemplateLoadFailure!]!
+  duration: String!
+}
+
+"""模板加载失败详情"""
+type TemplateLoadFailure {
+  name: String!
+  error: String!
+}
+
+extend type Query {
+  """执行 SQL 模板查询"""
+  templateQuery(
+    templateName: String!
+    parameters: JSON
+    fields: [String!]
+    first: Int
+    offset: Int
+    orderBy: [TemplateOrderBy!]
+  ): TemplateQueryConnection!
+
+  """列出所有已注册的模板"""
+  templateList(first: Int, offset: Int): [TemplateInfo!]!
+}
+
+extend type Mutation {
+  """重新加载 SQL 模板（需要 mutation 权限）"""
+  reloadTemplates: ReloadTemplatesResult!
+}
+`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -615,12 +846,12 @@ func (ec *executionContext) field_Query_prometheusInstant_args(ctx context.Conte
 		return nil, err
 	}
 	args["query"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "time", ec.unmarshalODateTime2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "time", ec.unmarshalODateTime2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime)
 	if err != nil {
 		return nil, err
 	}
 	args["time"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "filters", ec.unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilterᚄ)
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "filters", ec.unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilterᚄ)
 	if err != nil {
 		return nil, err
 	}
@@ -636,12 +867,12 @@ func (ec *executionContext) field_Query_prometheusRange_args(ctx context.Context
 		return nil, err
 	}
 	args["query"] = arg0
-	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "startTime", ec.unmarshalNDateTime2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime)
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "startTime", ec.unmarshalNDateTime2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime)
 	if err != nil {
 		return nil, err
 	}
 	args["startTime"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "endTime", ec.unmarshalNDateTime2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime)
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "endTime", ec.unmarshalNDateTime2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime)
 	if err != nil {
 		return nil, err
 	}
@@ -651,7 +882,7 @@ func (ec *executionContext) field_Query_prometheusRange_args(ctx context.Context
 		return nil, err
 	}
 	args["step"] = arg3
-	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "filters", ec.unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilterᚄ)
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "filters", ec.unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilterᚄ)
 	if err != nil {
 		return nil, err
 	}
@@ -672,12 +903,12 @@ func (ec *executionContext) field_Query_starrocks_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["fields"] = arg1
-	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "filters", ec.unmarshalOStarRocksFilter2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilterᚄ)
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "filters", ec.unmarshalOStarRocksFilter2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilterᚄ)
 	if err != nil {
 		return nil, err
 	}
 	args["filters"] = arg2
-	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOStarRocksOrderBy2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderByᚄ)
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOStarRocksOrderBy2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderByᚄ)
 	if err != nil {
 		return nil, err
 	}
@@ -702,6 +933,58 @@ func (ec *executionContext) field_Query_starrocks_args(ctx context.Context, rawA
 		return nil, err
 	}
 	args["limit"] = arg7
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_templateList_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "first", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "offset", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Query_templateQuery_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "templateName", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["templateName"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "parameters", ec.unmarshalOJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON)
+	if err != nil {
+		return nil, err
+	}
+	args["parameters"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "fields", ec.unmarshalOString2ᚕstringᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["fields"] = arg2
+	arg3, err := graphql.ProcessArgField(ctx, rawArgs, "first", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg3
+	arg4, err := graphql.ProcessArgField(ctx, rawArgs, "offset", ec.unmarshalOInt2ᚖint)
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg4
+	arg5, err := graphql.ProcessArgField(ctx, rawArgs, "orderBy", ec.unmarshalOTemplateOrderBy2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateOrderByᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["orderBy"] = arg5
 	return args, nil
 }
 
@@ -794,6 +1077,43 @@ func (ec *executionContext) fieldContext_Mutation_clearCache(ctx context.Context
 	if fc.Args, err = ec.field_Mutation_clearCache_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_reloadTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_reloadTemplates,
+		func(ctx context.Context) (any, error) {
+			return ec.Resolvers.Mutation().ReloadTemplates(ctx)
+		},
+		nil,
+		ec.marshalNReloadTemplatesResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐReloadTemplatesResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_reloadTemplates(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "successCount":
+				return ec.fieldContext_ReloadTemplatesResult_successCount(ctx, field)
+			case "failures":
+				return ec.fieldContext_ReloadTemplatesResult_failures(ctx, field)
+			case "duration":
+				return ec.fieldContext_ReloadTemplatesResult_duration(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ReloadTemplatesResult", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -1011,7 +1331,7 @@ func (ec *executionContext) _PrometheusInstantResult_vectors(ctx context.Context
 			return obj.Vectors, nil
 		},
 		nil,
-		ec.marshalNPrometheusVector2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVectorᚄ,
+		ec.marshalNPrometheusVector2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVectorᚄ,
 		true,
 		true,
 	)
@@ -1046,7 +1366,7 @@ func (ec *executionContext) _PrometheusMatrix_metric(ctx context.Context, field 
 			return obj.Metric, nil
 		},
 		nil,
-		ec.marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabelᚄ,
+		ec.marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabelᚄ,
 		true,
 		true,
 	)
@@ -1081,7 +1401,7 @@ func (ec *executionContext) _PrometheusMatrix_values(ctx context.Context, field 
 			return obj.Values, nil
 		},
 		nil,
-		ec.marshalNPrometheusDataPoint2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPointᚄ,
+		ec.marshalNPrometheusDataPoint2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPointᚄ,
 		true,
 		true,
 	)
@@ -1203,7 +1523,7 @@ func (ec *executionContext) _PrometheusRangeResult_matrices(ctx context.Context,
 			return obj.Matrices, nil
 		},
 		nil,
-		ec.marshalNPrometheusMatrix2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrixᚄ,
+		ec.marshalNPrometheusMatrix2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrixᚄ,
 		true,
 		true,
 	)
@@ -1238,7 +1558,7 @@ func (ec *executionContext) _PrometheusVector_metric(ctx context.Context, field 
 			return obj.Metric, nil
 		},
 		nil,
-		ec.marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabelᚄ,
+		ec.marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabelᚄ,
 		true,
 		true,
 	)
@@ -1273,7 +1593,7 @@ func (ec *executionContext) _PrometheusVector_value(ctx context.Context, field g
 			return obj.Value, nil
 		},
 		nil,
-		ec.marshalOPrometheusDataPoint2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint,
+		ec.marshalOPrometheusDataPoint2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint,
 		true,
 		false,
 	)
@@ -1309,7 +1629,7 @@ func (ec *executionContext) _Query_starrocks(ctx context.Context, field graphql.
 			return ec.Resolvers.Query().Starrocks(ctx, fc.Args["table"].(string), fc.Args["fields"].([]string), fc.Args["filters"].([]*StarRocksFilter), fc.Args["orderBy"].([]*StarRocksOrderBy), fc.Args["first"].(*int), fc.Args["after"].(*string), fc.Args["offset"].(*int), fc.Args["limit"].(*int))
 		},
 		nil,
-		ec.marshalNStarRocksConnection2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksConnection,
+		ec.marshalNStarRocksConnection2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksConnection,
 		true,
 		true,
 	)
@@ -1360,7 +1680,7 @@ func (ec *executionContext) _Query_prometheusInstant(ctx context.Context, field 
 			return ec.Resolvers.Query().PrometheusInstant(ctx, fc.Args["query"].(string), fc.Args["time"].(*scalar.DateTime), fc.Args["filters"].([]*PrometheusLabelFilter))
 		},
 		nil,
-		ec.marshalNPrometheusInstantResult2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusInstantResult,
+		ec.marshalNPrometheusInstantResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusInstantResult,
 		true,
 		true,
 	)
@@ -1407,7 +1727,7 @@ func (ec *executionContext) _Query_prometheusRange(ctx context.Context, field gr
 			return ec.Resolvers.Query().PrometheusRange(ctx, fc.Args["query"].(string), fc.Args["startTime"].(scalar.DateTime), fc.Args["endTime"].(scalar.DateTime), fc.Args["step"].(string), fc.Args["filters"].([]*PrometheusLabelFilter))
 		},
 		nil,
-		ec.marshalNPrometheusRangeResult2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusRangeResult,
+		ec.marshalNPrometheusRangeResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusRangeResult,
 		true,
 		true,
 	)
@@ -1437,6 +1757,106 @@ func (ec *executionContext) fieldContext_Query_prometheusRange(ctx context.Conte
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_prometheusRange_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_templateQuery(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_templateQuery,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().TemplateQuery(ctx, fc.Args["templateName"].(string), fc.Args["parameters"].(scalar.JSON), fc.Args["fields"].([]string), fc.Args["first"].(*int), fc.Args["offset"].(*int), fc.Args["orderBy"].([]*TemplateOrderBy))
+		},
+		nil,
+		ec.marshalNTemplateQueryConnection2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateQueryConnection,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_templateQuery(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "nodes":
+				return ec.fieldContext_TemplateQueryConnection_nodes(ctx, field)
+			case "pageInfo":
+				return ec.fieldContext_TemplateQueryConnection_pageInfo(ctx, field)
+			case "totalCount":
+				return ec.fieldContext_TemplateQueryConnection_totalCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemplateQueryConnection", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_templateQuery_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_templateList(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Query_templateList,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Query().TemplateList(ctx, fc.Args["first"].(*int), fc.Args["offset"].(*int))
+		},
+		nil,
+		ec.marshalNTemplateInfo2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateInfoᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Query_templateList(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_TemplateInfo_name(ctx, field)
+			case "description":
+				return ec.fieldContext_TemplateInfo_description(ctx, field)
+			case "countEnabled":
+				return ec.fieldContext_TemplateInfo_countEnabled(ctx, field)
+			case "parameters":
+				return ec.fieldContext_TemplateInfo_parameters(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemplateInfo", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_templateList_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -1551,6 +1971,99 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 	return fc, nil
 }
 
+func (ec *executionContext) _ReloadTemplatesResult_successCount(ctx context.Context, field graphql.CollectedField, obj *ReloadTemplatesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ReloadTemplatesResult_successCount,
+		func(ctx context.Context) (any, error) {
+			return obj.SuccessCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ReloadTemplatesResult_successCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReloadTemplatesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ReloadTemplatesResult_failures(ctx context.Context, field graphql.CollectedField, obj *ReloadTemplatesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ReloadTemplatesResult_failures,
+		func(ctx context.Context) (any, error) {
+			return obj.Failures, nil
+		},
+		nil,
+		ec.marshalNTemplateLoadFailure2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateLoadFailureᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ReloadTemplatesResult_failures(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReloadTemplatesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_TemplateLoadFailure_name(ctx, field)
+			case "error":
+				return ec.fieldContext_TemplateLoadFailure_error(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemplateLoadFailure", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ReloadTemplatesResult_duration(ctx context.Context, field graphql.CollectedField, obj *ReloadTemplatesResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ReloadTemplatesResult_duration,
+		func(ctx context.Context) (any, error) {
+			return obj.Duration, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ReloadTemplatesResult_duration(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ReloadTemplatesResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _StarRocksConnection_edges(ctx context.Context, field graphql.CollectedField, obj *StarRocksConnection) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1561,7 +2074,7 @@ func (ec *executionContext) _StarRocksConnection_edges(ctx context.Context, fiel
 			return obj.Edges, nil
 		},
 		nil,
-		ec.marshalNStarRocksEdge2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdgeᚄ,
+		ec.marshalNStarRocksEdge2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdgeᚄ,
 		true,
 		true,
 	)
@@ -1596,7 +2109,7 @@ func (ec *executionContext) _StarRocksConnection_nodes(ctx context.Context, fiel
 			return obj.Nodes, nil
 		},
 		nil,
-		ec.marshalNStarRocksRow2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRowᚄ,
+		ec.marshalNStarRocksRow2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRowᚄ,
 		true,
 		true,
 	)
@@ -1629,7 +2142,7 @@ func (ec *executionContext) _StarRocksConnection_pageInfo(ctx context.Context, f
 			return obj.PageInfo, nil
 		},
 		nil,
-		ec.marshalNPageInfo2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPageInfo,
+		ec.marshalNPageInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPageInfo,
 		true,
 		true,
 	)
@@ -1697,7 +2210,7 @@ func (ec *executionContext) _StarRocksEdge_node(ctx context.Context, field graph
 			return obj.Node, nil
 		},
 		nil,
-		ec.marshalNStarRocksRow2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRow,
+		ec.marshalNStarRocksRow2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRow,
 		true,
 		true,
 	)
@@ -1759,7 +2272,7 @@ func (ec *executionContext) _StarRocksRow_data(ctx context.Context, field graphq
 			return obj.Data, nil
 		},
 		nil,
-		ec.marshalNJSON2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐJSON,
+		ec.marshalNJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON,
 		true,
 		true,
 	)
@@ -1773,6 +2286,403 @@ func (ec *executionContext) fieldContext_StarRocksRow_data(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateInfo_name(ctx context.Context, field graphql.CollectedField, obj *TemplateInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateInfo_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateInfo_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateInfo_description(ctx context.Context, field graphql.CollectedField, obj *TemplateInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateInfo_description,
+		func(ctx context.Context) (any, error) {
+			return obj.Description, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateInfo_description(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateInfo_countEnabled(ctx context.Context, field graphql.CollectedField, obj *TemplateInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateInfo_countEnabled,
+		func(ctx context.Context) (any, error) {
+			return obj.CountEnabled, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateInfo_countEnabled(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateInfo_parameters(ctx context.Context, field graphql.CollectedField, obj *TemplateInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateInfo_parameters,
+		func(ctx context.Context) (any, error) {
+			return obj.Parameters, nil
+		},
+		nil,
+		ec.marshalNTemplateParameterInfo2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateParameterInfoᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateInfo_parameters(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_TemplateParameterInfo_name(ctx, field)
+			case "type":
+				return ec.fieldContext_TemplateParameterInfo_type(ctx, field)
+			case "required":
+				return ec.fieldContext_TemplateParameterInfo_required(ctx, field)
+			case "defaultValue":
+				return ec.fieldContext_TemplateParameterInfo_defaultValue(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type TemplateParameterInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateLoadFailure_name(ctx context.Context, field graphql.CollectedField, obj *TemplateLoadFailure) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateLoadFailure_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateLoadFailure_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateLoadFailure",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateLoadFailure_error(ctx context.Context, field graphql.CollectedField, obj *TemplateLoadFailure) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateLoadFailure_error,
+		func(ctx context.Context) (any, error) {
+			return obj.Error, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateLoadFailure_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateLoadFailure",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateParameterInfo_name(ctx context.Context, field graphql.CollectedField, obj *TemplateParameterInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateParameterInfo_name,
+		func(ctx context.Context) (any, error) {
+			return obj.Name, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateParameterInfo_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateParameterInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateParameterInfo_type(ctx context.Context, field graphql.CollectedField, obj *TemplateParameterInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateParameterInfo_type,
+		func(ctx context.Context) (any, error) {
+			return obj.Type, nil
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateParameterInfo_type(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateParameterInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateParameterInfo_required(ctx context.Context, field graphql.CollectedField, obj *TemplateParameterInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateParameterInfo_required,
+		func(ctx context.Context) (any, error) {
+			return obj.Required, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateParameterInfo_required(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateParameterInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateParameterInfo_defaultValue(ctx context.Context, field graphql.CollectedField, obj *TemplateParameterInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateParameterInfo_defaultValue,
+		func(ctx context.Context) (any, error) {
+			return obj.DefaultValue, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateParameterInfo_defaultValue(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateParameterInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateQueryConnection_nodes(ctx context.Context, field graphql.CollectedField, obj *TemplateQueryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateQueryConnection_nodes,
+		func(ctx context.Context) (any, error) {
+			return obj.Nodes, nil
+		},
+		nil,
+		ec.marshalNJSON2ᚕgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSONᚄ,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateQueryConnection_nodes(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateQueryConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type JSON does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateQueryConnection_pageInfo(ctx context.Context, field graphql.CollectedField, obj *TemplateQueryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateQueryConnection_pageInfo,
+		func(ctx context.Context) (any, error) {
+			return obj.PageInfo, nil
+		},
+		nil,
+		ec.marshalNPageInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPageInfo,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateQueryConnection_pageInfo(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateQueryConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "hasNextPage":
+				return ec.fieldContext_PageInfo_hasNextPage(ctx, field)
+			case "hasPreviousPage":
+				return ec.fieldContext_PageInfo_hasPreviousPage(ctx, field)
+			case "startCursor":
+				return ec.fieldContext_PageInfo_startCursor(ctx, field)
+			case "endCursor":
+				return ec.fieldContext_PageInfo_endCursor(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type PageInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _TemplateQueryConnection_totalCount(ctx context.Context, field graphql.CollectedField, obj *TemplateQueryConnection) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_TemplateQueryConnection_totalCount,
+		func(ctx context.Context) (any, error) {
+			return obj.TotalCount, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_TemplateQueryConnection_totalCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "TemplateQueryConnection",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3258,7 +4168,7 @@ func (ec *executionContext) unmarshalInputPrometheusLabelFilter(ctx context.Cont
 			it.Value = data
 		case "matchType":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("matchType"))
-			data, err := ec.unmarshalNLabelMatchType2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx, v)
+			data, err := ec.unmarshalNLabelMatchType2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -3295,7 +4205,7 @@ func (ec *executionContext) unmarshalInputStarRocksFilter(ctx context.Context, o
 			it.Field = data
 		case "operator":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("operator"))
-			data, err := ec.unmarshalNFilterOperator2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx, v)
+			data, err := ec.unmarshalNFilterOperator2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -3339,7 +4249,44 @@ func (ec *executionContext) unmarshalInputStarRocksOrderBy(ctx context.Context, 
 			it.Field = data
 		case "direction":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
-			data, err := ec.unmarshalNSortDirection2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx, v)
+			data, err := ec.unmarshalNSortDirection2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Direction = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputTemplateOrderBy(ctx context.Context, obj any) (TemplateOrderBy, error) {
+	var it TemplateOrderBy
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"field", "direction"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "field":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("field"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Field = data
+		case "direction":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("direction"))
+			data, err := ec.unmarshalNSortDirection2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -3379,6 +4326,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "clearCache":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_clearCache(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "reloadTemplates":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_reloadTemplates(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -3797,6 +4751,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "templateQuery":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_templateQuery(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "templateList":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_templateList(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -3805,6 +4803,55 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var reloadTemplatesResultImplementors = []string{"ReloadTemplatesResult"}
+
+func (ec *executionContext) _ReloadTemplatesResult(ctx context.Context, sel ast.SelectionSet, obj *ReloadTemplatesResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, reloadTemplatesResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ReloadTemplatesResult")
+		case "successCount":
+			out.Values[i] = ec._ReloadTemplatesResult_successCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "failures":
+			out.Values[i] = ec._ReloadTemplatesResult_failures(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "duration":
+			out.Values[i] = ec._ReloadTemplatesResult_duration(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3939,6 +4986,204 @@ func (ec *executionContext) _StarRocksRow(ctx context.Context, sel ast.Selection
 			out.Values[i] = graphql.MarshalString("StarRocksRow")
 		case "data":
 			out.Values[i] = ec._StarRocksRow_data(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var templateInfoImplementors = []string{"TemplateInfo"}
+
+func (ec *executionContext) _TemplateInfo(ctx context.Context, sel ast.SelectionSet, obj *TemplateInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, templateInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemplateInfo")
+		case "name":
+			out.Values[i] = ec._TemplateInfo_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "description":
+			out.Values[i] = ec._TemplateInfo_description(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "countEnabled":
+			out.Values[i] = ec._TemplateInfo_countEnabled(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "parameters":
+			out.Values[i] = ec._TemplateInfo_parameters(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var templateLoadFailureImplementors = []string{"TemplateLoadFailure"}
+
+func (ec *executionContext) _TemplateLoadFailure(ctx context.Context, sel ast.SelectionSet, obj *TemplateLoadFailure) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, templateLoadFailureImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemplateLoadFailure")
+		case "name":
+			out.Values[i] = ec._TemplateLoadFailure_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._TemplateLoadFailure_error(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var templateParameterInfoImplementors = []string{"TemplateParameterInfo"}
+
+func (ec *executionContext) _TemplateParameterInfo(ctx context.Context, sel ast.SelectionSet, obj *TemplateParameterInfo) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, templateParameterInfoImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemplateParameterInfo")
+		case "name":
+			out.Values[i] = ec._TemplateParameterInfo_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "type":
+			out.Values[i] = ec._TemplateParameterInfo_type(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "required":
+			out.Values[i] = ec._TemplateParameterInfo_required(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "defaultValue":
+			out.Values[i] = ec._TemplateParameterInfo_defaultValue(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var templateQueryConnectionImplementors = []string{"TemplateQueryConnection"}
+
+func (ec *executionContext) _TemplateQueryConnection(ctx context.Context, sel ast.SelectionSet, obj *TemplateQueryConnection) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, templateQueryConnectionImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("TemplateQueryConnection")
+		case "nodes":
+			out.Values[i] = ec._TemplateQueryConnection_nodes(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "pageInfo":
+			out.Values[i] = ec._TemplateQueryConnection_pageInfo(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "totalCount":
+			out.Values[i] = ec._TemplateQueryConnection_totalCount(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -4316,12 +5561,12 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNDateTime2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, v any) (scalar.DateTime, error) {
+func (ec *executionContext) unmarshalNDateTime2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, v any) (scalar.DateTime, error) {
 	res, err := scalar.UnmarshalDateTime(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNDateTime2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, sel ast.SelectionSet, v scalar.DateTime) graphql.Marshaler {
+func (ec *executionContext) marshalNDateTime2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, sel ast.SelectionSet, v scalar.DateTime) graphql.Marshaler {
 	_ = sel
 	res := scalar.MarshalDateTime(v)
 	if res == graphql.Null {
@@ -4332,13 +5577,13 @@ func (ec *executionContext) marshalNDateTime2githubᚗcomᚋexampleᚋgraphqlᚑ
 	return res
 }
 
-func (ec *executionContext) unmarshalNFilterOperator2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx context.Context, v any) (FilterOperator, error) {
+func (ec *executionContext) unmarshalNFilterOperator2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx context.Context, v any) (FilterOperator, error) {
 	var res FilterOperator
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNFilterOperator2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx context.Context, sel ast.SelectionSet, v FilterOperator) graphql.Marshaler {
+func (ec *executionContext) marshalNFilterOperator2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx context.Context, sel ast.SelectionSet, v FilterOperator) graphql.Marshaler {
 	return v
 }
 
@@ -4374,12 +5619,12 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNJSON2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx context.Context, v any) (scalar.JSON, error) {
+func (ec *executionContext) unmarshalNJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx context.Context, v any) (scalar.JSON, error) {
 	res, err := scalar.UnmarshalJSON(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNJSON2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx context.Context, sel ast.SelectionSet, v scalar.JSON) graphql.Marshaler {
+func (ec *executionContext) marshalNJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx context.Context, sel ast.SelectionSet, v scalar.JSON) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4396,17 +5641,47 @@ func (ec *executionContext) marshalNJSON2githubᚗcomᚋexampleᚋgraphqlᚑapi�
 	return res
 }
 
-func (ec *executionContext) unmarshalNLabelMatchType2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx context.Context, v any) (LabelMatchType, error) {
+func (ec *executionContext) unmarshalNJSON2ᚕgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSONᚄ(ctx context.Context, v any) ([]scalar.JSON, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]scalar.JSON, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNJSON2ᚕgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSONᚄ(ctx context.Context, sel ast.SelectionSet, v []scalar.JSON) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNLabelMatchType2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx context.Context, v any) (LabelMatchType, error) {
 	var res LabelMatchType
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNLabelMatchType2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx context.Context, sel ast.SelectionSet, v LabelMatchType) graphql.Marshaler {
+func (ec *executionContext) marshalNLabelMatchType2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx context.Context, sel ast.SelectionSet, v LabelMatchType) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *PageInfo) graphql.Marshaler {
+func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *PageInfo) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4416,11 +5691,11 @@ func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋexampleᚋgraphql
 	return ec._PageInfo(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPrometheusDataPoint2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusDataPoint) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusDataPoint2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPointᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusDataPoint) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPrometheusDataPoint2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint(ctx, sel, v[i])
+		return ec.marshalNPrometheusDataPoint2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -4432,7 +5707,7 @@ func (ec *executionContext) marshalNPrometheusDataPoint2ᚕᚖgithubᚗcomᚋexa
 	return ret
 }
 
-func (ec *executionContext) marshalNPrometheusDataPoint2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint(ctx context.Context, sel ast.SelectionSet, v *PrometheusDataPoint) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusDataPoint2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint(ctx context.Context, sel ast.SelectionSet, v *PrometheusDataPoint) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4442,11 +5717,11 @@ func (ec *executionContext) marshalNPrometheusDataPoint2ᚖgithubᚗcomᚋexampl
 	return ec._PrometheusDataPoint(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPrometheusInstantResult2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusInstantResult(ctx context.Context, sel ast.SelectionSet, v PrometheusInstantResult) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusInstantResult2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusInstantResult(ctx context.Context, sel ast.SelectionSet, v PrometheusInstantResult) graphql.Marshaler {
 	return ec._PrometheusInstantResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPrometheusInstantResult2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusInstantResult(ctx context.Context, sel ast.SelectionSet, v *PrometheusInstantResult) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusInstantResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusInstantResult(ctx context.Context, sel ast.SelectionSet, v *PrometheusInstantResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4456,16 +5731,16 @@ func (ec *executionContext) marshalNPrometheusInstantResult2ᚖgithubᚗcomᚋex
 	return ec._PrometheusInstantResult(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNPrometheusLabelFilter2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilter(ctx context.Context, v any) (*PrometheusLabelFilter, error) {
+func (ec *executionContext) unmarshalNPrometheusLabelFilter2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilter(ctx context.Context, v any) (*PrometheusLabelFilter, error) {
 	res, err := ec.unmarshalInputPrometheusLabelFilter(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNPrometheusMatrix2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrixᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusMatrix) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusMatrix2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrixᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusMatrix) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPrometheusMatrix2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrix(ctx, sel, v[i])
+		return ec.marshalNPrometheusMatrix2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrix(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -4477,7 +5752,7 @@ func (ec *executionContext) marshalNPrometheusMatrix2ᚕᚖgithubᚗcomᚋexampl
 	return ret
 }
 
-func (ec *executionContext) marshalNPrometheusMatrix2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrix(ctx context.Context, sel ast.SelectionSet, v *PrometheusMatrix) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusMatrix2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMatrix(ctx context.Context, sel ast.SelectionSet, v *PrometheusMatrix) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4487,11 +5762,11 @@ func (ec *executionContext) marshalNPrometheusMatrix2ᚖgithubᚗcomᚋexample�
 	return ec._PrometheusMatrix(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusMetricLabel) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabelᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusMetricLabel) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPrometheusMetricLabel2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabel(ctx, sel, v[i])
+		return ec.marshalNPrometheusMetricLabel2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabel(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -4503,7 +5778,7 @@ func (ec *executionContext) marshalNPrometheusMetricLabel2ᚕᚖgithubᚗcomᚋe
 	return ret
 }
 
-func (ec *executionContext) marshalNPrometheusMetricLabel2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabel(ctx context.Context, sel ast.SelectionSet, v *PrometheusMetricLabel) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusMetricLabel2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusMetricLabel(ctx context.Context, sel ast.SelectionSet, v *PrometheusMetricLabel) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4513,11 +5788,11 @@ func (ec *executionContext) marshalNPrometheusMetricLabel2ᚖgithubᚗcomᚋexam
 	return ec._PrometheusMetricLabel(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPrometheusRangeResult2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusRangeResult(ctx context.Context, sel ast.SelectionSet, v PrometheusRangeResult) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusRangeResult2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusRangeResult(ctx context.Context, sel ast.SelectionSet, v PrometheusRangeResult) graphql.Marshaler {
 	return ec._PrometheusRangeResult(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNPrometheusRangeResult2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusRangeResult(ctx context.Context, sel ast.SelectionSet, v *PrometheusRangeResult) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusRangeResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusRangeResult(ctx context.Context, sel ast.SelectionSet, v *PrometheusRangeResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4527,11 +5802,11 @@ func (ec *executionContext) marshalNPrometheusRangeResult2ᚖgithubᚗcomᚋexam
 	return ec._PrometheusRangeResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNPrometheusVector2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVectorᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusVector) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusVector2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVectorᚄ(ctx context.Context, sel ast.SelectionSet, v []*PrometheusVector) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNPrometheusVector2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVector(ctx, sel, v[i])
+		return ec.marshalNPrometheusVector2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVector(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -4543,7 +5818,7 @@ func (ec *executionContext) marshalNPrometheusVector2ᚕᚖgithubᚗcomᚋexampl
 	return ret
 }
 
-func (ec *executionContext) marshalNPrometheusVector2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVector(ctx context.Context, sel ast.SelectionSet, v *PrometheusVector) graphql.Marshaler {
+func (ec *executionContext) marshalNPrometheusVector2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusVector(ctx context.Context, sel ast.SelectionSet, v *PrometheusVector) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4553,21 +5828,35 @@ func (ec *executionContext) marshalNPrometheusVector2ᚖgithubᚗcomᚋexample�
 	return ec._PrometheusVector(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNSortDirection2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx context.Context, v any) (SortDirection, error) {
+func (ec *executionContext) marshalNReloadTemplatesResult2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐReloadTemplatesResult(ctx context.Context, sel ast.SelectionSet, v ReloadTemplatesResult) graphql.Marshaler {
+	return ec._ReloadTemplatesResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNReloadTemplatesResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐReloadTemplatesResult(ctx context.Context, sel ast.SelectionSet, v *ReloadTemplatesResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ReloadTemplatesResult(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNSortDirection2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx context.Context, v any) (SortDirection, error) {
 	var res SortDirection
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSortDirection2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx context.Context, sel ast.SelectionSet, v SortDirection) graphql.Marshaler {
+func (ec *executionContext) marshalNSortDirection2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐSortDirection(ctx context.Context, sel ast.SelectionSet, v SortDirection) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) marshalNStarRocksConnection2githubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksConnection(ctx context.Context, sel ast.SelectionSet, v StarRocksConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNStarRocksConnection2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksConnection(ctx context.Context, sel ast.SelectionSet, v StarRocksConnection) graphql.Marshaler {
 	return ec._StarRocksConnection(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNStarRocksConnection2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksConnection(ctx context.Context, sel ast.SelectionSet, v *StarRocksConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNStarRocksConnection2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksConnection(ctx context.Context, sel ast.SelectionSet, v *StarRocksConnection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4577,11 +5866,11 @@ func (ec *executionContext) marshalNStarRocksConnection2ᚖgithubᚗcomᚋexampl
 	return ec._StarRocksConnection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNStarRocksEdge2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*StarRocksEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNStarRocksEdge2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*StarRocksEdge) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNStarRocksEdge2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdge(ctx, sel, v[i])
+		return ec.marshalNStarRocksEdge2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdge(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -4593,7 +5882,7 @@ func (ec *executionContext) marshalNStarRocksEdge2ᚕᚖgithubᚗcomᚋexample�
 	return ret
 }
 
-func (ec *executionContext) marshalNStarRocksEdge2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdge(ctx context.Context, sel ast.SelectionSet, v *StarRocksEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNStarRocksEdge2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksEdge(ctx context.Context, sel ast.SelectionSet, v *StarRocksEdge) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4603,21 +5892,21 @@ func (ec *executionContext) marshalNStarRocksEdge2ᚖgithubᚗcomᚋexampleᚋgr
 	return ec._StarRocksEdge(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNStarRocksFilter2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilter(ctx context.Context, v any) (*StarRocksFilter, error) {
+func (ec *executionContext) unmarshalNStarRocksFilter2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilter(ctx context.Context, v any) (*StarRocksFilter, error) {
 	res, err := ec.unmarshalInputStarRocksFilter(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNStarRocksOrderBy2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderBy(ctx context.Context, v any) (*StarRocksOrderBy, error) {
+func (ec *executionContext) unmarshalNStarRocksOrderBy2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderBy(ctx context.Context, v any) (*StarRocksOrderBy, error) {
 	res, err := ec.unmarshalInputStarRocksOrderBy(ctx, v)
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNStarRocksRow2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRowᚄ(ctx context.Context, sel ast.SelectionSet, v []*StarRocksRow) graphql.Marshaler {
+func (ec *executionContext) marshalNStarRocksRow2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRowᚄ(ctx context.Context, sel ast.SelectionSet, v []*StarRocksRow) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
 		fc.Result = &v[i]
-		return ec.marshalNStarRocksRow2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRow(ctx, sel, v[i])
+		return ec.marshalNStarRocksRow2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRow(ctx, sel, v[i])
 	})
 
 	for _, e := range ret {
@@ -4629,7 +5918,7 @@ func (ec *executionContext) marshalNStarRocksRow2ᚕᚖgithubᚗcomᚋexampleᚋ
 	return ret
 }
 
-func (ec *executionContext) marshalNStarRocksRow2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRow(ctx context.Context, sel ast.SelectionSet, v *StarRocksRow) graphql.Marshaler {
+func (ec *executionContext) marshalNStarRocksRow2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksRow(ctx context.Context, sel ast.SelectionSet, v *StarRocksRow) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
@@ -4653,6 +5942,103 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) marshalNTemplateInfo2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateInfoᚄ(ctx context.Context, sel ast.SelectionSet, v []*TemplateInfo) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTemplateInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateInfo(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTemplateInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateInfo(ctx context.Context, sel ast.SelectionSet, v *TemplateInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TemplateInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTemplateLoadFailure2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateLoadFailureᚄ(ctx context.Context, sel ast.SelectionSet, v []*TemplateLoadFailure) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTemplateLoadFailure2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateLoadFailure(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTemplateLoadFailure2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateLoadFailure(ctx context.Context, sel ast.SelectionSet, v *TemplateLoadFailure) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TemplateLoadFailure(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNTemplateOrderBy2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateOrderBy(ctx context.Context, v any) (*TemplateOrderBy, error) {
+	res, err := ec.unmarshalInputTemplateOrderBy(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNTemplateParameterInfo2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateParameterInfoᚄ(ctx context.Context, sel ast.SelectionSet, v []*TemplateParameterInfo) graphql.Marshaler {
+	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
+		fc := graphql.GetFieldContext(ctx)
+		fc.Result = &v[i]
+		return ec.marshalNTemplateParameterInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateParameterInfo(ctx, sel, v[i])
+	})
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNTemplateParameterInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateParameterInfo(ctx context.Context, sel ast.SelectionSet, v *TemplateParameterInfo) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TemplateParameterInfo(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNTemplateQueryConnection2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateQueryConnection(ctx context.Context, sel ast.SelectionSet, v TemplateQueryConnection) graphql.Marshaler {
+	return ec._TemplateQueryConnection(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNTemplateQueryConnection2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateQueryConnection(ctx context.Context, sel ast.SelectionSet, v *TemplateQueryConnection) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._TemplateQueryConnection(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {
@@ -4826,7 +6212,7 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) unmarshalODateTime2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, v any) (*scalar.DateTime, error) {
+func (ec *executionContext) unmarshalODateTime2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, v any) (*scalar.DateTime, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -4834,7 +6220,7 @@ func (ec *executionContext) unmarshalODateTime2ᚖgithubᚗcomᚋexampleᚋgraph
 	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalODateTime2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, sel ast.SelectionSet, v *scalar.DateTime) graphql.Marshaler {
+func (ec *executionContext) marshalODateTime2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, sel ast.SelectionSet, v *scalar.DateTime) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -4879,14 +6265,32 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
-func (ec *executionContext) marshalOPrometheusDataPoint2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint(ctx context.Context, sel ast.SelectionSet, v *PrometheusDataPoint) graphql.Marshaler {
+func (ec *executionContext) unmarshalOJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx context.Context, v any) (scalar.JSON, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := scalar.UnmarshalJSON(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOJSON2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐJSON(ctx context.Context, sel ast.SelectionSet, v scalar.JSON) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := scalar.MarshalJSON(v)
+	return res
+}
+
+func (ec *executionContext) marshalOPrometheusDataPoint2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusDataPoint(ctx context.Context, sel ast.SelectionSet, v *PrometheusDataPoint) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._PrometheusDataPoint(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilterᚄ(ctx context.Context, v any) ([]*PrometheusLabelFilter, error) {
+func (ec *executionContext) unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilterᚄ(ctx context.Context, v any) ([]*PrometheusLabelFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -4896,7 +6300,7 @@ func (ec *executionContext) unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcom�
 	res := make([]*PrometheusLabelFilter, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNPrometheusLabelFilter2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilter(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNPrometheusLabelFilter2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPrometheusLabelFilter(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -4904,7 +6308,7 @@ func (ec *executionContext) unmarshalOPrometheusLabelFilter2ᚕᚖgithubᚗcom�
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalOStarRocksFilter2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilterᚄ(ctx context.Context, v any) ([]*StarRocksFilter, error) {
+func (ec *executionContext) unmarshalOStarRocksFilter2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilterᚄ(ctx context.Context, v any) ([]*StarRocksFilter, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -4914,7 +6318,7 @@ func (ec *executionContext) unmarshalOStarRocksFilter2ᚕᚖgithubᚗcomᚋexamp
 	res := make([]*StarRocksFilter, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNStarRocksFilter2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilter(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNStarRocksFilter2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksFilter(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -4922,7 +6326,7 @@ func (ec *executionContext) unmarshalOStarRocksFilter2ᚕᚖgithubᚗcomᚋexamp
 	return res, nil
 }
 
-func (ec *executionContext) unmarshalOStarRocksOrderBy2ᚕᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderByᚄ(ctx context.Context, v any) ([]*StarRocksOrderBy, error) {
+func (ec *executionContext) unmarshalOStarRocksOrderBy2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderByᚄ(ctx context.Context, v any) ([]*StarRocksOrderBy, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -4932,7 +6336,7 @@ func (ec *executionContext) unmarshalOStarRocksOrderBy2ᚕᚖgithubᚗcomᚋexam
 	res := make([]*StarRocksOrderBy, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNStarRocksOrderBy2ᚖgithubᚗcomᚋexampleᚋgraphqlᚑapiᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderBy(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNStarRocksOrderBy2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐStarRocksOrderBy(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -4992,6 +6396,24 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOTemplateOrderBy2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateOrderByᚄ(ctx context.Context, v any) ([]*TemplateOrderBy, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*TemplateOrderBy, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNTemplateOrderBy2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateOrderBy(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
