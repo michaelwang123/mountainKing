@@ -112,12 +112,13 @@ sequenceDiagram
         TE->>SR: ExecuteRaw(wrappedSQL, args...)
         SR-->>TE: 返回结果
     end
-    TE->>TE: 7. 释放信号量
 
     opt Client 请求 totalCount 且 count_enabled=true
         TE->>SR: ExecuteRaw(countSQL, args...)
         SR-->>TE: 返回 count
     end
+
+    TE->>TE: 7. 释放信号量（defer，覆盖数据查询和 count 查询）
 
     TE-->>QR: TemplateQueryResult
     QR->>QR: 结果截断检查 + 构建 Connection
@@ -145,8 +146,9 @@ sequenceDiagram
         TE->>TE: 获取 reloadMu 互斥锁
     end
 
-    TE->>TE: 重新读取模板文件 + 解析（不重新读取 config.yaml）
+    TE->>TE: 重新读取模板文件 + 解析（不重新读取 config.yaml，参见 D9）
     TE->>TE: 构建完整的新 Registry 快照（所有模板）
+    TE->>TE: 对于加载失败的模板，从旧 Registry 复制旧版本到新快照（错误隔离）
 
     TE->>REG: 一次性原子替换 Registry（写锁）
 
@@ -189,7 +191,7 @@ internal/
   errors/
     types.go                       # 新增模板相关错误码常量
   audit/
-    audit.go                       # LogEntry 新增 TemplateName 字段
+    audit.go                       # LogEntry 新增 ExtraFields 可扩展字段
 templates/                         # 模板文件目录（可配置）
   _shared/                         # 共享模板片段目录
     time_filter.sql.tmpl
@@ -370,6 +372,7 @@ type TemplateEngine struct {
     logger         *zap.Logger
     semaphore      chan struct{}            // 并发控制信号量
     reloadMu       sync.Mutex              // 热加载互斥锁（独立于 Registry 读写锁）
+    lastReloadAt   time.Time               // 上次成功 Reload 的时间（用于冷却时间控制）
     funcMap        template.FuncMap        // 自定义模板函数
 }
 
@@ -424,8 +427,17 @@ type TemplateQueryResult struct {
 
 // Reload 重新加载所有模板文件（Mutation 和 fsnotify 共用）。
 // 注意：Reload 只重新读取模板文件和共享片段，不重新读取 config.yaml。
-// 配置变更（如新增/删除模板条目、修改参数 Schema）需要重启服务。
+// 配置变更（如新增/删除模板条目、修改参数 Schema）需要重启服务（参见设计决策 D9）。
 // 使用 reloadMu 互斥锁防止并发重新加载。
+// 内置冷却时间控制：Mutation 触发的 Reload 有 10s 冷却时间（距上次成功 Reload 不足 10s 则直接返回上次结果），
+// 防止恶意或有 bug 的客户端高频调用导致过度文件 I/O 和缓存失效。
+// fsnotify 触发的 Reload 不受冷却时间限制（已有 500ms 防抖保护），确保文件变更能及时生效。
+//
+// 错误隔离策略：
+// 1. 调用 loadAll() 构建新的模板快照
+// 2. 对于加载失败的模板，从旧 Registry 复制旧版本到新快照（保留旧版本继续服务）
+// 3. 一次性原子替换 Registry
+// 4. 仅对 hash 变化的模板清除缓存
 func (te *TemplateEngine) Reload(ctx context.Context) (*ReloadResult, error)
 
 // ReloadResult 模板重新加载结果摘要
@@ -677,19 +689,22 @@ func safeLike(v interface{}) (string, error)
 
 ```go
 // sanitizeSQL 对渲染后的 SQL 执行安全检查。
-// 使用线性扫描（O(n)）的词法扫描器，追踪字符串字面量边界。
+// 使用线性扫描（O(n)）的词法扫描器，追踪字符串字面量和引号标识符边界。
 //
 // 扫描器状态机：
-// - NORMAL: 正常状态，检测分号、注释起始符
-// - IN_STRING: 在单引号字符串内，处理转义引号 '' 和反斜杠转义 \'
+// - NORMAL: 正常状态，检测分号、注释起始符、引号起始符
+// - IN_SINGLE_QUOTE: 在单引号字符串内，处理转义引号 '' 和反斜杠转义 \'
+// - IN_DOUBLE_QUOTE: 在双引号标识符内（StarRocks 支持 "identifier" 语法）
+// - IN_BACKTICK: 在反引号标识符内（StarRocks 支持 `identifier` 语法，safeIdentifier 生成此格式）
 // - IN_LINE_COMMENT: 在 -- 单行注释内，直到换行符
 // - IN_BLOCK_COMMENT: 在 /* */ 块注释内
 // - IN_HINT: 在 /*+ */ Optimizer Hint 内（保留不移除）
 //
 // 处理流程：
 // 1. 线性扫描 SQL，识别并移除非 Hint 的注释
-// 2. 检测字符串外的分号（多语句注入）
-// 3. 返回清理后的 SQL 或 VALIDATION_UNSAFE_SQL 错误
+// 2. 检测字符串/标识符外的分号（多语句注入）
+// 3. 检测未闭合的字符串/标识符（返回 VALIDATION_UNSAFE_SQL 错误）
+// 4. 返回清理后的 SQL 或 VALIDATION_UNSAFE_SQL 错误
 func sanitizeSQL(sql string) (string, error)
 ```
 
@@ -697,17 +712,30 @@ func sanitizeSQL(sql string) (string, error)
 
 ```
 NORMAL:
-  遇到 '  → IN_STRING
+  遇到 '  → IN_SINGLE_QUOTE
+  遇到 "  → IN_DOUBLE_QUOTE
+  遇到 `  → IN_BACKTICK
   遇到 -- → IN_LINE_COMMENT（记录位置，后续移除）
   遇到 /* → 检查下一字符是否为 +
     是 → IN_HINT（保留）
     否 → IN_BLOCK_COMMENT（记录位置，后续移除）
   遇到 ;  → 返回 VALIDATION_UNSAFE_SQL 错误
 
-IN_STRING:
+IN_SINGLE_QUOTE:
   遇到 '' → 跳过（转义引号）
   遇到 \' → 跳过（反斜杠转义引号）
   遇到 '  → NORMAL
+  遇到 EOF → 返回 VALIDATION_UNSAFE_SQL 错误（未闭合字符串）
+
+IN_DOUBLE_QUOTE:
+  遇到 "" → 跳过（转义双引号）
+  遇到 "  → NORMAL
+  遇到 EOF → 返回 VALIDATION_UNSAFE_SQL 错误（未闭合标识符）
+
+IN_BACKTICK:
+  遇到 `` → 跳过（转义反引号）
+  遇到 `  → NORMAL
+  遇到 EOF → 返回 VALIDATION_UNSAFE_SQL 错误（未闭合标识符）
 
 IN_LINE_COMMENT:
   遇到 \n → NORMAL（移除注释内容）
@@ -719,11 +747,13 @@ IN_HINT:
   遇到 */ → NORMAL（保留 Hint 内容）
 ```
 
+> **双引号/反引号支持：** StarRocks 支持双引号标识符（`"my column"`）和反引号标识符（`` `my column` ``）。`safeIdentifier` 函数生成反引号输出（如 `` `col_name` ``），如果标识符内包含分号等特殊字符，不追踪这些引号边界会导致误报。扫描器必须正确处理这三种引号类型，确保引号内的分号不触发多语句检测。同时检测未闭合的引号，防止攻击者利用未闭合引号绕过后续检查。
+
 ### 11. 分页包装器（Pagination Wrapper）
 
 ```go
 // wrapWithPagination 在渲染后的 SQL 外层包裹分页结构。
-// 生成格式：SELECT [fields|*] FROM (rendered_sql) AS t [ORDER BY ...] LIMIT ? OFFSET ?
+// 生成格式：SELECT [fields|*] FROM (rendered_sql) AS __tq_wrapper__ [ORDER BY ...] LIMIT ? OFFSET ?
 //
 // 参数：
 // - renderedSQL: 渲染后的原始 SQL
@@ -731,6 +761,8 @@ IN_HINT:
 // - orderBy: 排序条件（字段名经 safeIdentifier 校验）
 // - first: LIMIT 值（nil 时使用 graphql.max_result_rows）
 // - offset: OFFSET 值（nil 时为 0）
+//
+// 注意：子查询别名使用 __tq_wrapper__ 而非简单的 t，避免与模板 SQL 内部别名冲突。
 //
 // 返回包装后的 SQL 和参数化的 args（LIMIT/OFFSET 值）。
 func (te *TemplateEngine) wrapWithPagination(
@@ -742,7 +774,8 @@ func (te *TemplateEngine) wrapWithPagination(
 ) (string, []interface{}, error)
 
 // wrapWithCount 生成 COUNT 查询。
-// 格式：SELECT COUNT(*) FROM (rendered_sql) AS t
+// 格式：SELECT COUNT(*) AS total_count FROM (rendered_sql) AS __tq_cnt__
+// 使用显式别名 total_count 确保列名可预测，不依赖 StarRocks 对未命名聚合表达式的默认列名行为。
 func wrapWithCount(renderedSQL string) string
 ```
 
@@ -754,7 +787,14 @@ func wrapWithCount(renderedSQL string) string
 
 ```go
 // generateCacheKey 生成模板查询的缓存 key。
-// 格式：cache:template:{template_name}:{xxhash64(sorted_params + sorted_fields + first + offset + orderBy)}
+// 格式：cache:template:{template_name}:{xxhash64(canonical_string)}
+// canonical_string 的构建规则（确保确定性）：
+//   1. params: 按 key 字母序排序，每对 key=value 用 & 分隔
+//   2. fields: 按字母序排序后用 , 分隔
+//   3. first: 整数字符串（nil 时为 "nil"）
+//   4. offset: 整数字符串（nil 时为 "nil"）
+//   5. orderBy: 保持原始顺序（排序顺序有语义），每项格式为 "field:direction"，用 , 分隔
+//   各部分之间用 | 分隔
 // 不使用 Rendered_SQL 作为 key 输入（避免模板空白差异导致缓存未命中）。
 func generateCacheKey(
     templateName string,
@@ -786,9 +826,9 @@ func generateCountCacheKey(dataCacheKey string) string
 
 > **缓存 key 中包含 fields：** 不同 `fields` 参数的请求生成不同缓存 key，防止字段选择错误命中。例如 `fields: ["a", "b"]` 和 `fields: ["a", "b", "c"]` 的缓存 key 不同。
 
-> **缓存序列化：** `CacheLayer.GetOrLoad` 返回 `[]byte`，模板查询结果 `[]map[string]interface{}` 需要通过 gob 编码/解码与 `[]byte` 互转。`executeWithCache` 方法内部：1) loader 函数执行 `ExecuteRaw` 获取结果后，使用 `encoding/gob` 编码为 `[]byte` 返回给 CacheLayer；2) 缓存命中时，将 `[]byte` 通过 gob 解码还原为 `[]map[string]interface{}`。复用现有 CacheLayer 的 gob 序列化模式。
+> **缓存序列化：** `CacheLayer.GetOrLoad` 的 loader 函数返回 `[]byte`，CacheLayer 内部会对该 `[]byte` 再做一次 gob 编码后存储。为避免双重 gob 编码的性能开销，`executeWithCache` 的 loader 函数直接使用 `encoding/json` 将 `[]map[string]interface{}` 序列化为 `[]byte` 返回给 CacheLayer（JSON 序列化后的 `[]byte` 被 CacheLayer 视为不透明数据，再经 gob 包装存储）。缓存命中时，CacheLayer 返回 gob 解码后的 `[]byte`，模板引擎再用 `encoding/json` 反序列化还原为 `[]map[string]interface{}`。选择 JSON 而非 gob 作为内层序列化格式的原因：1) JSON 对 `map[string]interface{}` 的序列化/反序列化更自然，无需预注册类型；2) 避免 gob 嵌套 gob 的调试困难。
 
-> **缓存 TTL 传递：** 模板级 `cache_ttl` 通过在 `NewCacheLayer` 初始化时预注册实现。TemplateEngine 初始化时遍历所有模板配置，将每个模板的 `cache_ttl` 以虚拟 datasource 名称 `template:{name}` 注册到 `CacheLayerConfig.TTLConfig` 中。示例：`ttlConfig["template:fleet_report"] = 300s`。这样 `CacheLayer.ttlForDatasource("template:fleet_report")` 即可返回正确的 TTL。未配置 `cache_ttl` 的模板使用 `defaultTTL`。此方案在 CacheLayer 初始化时一次性完成，无需运行时动态修改 ttlConfig。
+> **缓存 TTL 传递：** 模板级 `cache_ttl` 在 CacheLayer 创建之前预计算，合并到 `CacheLayerConfig.TTLConfig` 中一次性传入 `NewCacheLayer`。初始化顺序调整为：1) 解析配置文件，提取所有模板的 `cache_ttl`；2) 将模板 TTL 以虚拟 datasource 名称 `template:{name}` 合并到 `CacheLayerConfig.TTLConfig` map 中；3) 调用 `NewCacheLayer(cfg)` 创建 CacheLayer；4) 创建 TemplateEngine 时传入已初始化的 CacheLayer。示例：`ttlConfig["template:fleet_report"] = 300s`。这样 `CacheLayer.ttlForDatasource("template:fleet_report")` 即可返回正确的 TTL。未配置 `cache_ttl` 的模板使用 `defaultTTL`。此方案无需修改现有 CacheLayer 代码，避免了运行时修改 `ttlConfig` map 导致的数据竞争（`ttlConfig` 在 `ttlForDatasource` 中被并发读取，无锁保护）。
 
 ### 13. 可观测性集成
 
@@ -850,7 +890,7 @@ defer span.End()
 
 #### 审计日志
 
-`audit.LogEntry` 新增 `TemplateName` 字段：
+`audit.LogEntry` 新增 `ExtraFields` 可扩展字段：
 
 ```go
 type LogEntry struct {
@@ -859,11 +899,11 @@ type LogEntry struct {
     Operation    string    // "query" 或 "mutation"
     Datasource   string
     Success      bool
-    TemplateName string    // 新增：模板查询时填充模板名称，非模板查询为空
+    ExtraFields  map[string]string // 新增：可扩展的额外字段（模板查询时填充 "template_name"）
 }
 ```
 
-`Log` 方法中条件输出 `TemplateName`：
+`Log` 方法中输出 `ExtraFields`：
 
 ```go
 func (a *AuditLogger) Log(entry LogEntry) {
@@ -875,12 +915,14 @@ func (a *AuditLogger) Log(entry LogEntry) {
         zap.String("datasource", entry.Datasource),
         zap.String("result", result),
     }
-    if entry.TemplateName != "" {
-        fields = append(fields, zap.String("template_name", entry.TemplateName))
+    for k, v := range entry.ExtraFields {
+        fields = append(fields, zap.String(k, v))
     }
     a.logger.Info("audit", fields...)
 }
 ```
+
+> **可扩展性：** 使用 `ExtraFields map[string]string` 而非直接添加 `TemplateName string` 字段。这样未来新增功能（如其他类型的查询引擎）需要审计上下文时，无需再次修改 `LogEntry` 结构体。模板查询时设置 `ExtraFields: map[string]string{"template_name": req.TemplateName}`。
 
 #### 结构化日志
 
@@ -922,10 +964,12 @@ type TemplateWatcher struct {
 // 监听 base_dir 和 shared_dir 两个目录。
 // 注意：fsnotify 不递归监听子目录，NewTemplateWatcher 需要遍历 base_dir 下的
 // 所有子目录并逐个添加到 watcher（使用 filepath.WalkDir）。
+// 同时监听 fsnotify.Create 事件，当新子目录被创建时动态添加到 watcher。
 func NewTemplateWatcher(engine *TemplateEngine, baseDir, sharedDir string, logger *zap.Logger) (*TemplateWatcher, error)
 
 // Start 启动文件监听 goroutine。
 // 使用 500ms 防抖合并快速连续的文件变更事件。
+// 新子目录创建时自动添加到 watcher 监听列表。
 func (tw *TemplateWatcher) Start() error
 
 // Stop 停止文件监听。
@@ -1029,11 +1073,10 @@ func (r *queryResolver) TemplateQuery(
         )
     }
 
-    // 2. 授权检查：检查认证主体对 StarRocks 数据源的 query 权限
-    identity, _ := ctx.Value(ctxkeys.CtxKeyAuthIdentity).(*middleware.AuthIdentity)
-    if err := r.Authorizer.Authorize(identity, r.TemplateEngine.DatasourceName(), "query"); err != nil {
-        return nil, err
-    }
+    // 2. 授权检查：复用现有 middleware 授权模式。
+    // 数据源级别的 query 权限由 auth middleware 统一处理（与 Starrocks/Prometheus resolver 一致），
+    // 此处不做 resolver 层授权检查，保持架构一致性。
+    // 注意：reloadTemplates Mutation 的 mutation 权限同样由 auth middleware 处理。
 
     // 3. 构建 TemplateQueryRequest
     req := &template.TemplateQueryRequest{
@@ -1056,6 +1099,7 @@ func (r *queryResolver) TemplateQuery(
     // 5. 结果截断检查
     maxRows := r.GraphQLConfig.MaxResultRows
     data := result.Data
+    originalLen := len(data) // 截断前保存原始长度，用于 hasNextPage 计算
     var warnings []string
     warnings = append(warnings, result.Warnings...)
     if maxRows > 0 && len(data) > maxRows {
@@ -1067,7 +1111,7 @@ func (r *queryResolver) TemplateQuery(
     }
 
     // 6. 构建 TemplateQueryConnection
-    conn := buildTemplateQueryConnection(data, result.TotalCount, offset, first)
+    conn := buildTemplateQueryConnection(data, originalLen, result.TotalCount, offset, first)
     setExtensionWarnings(ctx, warnings)
     return conn, nil
 }
@@ -1112,13 +1156,56 @@ type Resolver struct {
     GraphQLConfig  config.GraphQLConfig
     CacheClearer   CacheClearer
     TemplateEngine *template.TemplateEngine // 新增：nil 表示功能禁用
-    Authorizer     middleware.Authorizer    // 新增：用于模板查询的数据源级别授权检查
 }
 ```
 
+> **授权模式一致性：** 不在 Resolver 中新增 `Authorizer` 字段。模板查询的数据源级别权限检查（query 权限）和 `reloadTemplates` 的 mutation 权限检查均由现有 auth middleware 统一处理，与 `Starrocks`、`PrometheusInstant`、`PrometheusRange` 等现有 Resolver 保持一致。如果未来需要更细粒度的模板级别权限控制（如限制特定用户只能访问特定模板），可在 TemplateEngine 内部实现，不改变 Resolver 层的授权模式。
+
+> **已知限制 — 数据源级别授权：** 当前架构中，API Key 的 `permissions.datasources` 限制在 Resolver 层未强制执行（现有 Starrocks/Prometheus Resolver 同样如此）。auth middleware 完成认证后将 `AuthIdentity` 放入 context，但 Resolver 不检查 `identity.Datasources` 是否包含目标数据源。此限制影响所有 Resolver，非模板引擎特有问题。建议在未来迭代中添加统一的 GraphQL 层授权 directive 或 middleware，对所有数据源查询强制执行 `permissions.datasources` 检查。
+
 ### 17. 服务初始化集成
 
-在 `cmd/server/main.go` 中新增 TemplateEngine 初始化步骤（位于 Adapter 初始化之后、Resolver 创建之前）：
+在 `cmd/server/main.go` 中新增 TemplateEngine 初始化步骤。注意初始化顺序的关键约束：模板 TTL 必须在 CacheLayer 创建之前合并到 `TTLConfig`，避免运行时修改 `ttlConfig` map 导致数据竞争。
+
+#### 初始化顺序总览
+
+```
+1. LoadConfig()                          — 解析 config.yaml
+2. NewMetricsCollector()                 — 创建指标收集器
+3. 合并模板 TTL 到 CacheLayerConfig     — ★ 新增步骤，必须在 NewCacheLayer 之前
+4. NewCacheLayer()                       — 创建缓存层（TTLConfig 已包含模板 TTL）
+5. DataSourceManager.Init()              — 初始化数据源（含 StarRocks Adapter）
+6. NewTemplateEngine()                   — 创建模板引擎（依赖 Adapter + CacheLayer）
+7. NewTemplateWatcher().Start()          — 启动文件监听
+8. NewResolver()                         — 创建 GraphQL Resolver（注入 TemplateEngine）
+```
+
+#### 步骤 3：合并模板 TTL（在 CacheLayer 创建前）
+
+```go
+// 在构建 CacheLayerConfig 时，合并模板级缓存 TTL
+cacheLayerCfg := cache.CacheLayerConfig{
+    Backend:    cacheBackend,
+    TTLConfig:  buildTTLConfig(cfg.Cache), // 现有数据源 TTL
+    DefaultTTL: cfg.Cache.DefaultTTL,
+    JitterPct:  cfg.Cache.TTLJitterPercent,
+    EmptyTTL:   cfg.Cache.EmptyResultTTL,
+    Logger:     logger,
+}
+
+// ★ 合并模板级 TTL 到 TTLConfig（在 NewCacheLayer 之前）
+if cfg.SQLTemplates.Enabled {
+    for _, tmplCfg := range cfg.SQLTemplates.Templates {
+        if tmplCfg.CacheTTL != nil {
+            cacheLayerCfg.TTLConfig["template:"+tmplCfg.Name] = *tmplCfg.CacheTTL
+        }
+    }
+}
+
+cacheLayer := cache.NewCacheLayer(cacheLayerCfg)
+```
+
+#### 步骤 6-8：创建 TemplateEngine 和 Resolver
 
 ```go
 // 在 StarRocks Adapter 初始化之后
@@ -1136,24 +1223,10 @@ if cfg.SQLTemplates.Enabled {
 
     // 注册模板指标（含 custom_labels）
     templateMetrics := template.NewTemplateMetrics(metricsCollector.Registry(), metricsCollector.CustomLabels())
-    // 注意：MetricsCollector 需新增 Registry() 和 CustomLabels() 公开 getter 方法：
-    //   func (mc *MetricsCollector) Registry() *prometheus.Registry { return mc.registry }
+    // 注意：MetricsCollector.Registry() 已存在，仅需新增 CustomLabels() 公开 getter 方法：
     //   func (mc *MetricsCollector) CustomLabels() prometheus.Labels { return mc.customLabels }
 
-    // 预注册模板级缓存 TTL 到 CacheLayer
-    if cacheLayer != nil {
-        for _, tmplCfg := range cfg.SQLTemplates.Templates {
-            if tmplCfg.CacheTTL != nil {
-                cacheLayer.RegisterTTL("template:"+tmplCfg.Name, *tmplCfg.CacheTTL)
-            }
-        }
-        // 注意：CacheLayer 需新增 RegisterTTL 方法：
-        //   func (cl *CacheLayer) RegisterTTL(datasource string, ttl time.Duration) {
-        //       cl.ttlConfig[datasource] = ttl
-        //   }
-    }
-
-    // 创建 TemplateEngine
+    // 创建 TemplateEngine（CacheLayer 已在步骤 3-4 中包含模板 TTL）
     templateEngine, err = template.NewTemplateEngine(template.TemplateEngineConfig{
         Config:         cfg.SQLTemplates,
         GraphQLCfg:     cfg.GraphQL,
@@ -1192,7 +1265,6 @@ resolverRoot := &resolver.Resolver{
     GraphQLConfig:  cfg.GraphQL,
     CacheClearer:   cacheLayer,
     TemplateEngine: templateEngine, // nil if disabled
-    Authorizer:     &middleware.DefaultAuthorizer{}, // 复用现有授权器
 }
 ```
 
@@ -1216,7 +1288,9 @@ case <-ctx.Done():
 
 > **等待时间计入 query_timeout：** 信号量等待使用请求的 context（已包含 `server.request_timeout` 和 `query_timeout` 约束），超时自动取消。
 
-> **信号量与连接池的关系：** `max_concurrent_queries`（默认 10）应小于 StarRocks 连接池 `pool_size`（默认 20），为单表查询预留连接。建议配比：模板查询信号量 ≤ pool_size × 50%。
+> **信号量覆盖范围：** 信号量通过 `defer` 释放，覆盖数据查询和 totalCount 查询两个阶段。这意味着一个请求 totalCount 的模板查询会持有信号量执行最多 2 次 SQL。`max_concurrent_queries`（默认 10）实际可能产生最多 20 个并发 SQL 连接。建议配比：`max_concurrent_queries` ≤ `pool_size` × 40%（而非 50%），为单表查询和 count 查询预留足够连接。
+
+> **信号量与连接池的关系：** `max_concurrent_queries`（默认 10）应小于 StarRocks 连接池 `pool_size`（默认 20），为单表查询预留连接。考虑到 totalCount 查询的额外连接消耗，建议配比：模板查询信号量 ≤ pool_size × 40%。
 
 ## Execute 方法完整流程伪代码
 
@@ -1271,7 +1345,8 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
     }
 
     // 8. 获取信号量
-    // 注意：defer 释放确保信号量覆盖数据查询和 totalCount 查询两个阶段
+    // 注意：defer 释放确保信号量覆盖数据查询和 totalCount 查询两个阶段。
+    // 一个请求 totalCount 的模板查询会持有信号量执行最多 2 次 SQL（参见并发控制章节说明）。
     select {
     case te.semaphore <- struct{}{}:
         defer func() { <-te.semaphore }()
@@ -1331,7 +1406,7 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
         Operation:    "query",
         Datasource:   dsName,
         Success:      true,
-        TemplateName: req.TemplateName,
+        ExtraFields:  map[string]string{"template_name": req.TemplateName},
     })
 
     return &TemplateQueryResult{
@@ -1354,7 +1429,7 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
 | 需求 6 (SQL 注入防护) | `template/funcmap.go`, `template/sanitizer.go` | `safeString()`, `sanitizeSQL()` |
 | 需求 7 (参数校验) | `template/validator.go` | `validateParams()` |
 | 需求 8 (缓存集成) | `template/cache.go` | `generateCacheKey()`, `executeWithCache()` |
-| 需求 9 (可观测性) | `template/metrics.go`, `audit/audit.go` | `TemplateMetrics`, `LogEntry.TemplateName` |
+| 需求 9 (可观测性) | `template/metrics.go`, `audit/audit.go` | `TemplateMetrics`, `LogEntry.ExtraFields` |
 | 需求 10 (热加载) | `template/watcher.go`, `template/engine.go` | `TemplateWatcher`, `Reload()` |
 
 ## 设计决策记录
@@ -1403,9 +1478,29 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
 
 ### D8: 缓存 TTL 预注册
 
-**决策：** 在 CacheLayer 初始化时预注册所有模板的 TTL，而非运行时动态添加。
+**决策：** 在 CacheLayer 创建之前预计算所有模板的 TTL，合并到 `CacheLayerConfig.TTLConfig` 中一次性传入 `NewCacheLayer`。
 
-**理由：** 现有 CacheLayer.ttlConfig 在初始化时设置，不支持运行时修改。预注册方案零改动现有 CacheLayer 代码，通过虚拟 datasource 名称 `template:{name}` 复用 `ttlForDatasource()` 逻辑。
+**理由：** 现有 CacheLayer.ttlConfig 是普通 `map[string]time.Duration`，在 `ttlForDatasource()` 中被并发读取（通过 singleflight 回调），无锁保护。运行时通过 `RegisterTTL` 方法写入同一个 map 会导致数据竞争。将 TTL 预计算合并到初始化阶段，通过调整初始化顺序（解析配置 → 合并 TTL → NewCacheLayer → NewTemplateEngine）实现零改动现有 CacheLayer 代码。
+
+### D9: 热加载不重新读取 config.yaml
+
+**决策：** `Reload` 方法只重新读取模板文件（`.sql.tmpl`）和共享片段，不重新读取 `config.yaml`。新增/删除模板条目、修改参数 Schema 等配置变更需要重启服务。
+
+**理由：** 1) 配置变更涉及参数 Schema 重新编译（正则预编译、默认值类型化）、缓存 TTL 重新注册等复杂操作，运行时热更新风险较高；2) 模板文件变更是高频操作（SQL 调优），配置变更是低频操作（新增模板），两者的更新频率差异大；3) 现有 HotReloader 仅支持配置文件热加载，不支持结构性变更（如新增数据源）。未来如需支持配置热加载，可通过扩展现有 HotReloader 的回调机制实现。
+
+### D10: Resolver 层不做授权检查
+
+**决策：** 模板查询的授权检查由现有 auth middleware 统一处理，Resolver 层不新增 `Authorizer` 依赖。
+
+**理由：** 现有的 `Starrocks`、`PrometheusInstant`、`PrometheusRange` Resolver 均不做 Resolver 层授权检查，授权由 middleware 统一处理。在模板查询 Resolver 中引入新的授权模式会破坏架构一致性，增加维护成本。
+
+### D11: 缓存内层使用 JSON 而非 gob 序列化
+
+**决策：** `executeWithCache` 的 loader 函数使用 `encoding/json`（而非 `encoding/gob`）将查询结果序列化为 `[]byte` 返回给 CacheLayer。
+
+**理由：** CacheLayer 的 `GetOrLoad` 内部会对 loader 返回的 `[]byte` 再做一次 gob 编码后存储。如果 loader 也使用 gob 编码，会导致双重 gob 序列化（`gobEncode(gobEncode(data))`），对大结果集有明显的 CPU 和内存开销。使用 JSON 作为内层序列化格式：1) 避免 gob 嵌套 gob 的性能问题；2) JSON 对 `map[string]interface{}` 的序列化更自然，无需预注册类型；3) 调试时缓存内容可读性更好。
+
+> **JSON 序列化类型注意事项：** StarRocks `scanRows` 返回的 `map[string]interface{}` 中可能包含 `time.Time` 类型值。`encoding/json` 将 `time.Time` 序列化为 RFC 3339 字符串，反序列化时还原为 `string` 而非 `time.Time`。由于模板查询结果最终以 GraphQL `JSON` 标量返回（本身就是 JSON 格式），此行为不影响功能正确性——客户端收到的始终是 JSON 字符串。但在 property test 中应验证：对于包含 `time.Time` 值的结果集，JSON 序列化往返后值的字符串表示一致（即 `json.Marshal → json.Unmarshal` 后 `time_value.(string)` 与原始 `time.Time.Format(time.RFC3339Nano)` 一致）。同理，`int64` 大数值（>2^53）经 JSON 往返后可能丢失精度（JSON number 为 float64），但 StarRocks 的 BIGINT 范围内（≤2^63-1）在实际业务中极少超过 2^53，此风险可接受。
 
 ## 辅助函数定义
 
@@ -1466,8 +1561,10 @@ func extractPrincipal(ctx context.Context) string {
 }
 
 // buildTemplateQueryConnection 构建 TemplateQueryConnection 响应
+// originalLen: 截断前的原始数据长度，用于正确计算 hasNextPage
 func buildTemplateQueryConnection(
     data []map[string]interface{},
+    originalLen int,
     totalCount *int64,
     offset *int,
     first *int,
@@ -1482,7 +1579,8 @@ func buildTemplateQueryConnection(
         startIdx = *offset
     }
 
-    hasNextPage := first != nil && len(data) >= *first
+    // 使用截断前的原始长度计算 hasNextPage，避免 max_result_rows 截断导致误判
+    hasNextPage := first != nil && originalLen >= *first
     tc := 0
     if totalCount != nil {
         tc = int(*totalCount)
@@ -1523,7 +1621,7 @@ func (te *TemplateEngine) shouldCache(tmpl *RegisteredTemplate, skipCache bool) 
     return te.cacheLayer != nil && tmpl.CacheEnabled && !skipCache
 }
 
-// executeWithCache 通过 CacheLayer 执行查询（含 gob 序列化/反序列化）
+// executeWithCache 通过 CacheLayer 执行查询（含 JSON 序列化/反序列化）
 func (te *TemplateEngine) executeWithCache(
     ctx context.Context,
     cacheKey, dsName string,
@@ -1531,15 +1629,15 @@ func (te *TemplateEngine) executeWithCache(
     wrappedSQL string,
     args []interface{},
 ) ([]map[string]interface{}, error) {
-    // CacheLayer.GetOrLoad 返回 []byte（gob 编码）
-    // loader 函数：ExecuteRaw → gob.Encode(result.Data) → []byte
-    // 缓存命中：gob.Decode([]byte) → []map[string]interface{}
+    // CacheLayer.GetOrLoad 的 loader 返回 []byte，CacheLayer 内部再做 gob 包装存储。
+    // 为避免双重 gob 编码开销，loader 使用 encoding/json 序列化结果。
+    // 缓存命中时：CacheLayer 返回 gob 解码后的 []byte → json.Unmarshal → []map[string]interface{}
     cached, err := te.cacheLayer.GetOrLoad(ctx, cacheKey, "template:"+tmpl.Name, func() ([]byte, error) {
         result, execErr := te.executor.ExecuteRaw(ctx, wrappedSQL, args...)
         if execErr != nil {
             return nil, execErr
         }
-        return gobEncodeRows(result.Data)
+        return json.Marshal(result.Data)
     })
     if err != nil {
         return nil, err
@@ -1547,7 +1645,11 @@ func (te *TemplateEngine) executeWithCache(
     if cached == nil {
         return nil, nil
     }
-    return gobDecodeRows(cached)
+    var rows []map[string]interface{}
+    if err := json.Unmarshal(cached, &rows); err != nil {
+        return nil, fmt.Errorf("cache deserialization failed: %w", err)
+    }
+    return rows, nil
 }
 
 // executeCount 执行 totalCount 查询（含独立缓存）
@@ -1569,16 +1671,21 @@ func (te *TemplateEngine) executeCount(
                 return nil, execErr
             }
             if len(result.Data) > 0 {
-                if cnt, ok := result.Data[0]["count(*)"]; ok {
-                    return gobEncodeInt64(toInt64(cnt))
+                // 使用显式别名 total_count（由 wrapWithCount 生成）
+                if cnt, ok := result.Data[0]["total_count"]; ok {
+                    return json.Marshal(toInt64(cnt))
                 }
             }
-            return gobEncodeInt64(0)
+            return json.Marshal(int64(0))
         })
         if err != nil {
             return 0, err
         }
-        return gobDecodeInt64(cached)
+        var count int64
+        if err := json.Unmarshal(cached, &count); err != nil {
+            return 0, fmt.Errorf("count cache deserialization failed: %w", err)
+        }
+        return count, nil
     }
     // 无缓存直接执行
     result, err := te.executor.ExecuteRaw(ctx, countSQL)
@@ -1586,7 +1693,8 @@ func (te *TemplateEngine) executeCount(
         return 0, err
     }
     if len(result.Data) > 0 {
-        if cnt, ok := result.Data[0]["count(*)"]; ok {
+        // 使用显式别名 total_count（由 wrapWithCount 生成）
+        if cnt, ok := result.Data[0]["total_count"]; ok {
             return toInt64(cnt), nil
         }
     }
@@ -1691,11 +1799,11 @@ TemplateEngine 的关闭顺序在现有优雅关闭流程中的位置：
 |------|---------|------------|
 | funcmap.go | funcmap_test.go | safeString 转义正确性（含反斜杠）、safeInt/safeFloat 类型验证、safeIdentifier 段数限制、safeInList 空数组拒绝 |
 | validator.go | validator_test.go | 必填参数缺失、类型不匹配、枚举约束、max_length/max_items、正则约束、默认值填充 |
-| sanitizer.go | sanitizer_test.go | 多语句检测、注释移除、SQL Hint 保留、字符串内分号不误报 |
+| sanitizer.go | sanitizer_test.go | 多语句检测、注释移除、SQL Hint 保留、单引号字符串内分号不误报、双引号标识符内分号不误报、反引号标识符内分号不误报、未闭合引号检测 |
 | pagination.go | pagination_test.go | 字段选择 SQL 生成、ORDER BY 生成、LIMIT/OFFSET 参数化、默认 LIMIT |
 | registry.go | registry_test.go | 并发读取安全、原子更新、hash 比较 |
 | loader.go | loader_test.go | 名称格式校验、文件大小限制、UTF-8 校验、共享片段加载、名称冲突处理 |
-| cache.go | cache_test.go | 缓存 key 确定性、fields 包含在 key 中、count 独立缓存 key |
+| cache.go | cache_test.go | 缓存 key 确定性、fields 包含在 key 中、count 独立缓存 key、JSON 序列化/反序列化正确性（含 time.Time 往返一致性验证） |
 
 ### Property-Based Testing（对应需求文档 P1-P66）
 
@@ -1705,7 +1813,7 @@ TemplateEngine 的关闭顺序在现有优雅关闭流程中的位置：
 |---------|---------|------|
 | funcmap_property_test.go | P28-P37 | 随机生成字符串/数组，验证转义后不含未转义特殊字符 |
 | validator_property_test.go | P41-P48 | 随机生成参数值，验证校验结果与 Schema 约束一致 |
-| sanitizer_property_test.go | P38-P40 | 随机生成含分号/注释/Hint 的 SQL，验证检测正确性 |
+| sanitizer_property_test.go | P38-P40, P67-P69 | 随机生成含分号/注释/Hint 的 SQL，验证检测正确性；额外覆盖双引号/反引号标识符内分号不误报、未闭合引号检测 |
 | cache_property_test.go | P49-P55 | 随机生成查询参数，验证缓存 key 确定性和区分性 |
 | registry_property_test.go | P1-P7, P61-P66 | 并发读写模拟，验证原子性和一致性 |
 | renderer_property_test.go | P8-P12 | 随机生成参数组合，验证渲染结果非空/长度限制/超时/确定性 |

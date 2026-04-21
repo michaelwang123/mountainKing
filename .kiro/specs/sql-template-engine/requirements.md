@@ -624,6 +624,9 @@ extend type Mutation {
 | P38 | 多语句检测 | ∀ 含字符串外分号的 SQL：安全检查返回 VALIDATION_UNSAFE_SQL |
 | P39 | SQL 注释检测 | ∀ 含字符串外 `--` 或 `/*` 的非 Hint 注释：注释被移除后再执行检查 |
 | P40 | SQL Hint 保留 | ∀ 含 `/*+ ... */` 的 SQL：Optimizer Hint 不被移除 |
+| P67 | 双引号标识符安全 | ∀ 含双引号标识符 `"col;name"` 的 SQL：标识符内的分号不触发 VALIDATION_UNSAFE_SQL |
+| P68 | 反引号标识符安全 | ∀ 含反引号标识符 `` `col;name` `` 的 SQL：标识符内的分号不触发 VALIDATION_UNSAFE_SQL |
+| P69 | 未闭合引号检测 | ∀ 含未闭合单引号/双引号/反引号的 SQL：安全检查返回 VALIDATION_UNSAFE_SQL |
 
 ### 参数校验（需求 7）
 
