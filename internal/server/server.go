@@ -196,8 +196,12 @@ func (s *Server) Start() error {
 	router := s.SetupRoutes()
 
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.serverConfig.Port),
-		Handler: router,
+		Addr:              fmt.Sprintf(":%d", s.serverConfig.Port),
+		Handler:           router,
+		ReadHeaderTimeout: s.serverConfig.ReadHeaderTimeout,
+		ReadTimeout:       s.serverConfig.ReadTimeout,
+		WriteTimeout:      s.serverConfig.WriteTimeout,
+		IdleTimeout:       s.serverConfig.IdleTimeout,
 	}
 
 	s.logger.Info("starting HTTP server",

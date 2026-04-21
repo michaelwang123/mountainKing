@@ -39,14 +39,19 @@ type Config struct {
 }
 
 // ServerConfig holds HTTP server settings including port, mode, body size limits,
-// request timeout, and batch query constraints.
+// request timeout, connection timeouts, concurrency limits, and batch query constraints.
 type ServerConfig struct {
-	Port               int           `mapstructure:"port"`
-	Mode               string        `mapstructure:"mode"`
-	MaxRequestBodySize string        `mapstructure:"max_request_body_size"`
-	RequestTimeout     time.Duration `mapstructure:"request_timeout"`
-	MaxBatchQueries    int           `mapstructure:"max_batch_queries"`
-	AllowGetQueries    bool          `mapstructure:"allow_get_queries"`
+	Port                  int           `mapstructure:"port"`
+	Mode                  string        `mapstructure:"mode"`
+	MaxRequestBodySize    string        `mapstructure:"max_request_body_size"`
+	RequestTimeout        time.Duration `mapstructure:"request_timeout"`
+	ReadHeaderTimeout     time.Duration `mapstructure:"read_header_timeout"`     // Slowloris protection: max time to read request headers
+	ReadTimeout           time.Duration `mapstructure:"read_timeout"`            // Max time to read entire request (headers + body)
+	WriteTimeout          time.Duration `mapstructure:"write_timeout"`           // Max time to write response
+	IdleTimeout           time.Duration `mapstructure:"idle_timeout"`            // Max time for keep-alive connections to stay idle
+	MaxConcurrentRequests int           `mapstructure:"max_concurrent_requests"` // Global in-flight request limit; 0 = unlimited
+	MaxBatchQueries       int           `mapstructure:"max_batch_queries"`
+	AllowGetQueries       bool          `mapstructure:"allow_get_queries"`
 }
 
 // GraphQLConfig holds GraphQL engine settings including introspection control,
@@ -314,6 +319,11 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.mode", "production")
 	v.SetDefault("server.max_request_body_size", "1MB")
 	v.SetDefault("server.request_timeout", 30*time.Second)
+	v.SetDefault("server.read_header_timeout", 10*time.Second)
+	v.SetDefault("server.read_timeout", 30*time.Second)
+	v.SetDefault("server.write_timeout", 60*time.Second)
+	v.SetDefault("server.idle_timeout", 120*time.Second)
+	v.SetDefault("server.max_concurrent_requests", 0) // 0 = unlimited (use rate limiting + HPA instead)
 	v.SetDefault("server.max_batch_queries", 10)
 	v.SetDefault("server.allow_get_queries", false)
 
