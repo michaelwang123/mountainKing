@@ -180,16 +180,6 @@ func (s *Server) PlaygroundHandler() http.HandlerFunc {
 	return playground.Handler("GraphQL Playground", "/graphql")
 }
 
-// placeholderHandler returns a simple handler that responds with 200 OK and
-// a JSON body. These will be replaced by real implementations in later tasks.
-func placeholderHandler(name string) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"ok","endpoint":"%s"}`, name)
-	}
-}
-
 // Start begins listening on the configured port. It starts the HTTP server
 // in a goroutine and returns immediately.
 func (s *Server) Start() error {
