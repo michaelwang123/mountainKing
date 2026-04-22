@@ -41,7 +41,7 @@ func newTestManager(t *testing.T, dsName string, execFn func(ctx context.Context
 	mgr := datasource.NewDataSourceManager(
 		registry,
 		[]config.DataSourceConfig{
-			{Name: dsName, Type: "mock", Enabled: true, Connection: map[string]interface{}{}, Options: map[string]interface{}{}},
+			{Name: dsName, Type: "mock", Enabled: true, Connection: map[string]any{}, Options: map[string]any{}},
 		},
 		retry.Config{MaxRetries: 0, RetryInterval: time.Millisecond},
 		logger,
@@ -55,7 +55,7 @@ func newTestManager(t *testing.T, dsName string, execFn func(ctx context.Context
 func TestLoad_SingleQuery(t *testing.T) {
 	mgr := newTestManager(t, "ds1", func(_ context.Context, q datasource.QueryRequest) (*datasource.QueryResult, error) {
 		return &datasource.QueryResult{
-			Data: []map[string]interface{}{{"id": 1}},
+			Data: []map[string]any{{"id": 1}},
 		}, nil
 	})
 
@@ -76,7 +76,7 @@ func TestLoad_BatchCoalescing(t *testing.T) {
 	mgr := newTestManager(t, "ds1", func(_ context.Context, q datasource.QueryRequest) (*datasource.QueryResult, error) {
 		callCount.Add(1)
 		return &datasource.QueryResult{
-			Data: []map[string]interface{}{{"ok": true}},
+			Data: []map[string]any{{"ok": true}},
 		}, nil
 	})
 
@@ -182,7 +182,7 @@ func TestLoad_PerRequestIsolation(t *testing.T) {
 	mgr := newTestManager(t, "ds1", func(_ context.Context, q datasource.QueryRequest) (*datasource.QueryResult, error) {
 		callCount.Add(1)
 		return &datasource.QueryResult{
-			Data: []map[string]interface{}{{"req": "ok"}},
+			Data: []map[string]any{{"req": "ok"}},
 		}, nil
 	})
 
@@ -227,7 +227,7 @@ func TestLoad_AfterClose(t *testing.T) {
 
 func TestMiddleware_InjectsDataLoader(t *testing.T) {
 	mgr := newTestManager(t, "ds1", func(_ context.Context, q datasource.QueryRequest) (*datasource.QueryResult, error) {
-		return &datasource.QueryResult{Data: []map[string]interface{}{{"v": 42}}}, nil
+		return &datasource.QueryResult{Data: []map[string]any{{"v": 42}}}, nil
 	})
 
 	var captured *DataLoader
@@ -275,7 +275,7 @@ func TestLoad_MultipleDatasources(t *testing.T) {
 			ConnectFunc:  func(ctx context.Context) error { return nil },
 			ExecuteFunc: func(_ context.Context, q datasource.QueryRequest) (*datasource.QueryResult, error) {
 				return &datasource.QueryResult{
-					Data: []map[string]interface{}{{"source": name}},
+					Data: []map[string]any{{"source": name}},
 				}, nil
 			},
 		}, nil
@@ -285,8 +285,8 @@ func TestLoad_MultipleDatasources(t *testing.T) {
 	mgr := datasource.NewDataSourceManager(
 		registry,
 		[]config.DataSourceConfig{
-			{Name: "ds_a", Type: "mock", Enabled: true, Connection: map[string]interface{}{}, Options: map[string]interface{}{}},
-			{Name: "ds_b", Type: "mock", Enabled: true, Connection: map[string]interface{}{}, Options: map[string]interface{}{}},
+			{Name: "ds_a", Type: "mock", Enabled: true, Connection: map[string]any{}, Options: map[string]any{}},
+			{Name: "ds_b", Type: "mock", Enabled: true, Connection: map[string]any{}, Options: map[string]any{}},
 		},
 		retry.Config{MaxRetries: 0, RetryInterval: time.Millisecond},
 		logger,

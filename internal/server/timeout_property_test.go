@@ -51,7 +51,7 @@ func TestProperty26_DatasourceQueryTimeoutCancellation(t *testing.T) {
 			ExecuteFunc: func(ctx context.Context, query datasource.QueryRequest) (*datasource.QueryResult, error) {
 				select {
 				case <-time.After(delay):
-					return &datasource.QueryResult{Data: []map[string]interface{}{{"ok": true}}}, nil
+					return &datasource.QueryResult{Data: []map[string]any{{"ok": true}}}, nil
 				case <-ctx.Done():
 					return nil, ctx.Err()
 				}

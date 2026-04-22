@@ -43,7 +43,7 @@ func TestProperty64_CacheKeyDeterminism(t *testing.T) {
 
 		// Generate random variables
 		numVars := rapid.IntRange(0, 5).Draw(rt, "numVars")
-		vars := make(map[string]interface{})
+		vars := make(map[string]any)
 		for i := 0; i < numVars; i++ {
 			k := rapid.StringMatching(`[a-z]{2,8}`).Draw(rt, fmt.Sprintf("varKey_%d", i))
 			v := rapid.IntRange(0, 1000).Draw(rt, fmt.Sprintf("varVal_%d", i))
@@ -605,16 +605,16 @@ func TestProperty79_TotalCountDataCacheConsistency(t *testing.T) {
 
 		// Simulate a combined result (data + totalCount in one cache entry)
 		type CombinedResult struct {
-			Data       []map[string]interface{}
+			Data       []map[string]any
 			TotalCount int64
 		}
 
 		combined := CombinedResult{
-			Data:       make([]map[string]interface{}, numRows),
+			Data:       make([]map[string]any, numRows),
 			TotalCount: totalCount,
 		}
 		for i := 0; i < numRows; i++ {
-			combined.Data[i] = map[string]interface{}{"id": i}
+			combined.Data[i] = map[string]any{"id": i}
 		}
 
 		// Serialize the combined result

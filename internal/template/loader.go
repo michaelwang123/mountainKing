@@ -379,7 +379,7 @@ func compileParamSchemas(params []config.TemplateParamConfig) ([]ParamSchema, er
 }
 
 // parseDefaultValue converts a string default value to the appropriate Go type.
-func parseDefaultValue(raw string, paramType string) (interface{}, error) {
+func parseDefaultValue(raw string, paramType string) (any, error) {
 	switch paramType {
 	case "string":
 		return raw, nil

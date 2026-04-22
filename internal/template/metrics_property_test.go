@@ -46,7 +46,7 @@ func createTestEngineWithMetrics(
 	t.Helper()
 
 	mock := &MockRawExecutor{
-		data: []map[string]interface{}{
+		data: []map[string]any{
 			{"id": float64(1), "name": "Alice"},
 		},
 	}
@@ -167,7 +167,7 @@ func TestProperty56_QueryDurationMetricRecorded(t *testing.T) {
 		for i := 0; i < numQueries; i++ {
 			_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 				TemplateName: "test_query",
-				Parameters:   map[string]interface{}{"id": float64(1)},
+				Parameters:   map[string]any{"id": float64(1)},
 			})
 			if err != nil {
 				rt.Fatalf("Execute failed: %v", err)
@@ -199,7 +199,7 @@ func TestProperty57_QueriesTotalMetricRecorded(t *testing.T) {
 		for i := 0; i < numQueries; i++ {
 			_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 				TemplateName: "test_query",
-				Parameters:   map[string]interface{}{"id": float64(1)},
+				Parameters:   map[string]any{"id": float64(1)},
 			})
 			if err != nil {
 				rt.Fatalf("Execute failed: %v", err)
@@ -230,7 +230,7 @@ func TestProperty58_RenderDurationMetricRecorded(t *testing.T) {
 		for i := 0; i < numQueries; i++ {
 			_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 				TemplateName: "test_query",
-				Parameters:   map[string]interface{}{"id": float64(1)},
+				Parameters:   map[string]any{"id": float64(1)},
 			})
 			if err != nil {
 				rt.Fatalf("Execute failed: %v", err)
@@ -261,7 +261,7 @@ func TestProperty59_TracingSpanCreated(t *testing.T) {
 
 		_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 			TemplateName: "test_query",
-			Parameters:   map[string]interface{}{"id": float64(1)},
+			Parameters:   map[string]any{"id": float64(1)},
 		})
 		if err != nil {
 			rt.Fatalf("Execute failed: %v", err)
@@ -322,7 +322,7 @@ func TestProperty60_AuditLogRecorded(t *testing.T) {
 
 		_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 			TemplateName: "test_query",
-			Parameters:   map[string]interface{}{"id": float64(1)},
+			Parameters:   map[string]any{"id": float64(1)},
 		})
 		if err != nil {
 			rt.Fatalf("Execute failed: %v", err)
@@ -375,7 +375,7 @@ func TestMetrics_ErrorQueryIncrementsCounter(t *testing.T) {
 	// Execute with a non-existent template.
 	_, _ = te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "nonexistent",
-		Parameters:   map[string]interface{}{},
+		Parameters:   map[string]any{},
 	})
 
 	total := gatherMetricValue(t, reg, "graphql_template_queries_total")
@@ -398,7 +398,7 @@ func TestMetrics_AuditLogRecordsFailure(t *testing.T) {
 	// Execute with a non-existent template (will fail).
 	_, _ = te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "nonexistent",
-		Parameters:   map[string]interface{}{},
+		Parameters:   map[string]any{},
 	})
 
 	_ = al.Sync()
@@ -419,9 +419,9 @@ var _ RawExecutor = (*MockRawExecutor)(nil)
 
 // mockRawExecutorForMetrics is a simple executor for metrics tests.
 type mockRawExecutorForMetrics struct {
-	data []map[string]interface{}
+	data []map[string]any
 }
 
-func (m *mockRawExecutorForMetrics) ExecuteRaw(_ context.Context, _ string, _ ...interface{}) (*datasource.QueryResult, error) {
+func (m *mockRawExecutorForMetrics) ExecuteRaw(_ context.Context, _ string, _ ...any) (*datasource.QueryResult, error) {
 	return &datasource.QueryResult{Data: m.data}, nil
 }

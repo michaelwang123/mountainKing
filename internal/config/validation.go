@@ -215,7 +215,7 @@ func validateStarRocksWhitelist(ds DataSourceConfig, prefix string) []string {
 		return errs
 	}
 
-	tablesMap, ok := allowedTables.(map[string]interface{})
+	tablesMap, ok := allowedTables.(map[string]any)
 	if !ok {
 		errs = append(errs, fmt.Sprintf("%s (type=starrocks): options.allowed_tables must be a map of table definitions", prefix))
 		return errs
@@ -231,7 +231,7 @@ func validateStarRocksWhitelist(ds DataSourceConfig, prefix string) []string {
 	for tableName, tableDef := range tablesMap {
 		tablePrefix := fmt.Sprintf("%s.options.allowed_tables[%s]", prefix, tableName)
 
-		tableMap, ok := tableDef.(map[string]interface{})
+		tableMap, ok := tableDef.(map[string]any)
 		if !ok {
 			errs = append(errs, fmt.Sprintf("%s: table definition must be a map", tablePrefix))
 			continue
@@ -243,7 +243,7 @@ func validateStarRocksWhitelist(ds DataSourceConfig, prefix string) []string {
 			continue
 		}
 
-		columns, ok := columnsRaw.([]interface{})
+		columns, ok := columnsRaw.([]any)
 		if !ok {
 			errs = append(errs, fmt.Sprintf("%s.columns: must be an array", tablePrefix))
 			continue
@@ -351,7 +351,7 @@ func validateSQLTemplates(cfg *SQLTemplatesConfig) []string {
 
 // getIntOption extracts an integer value from an options map.
 // Returns the value and true if found, or 0 and false otherwise.
-func getIntOption(opts map[string]interface{}, key string) (int, bool) {
+func getIntOption(opts map[string]any, key string) (int, bool) {
 	v, ok := opts[key]
 	if !ok {
 		return 0, false

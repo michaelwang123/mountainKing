@@ -92,7 +92,7 @@ func TestNewDistributedRateLimiter_DifferentWindows(t *testing.T) {
 func TestToInt64(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   interface{}
+		input   any
 		want    int64
 		wantErr bool
 	}{

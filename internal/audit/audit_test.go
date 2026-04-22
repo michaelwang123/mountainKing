@@ -74,7 +74,7 @@ func TestNewAuditLogger_File(t *testing.T) {
 	}
 
 	for i, line := range lines {
-		var m map[string]interface{}
+		var m map[string]any
 		if err := json.Unmarshal(line, &m); err != nil {
 			t.Fatalf("line %d: invalid JSON: %v", i, err)
 		}
@@ -86,7 +86,7 @@ func TestNewAuditLogger_File(t *testing.T) {
 	}
 
 	// Verify first entry values.
-	var first map[string]interface{}
+	var first map[string]any
 	_ = json.Unmarshal(lines[0], &first)
 	if first["principal"] != "user-123" {
 		t.Errorf("expected principal user-123, got %v", first["principal"])
@@ -96,7 +96,7 @@ func TestNewAuditLogger_File(t *testing.T) {
 	}
 
 	// Verify second entry values.
-	var second map[string]interface{}
+	var second map[string]any
 	_ = json.Unmarshal(lines[1], &second)
 	if second["result"] != "failure" {
 		t.Errorf("expected result failure, got %v", second["result"])
@@ -162,7 +162,7 @@ func TestAuditLogger_ExtraFields(t *testing.T) {
 	}
 
 	// First entry: ExtraFields present.
-	var first map[string]interface{}
+	var first map[string]any
 	if err := json.Unmarshal(lines[0], &first); err != nil {
 		t.Fatalf("line 0: invalid JSON: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestAuditLogger_ExtraFields(t *testing.T) {
 	}
 
 	// Second entry: no ExtraFields — should not have template_name.
-	var second map[string]interface{}
+	var second map[string]any
 	if err := json.Unmarshal(lines[1], &second); err != nil {
 		t.Fatalf("line 1: invalid JSON: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestAuditLogger_ExtraFields(t *testing.T) {
 	}
 
 	// Third entry: empty ExtraFields — should not have extra keys.
-	var third map[string]interface{}
+	var third map[string]any
 	if err := json.Unmarshal(lines[2], &third); err != nil {
 		t.Fatalf("line 2: invalid JSON: %v", err)
 	}

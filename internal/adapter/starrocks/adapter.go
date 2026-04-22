@@ -123,7 +123,7 @@ func (a *Adapter) IsAvailable() bool {
 
 // Execute runs a query against StarRocks.
 // It extracts "table" from req.Options, builds SQL using the query builder,
-// executes the query, and scans results into []map[string]interface{}.
+// executes the query, and scans results into []map[string]any.
 // If NeedCount is true, it also runs a COUNT query.
 func (a *Adapter) Execute(ctx context.Context, req datasource.QueryRequest) (*datasource.QueryResult, error) {
 	a.mu.RLock()
@@ -195,7 +195,7 @@ func (a *Adapter) Execute(ctx context.Context, req datasource.QueryRequest) (*da
 // It reuses the existing *sql.DB connection pool and scanRows function to
 // execute arbitrary SQL. It does not go through SQLQueryBuilder or whitelist
 // validation — the caller (TemplateEngine) is responsible for security checks.
-func (a *Adapter) ExecuteRaw(ctx context.Context, query string, args ...interface{}) (*datasource.QueryResult, error) {
+func (a *Adapter) ExecuteRaw(ctx context.Context, query string, args ...any) (*datasource.QueryResult, error) {
 	a.mu.RLock()
 	db := a.db
 	a.mu.RUnlock()
@@ -314,7 +314,7 @@ func (a *Adapter) buildDSN() (string, error) {
 }
 
 // extractTable extracts the "table" value from request options.
-func extractTable(options map[string]interface{}) (string, error) {
+func extractTable(options map[string]any) (string, error) {
 	if options == nil {
 		return "", apierrors.ValidationError(
 			apierrors.ErrValidationInvalidTable,
@@ -334,17 +334,17 @@ func extractTable(options map[string]interface{}) (string, error) {
 }
 
 // scanRows reads all rows from a sql.Rows result set into a slice of maps.
-func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
+func scanRows(rows *sql.Rows) ([]map[string]any, error) {
 	columns, err := rows.Columns()
 	if err != nil {
 		return nil, fmt.Errorf("get columns: %w", err)
 	}
 
-	var result []map[string]interface{}
+	var result []map[string]any
 
 	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
+		values := make([]any, len(columns))
+		valuePtrs := make([]any, len(columns))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
@@ -353,7 +353,7 @@ func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 			return nil, fmt.Errorf("scan row: %w", err)
 		}
 
-		row := make(map[string]interface{}, len(columns))
+		row := make(map[string]any, len(columns))
 		for i, col := range columns {
 			val := values[i]
 			// Convert []byte to string for readability.
@@ -374,7 +374,7 @@ func scanRows(rows *sql.Rows) ([]map[string]interface{}, error) {
 }
 
 // getIntOption extracts an integer option from the options map with a default fallback.
-func getIntOption(options map[string]interface{}, key string, defaultVal int) int {
+func getIntOption(options map[string]any, key string, defaultVal int) int {
 	if options == nil {
 		return defaultVal
 	}
@@ -396,7 +396,7 @@ func getIntOption(options map[string]interface{}, key string, defaultVal int) in
 }
 
 // getDurationOption extracts a duration option from the options map with a default fallback.
-func getDurationOption(options map[string]interface{}, key string, defaultVal time.Duration) time.Duration {
+func getDurationOption(options map[string]any, key string, defaultVal time.Duration) time.Duration {
 	if options == nil {
 		return defaultVal
 	}

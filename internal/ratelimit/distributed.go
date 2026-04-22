@@ -133,7 +133,7 @@ func (drl *DistributedRateLimiter) Allow(ctx context.Context, key string, count 
 }
 
 // toInt64 converts a Lua script result value to int64.
-func toInt64(v interface{}) (int64, error) {
+func toInt64(v any) (int64, error) {
 	switch val := v.(type) {
 	case int64:
 		return val, nil

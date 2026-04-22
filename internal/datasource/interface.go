@@ -86,9 +86,9 @@ type DataSourceConfig struct {
 	// Enabled indicates whether this data source should be initialized at startup.
 	Enabled bool
 	// Connection contains adapter-specific connection parameters (host, port, credentials, etc.).
-	Connection map[string]interface{}
+	Connection map[string]any
 	// Options contains adapter-specific custom options (pool size, timeouts, etc.).
-	Options map[string]interface{}
+	Options map[string]any
 }
 
 // AdapterFactory is a function type that creates a new DataSource instance from a name
@@ -102,7 +102,7 @@ type FilterCondition struct {
 	// Operator is the comparison operator (EQ, NEQ, GT, GTE, LT, LTE, LIKE, IN, NOT_IN, IS_NULL, IS_NOT_NULL).
 	Operator FilterOperator
 	// Value is the filter value to compare against. The concrete type depends on the operator.
-	Value interface{}
+	Value any
 }
 
 // OrderByClause specifies a single sort criterion for query results.
@@ -139,13 +139,13 @@ type QueryRequest struct {
 	// NeedCount indicates whether the total record count should be computed and returned.
 	NeedCount bool
 	// Options holds data-source-specific parameters (e.g., Prometheus query, startTime, endTime, step).
-	Options map[string]interface{}
+	Options map[string]any
 }
 
 // QueryResult holds the unified result returned by a data source query.
 type QueryResult struct {
 	// Data contains the result rows, each represented as a field-name to value map.
-	Data []map[string]interface{}
+	Data []map[string]any
 	// TotalCount holds the total number of matching records when QueryRequest.NeedCount is true.
 	// It is nil when the count was not requested.
 	TotalCount *int64

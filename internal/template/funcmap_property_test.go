@@ -295,10 +295,10 @@ func TestProperty36_SafeInListEmptySliceRejection(t *testing.T) {
 		t.Fatal("safeInList([]string{}) should return error for empty slice")
 	}
 
-	// Test with empty []interface{}
-	_, err = safeInList([]interface{}{})
+	// Test with empty []any
+	_, err = safeInList([]any{})
 	if err == nil {
-		t.Fatal("safeInList([]interface{}{}) should return error for empty slice")
+		t.Fatal("safeInList([]any{}) should return error for empty slice")
 	}
 }
 
@@ -575,7 +575,7 @@ func TestSafeIdentifier_EmptySegment(t *testing.T) {
 }
 
 // =============================================================================
-// Unit Tests: safeInList with []interface{} and []string
+// Unit Tests: safeInList with []any and []string
 // =============================================================================
 
 func TestSafeInList_StringSlice(t *testing.T) {
@@ -589,7 +589,7 @@ func TestSafeInList_StringSlice(t *testing.T) {
 }
 
 func TestSafeInList_InterfaceSlice(t *testing.T) {
-	result, err := safeInList([]interface{}{"x", "y"})
+	result, err := safeInList([]any{"x", "y"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -599,9 +599,9 @@ func TestSafeInList_InterfaceSlice(t *testing.T) {
 }
 
 func TestSafeInList_InterfaceSliceNonString(t *testing.T) {
-	_, err := safeInList([]interface{}{1, 2})
+	_, err := safeInList([]any{1, 2})
 	if err == nil {
-		t.Fatal("expected error for non-string elements in []interface{}")
+		t.Fatal("expected error for non-string elements in []any")
 	}
 }
 
@@ -682,7 +682,7 @@ func TestJoin_StringSlice(t *testing.T) {
 }
 
 func TestJoin_InterfaceSlice(t *testing.T) {
-	result, err := join([]interface{}{"x", 1, true})
+	result, err := join([]any{"x", 1, true})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

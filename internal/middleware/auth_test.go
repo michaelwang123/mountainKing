@@ -56,7 +56,7 @@ func makeES256Token(t *testing.T, key *ecdsa.PrivateKey, claims jwt.MapClaims) s
 	return s
 }
 
-func writePEMPublicKey(t *testing.T, dir string, pub interface{}) string {
+func writePEMPublicKey(t *testing.T, dir string, pub any) string {
 	t.Helper()
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {

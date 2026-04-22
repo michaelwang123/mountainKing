@@ -110,7 +110,7 @@ func TestProperty19_PrometheusPromQLQueryBuild(t *testing.T) {
 
 		// === Sub-property A: BuildInstant ===
 		instantReq := datasource.QueryRequest{
-			Options: map[string]interface{}{
+			Options: map[string]any{
 				"query": baseExpr,
 			},
 			Filters: filters,
@@ -168,7 +168,7 @@ func TestProperty19_PrometheusPromQLQueryBuild(t *testing.T) {
 		step := genStepString(t)
 
 		rangeReq := datasource.QueryRequest{
-			Options: map[string]interface{}{
+			Options: map[string]any{
 				"query":     baseExpr,
 				"startTime": startTime,
 				"endTime":   endTime,
@@ -228,7 +228,7 @@ func TestProperty19_PrometheusPromQLQueryBuild(t *testing.T) {
 		}
 		unsupportedOp := unsupportedOps[rapid.IntRange(0, len(unsupportedOps)-1).Draw(t, "unsupportedOpIdx")]
 		unsupportedReq := datasource.QueryRequest{
-			Options: map[string]interface{}{
+			Options: map[string]any{
 				"query": baseExpr,
 			},
 			Filters: []datasource.FilterCondition{

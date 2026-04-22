@@ -20,7 +20,7 @@ type ParamSchema struct {
 	Name      string
 	Type      string // "string", "int", "float", "boolean", "string[]"
 	Required  bool
-	Default   interface{} // typed default value (string/int64/float64/bool/[]string)
+	Default   any // typed default value (string/int64/float64/bool/[]string)
 	Enum      []string
 	MaxLength int            // default 1024
 	MaxItems  int            // default 1000
@@ -37,9 +37,9 @@ type ParamSchema struct {
 //  4. If missing, not required, no default → skip
 //  5. Type validation and conversion
 //  6. Constraint validation (enum, max_length, max_items, pattern)
-func validateParams(params map[string]interface{}, schemas []ParamSchema) (map[string]interface{}, error) {
+func validateParams(params map[string]any, schemas []ParamSchema) (map[string]any, error) {
 	// Create a copy so we don't modify the original.
-	result := make(map[string]interface{}, len(params))
+	result := make(map[string]any, len(params))
 	for k, v := range params {
 		result[k] = v
 	}
@@ -78,7 +78,7 @@ func validateParams(params map[string]interface{}, schemas []ParamSchema) (map[s
 }
 
 // convertParamType validates and converts a parameter value to the expected Go type.
-func convertParamType(name string, val interface{}, schemaType string) (interface{}, error) {
+func convertParamType(name string, val any, schemaType string) (any, error) {
 	switch schemaType {
 	case "string":
 		return convertString(name, val)
@@ -99,7 +99,7 @@ func convertParamType(name string, val interface{}, schemaType string) (interfac
 }
 
 // convertString validates that val is a string.
-func convertString(name string, val interface{}) (string, error) {
+func convertString(name string, val any) (string, error) {
 	s, ok := val.(string)
 	if !ok {
 		return "", apierrors.ValidationError(
@@ -112,7 +112,7 @@ func convertString(name string, val interface{}) (string, error) {
 
 // convertInt validates and converts val to int64.
 // Accepts: int, int64, float64 (no decimal part), string (parseable).
-func convertInt(name string, val interface{}) (int64, error) {
+func convertInt(name string, val any) (int64, error) {
 	switch v := val.(type) {
 	case int:
 		return int64(v), nil
@@ -145,7 +145,7 @@ func convertInt(name string, val interface{}) (int64, error) {
 
 // convertFloat validates and converts val to float64.
 // Accepts: float64, float32, int, int64, string (parseable).
-func convertFloat(name string, val interface{}) (float64, error) {
+func convertFloat(name string, val any) (float64, error) {
 	switch v := val.(type) {
 	case float64:
 		if math.IsNaN(v) || math.IsInf(v, 0) {
@@ -192,7 +192,7 @@ func convertFloat(name string, val interface{}) (float64, error) {
 }
 
 // convertBoolean validates that val is a bool.
-func convertBoolean(name string, val interface{}) (bool, error) {
+func convertBoolean(name string, val any) (bool, error) {
 	b, ok := val.(bool)
 	if !ok {
 		return false, apierrors.ValidationError(
@@ -204,12 +204,12 @@ func convertBoolean(name string, val interface{}) (bool, error) {
 }
 
 // convertStringSlice validates and converts val to []string.
-// Accepts: []string directly, or []interface{} where each element must be a string.
-func convertStringSlice(name string, val interface{}) ([]string, error) {
+// Accepts: []string directly, or []any where each element must be a string.
+func convertStringSlice(name string, val any) ([]string, error) {
 	switch v := val.(type) {
 	case []string:
 		return v, nil
-	case []interface{}:
+	case []any:
 		ss := make([]string, len(v))
 		for i, elem := range v {
 			s, ok := elem.(string)
@@ -231,7 +231,7 @@ func convertStringSlice(name string, val interface{}) ([]string, error) {
 }
 
 // validateConstraints checks enum, max_length, max_items, and pattern constraints.
-func validateConstraints(schema ParamSchema, val interface{}) error {
+func validateConstraints(schema ParamSchema, val any) error {
 	// Enum check (applies to all types that have enum defined).
 	if len(schema.Enum) > 0 {
 		strVal := fmt.Sprintf("%v", val)

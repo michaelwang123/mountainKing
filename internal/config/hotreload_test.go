@@ -82,10 +82,10 @@ func TestProperty73_ConfigHotReload(t *testing.T) {
 		// Track callback invocation
 		var callbackFired atomic.Int32
 		var receivedKey string
-		var receivedValue interface{}
+		var receivedValue any
 		done := make(chan struct{}, 1)
 
-		hr.OnChange(spec.key, func(key string, value interface{}) {
+		hr.OnChange(spec.key, func(key string, value any) {
 			receivedKey = key
 			receivedValue = value
 			callbackFired.Add(1)
@@ -157,7 +157,7 @@ func TestProperty90_ConfigHotReloadDebounce(t *testing.T) {
 
 		// Count callback invocations
 		var callbackCount atomic.Int32
-		hr.OnChange("logging.level", func(key string, value interface{}) {
+		hr.OnChange("logging.level", func(key string, value any) {
 			callbackCount.Add(1)
 		})
 

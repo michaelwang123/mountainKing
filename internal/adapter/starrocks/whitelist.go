@@ -30,7 +30,7 @@ func ParseAllowedTables(cfg datasource.DataSourceConfig) (map[string]map[string]
 			"allowed_tables is missing from data source options")
 	}
 
-	tables, ok := raw.(map[string]interface{})
+	tables, ok := raw.(map[string]any)
 	if !ok {
 		return nil, apierrors.ValidationError(apierrors.ErrValidationInvalidTable,
 			"allowed_tables must be a map of table definitions")
@@ -49,7 +49,7 @@ func ParseAllowedTables(cfg datasource.DataSourceConfig) (map[string]map[string]
 				fmt.Sprintf("invalid table name %q: %v", tableName, err))
 		}
 
-		tableMap, ok := tableDef.(map[string]interface{})
+		tableMap, ok := tableDef.(map[string]any)
 		if !ok {
 			return nil, apierrors.ValidationError(apierrors.ErrValidationInvalidTable,
 				fmt.Sprintf("table %q definition must be a map with a columns key", tableName))
@@ -61,7 +61,7 @@ func ParseAllowedTables(cfg datasource.DataSourceConfig) (map[string]map[string]
 				fmt.Sprintf("table %q is missing the columns key", tableName))
 		}
 
-		colSlice, ok := colsRaw.([]interface{})
+		colSlice, ok := colsRaw.([]any)
 		if !ok {
 			return nil, apierrors.ValidationError(apierrors.ErrValidationInvalidField,
 				fmt.Sprintf("table %q columns must be a list", tableName))

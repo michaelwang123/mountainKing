@@ -88,7 +88,7 @@ func TestSetupRoutes_PostGraphQL(t *testing.T) {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestIntrospection_Enabled(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 
 	if errs, ok := result["errors"]; ok {
@@ -362,7 +362,7 @@ func TestIntrospection_Disabled(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 
 	errs, ok := result["errors"]
@@ -370,7 +370,7 @@ func TestIntrospection_Disabled(t *testing.T) {
 		t.Error("expected errors when introspection is disabled")
 		return
 	}
-	errList, ok := errs.([]interface{})
+	errList, ok := errs.([]any)
 	if !ok || len(errList) == 0 {
 		t.Error("expected non-empty errors array")
 	}
@@ -393,7 +393,7 @@ func TestComplexityLimit(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	json.NewDecoder(resp.Body).Decode(&result)
 
 	if _, ok := result["errors"]; !ok {

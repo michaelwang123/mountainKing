@@ -46,7 +46,7 @@ func buildFuncMap() template.FuncMap {
 // safeString escapes a string for safe use in SQL single-quoted literals.
 // Processing order: 1) remove NULL bytes  2) escape backslash  3) escape single quote.
 // It does NOT add surrounding quotes — use quote() for that.
-func safeString(v interface{}) (string, error) {
+func safeString(v any) (string, error) {
 	s := fmt.Sprint(v)
 	// 1. Remove NULL bytes
 	s = strings.ReplaceAll(s, "\x00", "")
@@ -59,7 +59,7 @@ func safeString(v interface{}) (string, error) {
 
 // quote calls safeString then wraps the result in single quotes.
 // Example: "O'Brien" → "'O”Brien'"
-func quote(v interface{}) (string, error) {
+func quote(v any) (string, error) {
 	escaped, err := safeString(v)
 	if err != nil {
 		return "", err
@@ -70,7 +70,7 @@ func quote(v interface{}) (string, error) {
 // safeInt validates that the input is a valid integer and returns its string
 // representation. Supports int, int64, float64 (no decimal part), and string
 // (parseable as integer).
-func safeInt(v interface{}) (string, error) {
+func safeInt(v any) (string, error) {
 	switch val := v.(type) {
 	case int:
 		return strconv.FormatInt(int64(val), 10), nil
@@ -94,7 +94,7 @@ func safeInt(v interface{}) (string, error) {
 
 // safeFloat validates that the input is a valid finite float and returns its
 // string representation. Rejects NaN and ±Inf.
-func safeFloat(v interface{}) (string, error) {
+func safeFloat(v any) (string, error) {
 	var f float64
 	switch val := v.(type) {
 	case float64:
@@ -124,7 +124,7 @@ func safeFloat(v interface{}) (string, error) {
 // characters [a-zA-Z0-9_.], splits by '.', enforces max 2 segments, validates
 // each segment is 1-64 chars, and wraps each segment in backticks.
 // Examples: "abc" → "`abc`", "a.b" → "`a`.`b`"
-func safeIdentifier(v interface{}) (string, error) {
+func safeIdentifier(v any) (string, error) {
 	s := fmt.Sprint(v)
 	if s == "" {
 		return "", fmt.Errorf("safeIdentifier: empty identifier")
@@ -148,18 +148,18 @@ func safeIdentifier(v interface{}) (string, error) {
 	return strings.Join(parts, "."), nil
 }
 
-// safeInList accepts a string slice ([]string or []interface{} where each
+// safeInList accepts a string slice ([]string or []any where each
 // element is a string) and returns a comma-separated list of single-quoted,
 // escaped values suitable for an SQL IN clause.
 // Empty slices return an error because IN () is invalid SQL in StarRocks.
 // Example: ["a", "b's"] → "'a','b”s'"
-func safeInList(v interface{}) (string, error) {
+func safeInList(v any) (string, error) {
 	var items []string
 
 	switch val := v.(type) {
 	case []string:
 		items = val
-	case []interface{}:
+	case []any:
 		items = make([]string, 0, len(val))
 		for i, elem := range val {
 			s, ok := elem.(string)
@@ -169,7 +169,7 @@ func safeInList(v interface{}) (string, error) {
 			items = append(items, s)
 		}
 	default:
-		return "", fmt.Errorf("safeInList: unsupported type %T, expected []string or []interface{}", v)
+		return "", fmt.Errorf("safeInList: unsupported type %T, expected []string or []any", v)
 	}
 
 	if len(items) == 0 {
@@ -190,7 +190,7 @@ func safeInList(v interface{}) (string, error) {
 // safeLike escapes LIKE wildcards in a string.
 // Processing order: 1) \ → \\  2) % → \%  3) _ → \_
 // Must be used with ESCAPE '\\' in the SQL LIKE clause.
-func safeLike(v interface{}) (string, error) {
+func safeLike(v any) (string, error) {
 	s := fmt.Sprint(v)
 	// 1. Escape backslash first
 	s = strings.ReplaceAll(s, `\`, `\\`)
@@ -206,18 +206,18 @@ func safeLike(v interface{}) (string, error) {
 // ---------------------------------------------------------------------------
 
 // join joins a string slice with comma separator.
-func join(v interface{}) (string, error) {
+func join(v any) (string, error) {
 	switch val := v.(type) {
 	case []string:
 		return strings.Join(val, ","), nil
-	case []interface{}:
+	case []any:
 		parts := make([]string, 0, len(val))
 		for _, elem := range val {
 			parts = append(parts, fmt.Sprint(elem))
 		}
 		return strings.Join(parts, ","), nil
 	default:
-		return "", fmt.Errorf("join: unsupported type %T, expected []string or []interface{}", v)
+		return "", fmt.Errorf("join: unsupported type %T, expected []string or []any", v)
 	}
 }
 
@@ -225,7 +225,7 @@ func join(v interface{}) (string, error) {
 // Note: in template pipelines, val is passed as the second argument:
 //
 //	{{.Params.limit | default 100}}
-func defaultFn(defaultVal, val interface{}) interface{} {
+func defaultFn(defaultVal, val any) any {
 	if val == nil {
 		return defaultVal
 	}
@@ -237,16 +237,16 @@ func defaultFn(defaultVal, val interface{}) interface{} {
 }
 
 // upper converts a string to uppercase.
-func upper(v interface{}) (string, error) {
+func upper(v any) (string, error) {
 	return strings.ToUpper(fmt.Sprint(v)), nil
 }
 
 // lower converts a string to lowercase.
-func lower(v interface{}) (string, error) {
+func lower(v any) (string, error) {
 	return strings.ToLower(fmt.Sprint(v)), nil
 }
 
 // trimSpace removes leading and trailing whitespace from a string.
-func trimSpace(v interface{}) (string, error) {
+func trimSpace(v any) (string, error) {
 	return strings.TrimSpace(fmt.Sprint(v)), nil
 }

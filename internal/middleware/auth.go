@@ -171,7 +171,7 @@ func (j *JWTAuthenticator) Authenticate(r *http.Request) (*AuthIdentity, error) 
 }
 
 // keyFunc returns the appropriate key for JWT signature verification.
-func (j *JWTAuthenticator) keyFunc(_ *jwt.Token) (interface{}, error) {
+func (j *JWTAuthenticator) keyFunc(_ *jwt.Token) (any, error) {
 	switch j.algorithm {
 	case "HS256":
 		return j.secret, nil

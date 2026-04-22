@@ -164,7 +164,7 @@ func TestBuildStarRocksConnection_Empty(t *testing.T) {
 }
 
 func TestBuildStarRocksConnection_WithData(t *testing.T) {
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"id": 1, "name": "a"},
 		{"id": 2, "name": "b"},
 	}
@@ -195,9 +195,9 @@ func TestBuildStarRocksConnection_WithData(t *testing.T) {
 }
 
 func TestBuildStarRocksConnection_HasNextPage(t *testing.T) {
-	data := make([]map[string]interface{}, 10)
+	data := make([]map[string]any, 10)
 	for i := range data {
-		data[i] = map[string]interface{}{"id": i}
+		data[i] = map[string]any{"id": i}
 	}
 	first := intPtr(10)
 
@@ -220,10 +220,10 @@ func TestConvertToInstantResult_Empty(t *testing.T) {
 
 func TestConvertToInstantResult_WithData(t *testing.T) {
 	result := &datasource.QueryResult{
-		Data: []map[string]interface{}{
+		Data: []map[string]any{
 			{
 				"resultType": "vector",
-				"metric":     map[string]interface{}{"job": "api"},
+				"metric":     map[string]any{"job": "api"},
 				"timestamp":  1234567890.0,
 				"value":      42.5,
 			},
@@ -243,13 +243,13 @@ func TestConvertToInstantResult_WithData(t *testing.T) {
 
 func TestConvertToRangeResult_WithData(t *testing.T) {
 	result := &datasource.QueryResult{
-		Data: []map[string]interface{}{
+		Data: []map[string]any{
 			{
 				"resultType": "matrix",
-				"metric":     map[string]interface{}{"instance": "localhost:9090"},
-				"values": []interface{}{
-					map[string]interface{}{"timestamp": 1000.0, "value": 1.0},
-					map[string]interface{}{"timestamp": 1015.0, "value": 2.0},
+				"metric":     map[string]any{"instance": "localhost:9090"},
+				"values": []any{
+					map[string]any{"timestamp": 1000.0, "value": 1.0},
+					map[string]any{"timestamp": 1015.0, "value": 2.0},
 				},
 			},
 		},
@@ -265,7 +265,7 @@ func TestConvertToRangeResult_WithData(t *testing.T) {
 
 func TestToFloat64(t *testing.T) {
 	tests := []struct {
-		in  interface{}
+		in  any
 		out float64
 	}{
 		{42.5, 42.5},

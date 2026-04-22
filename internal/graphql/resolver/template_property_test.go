@@ -106,7 +106,7 @@ func TestBuildTemplateQueryConnection_Empty(t *testing.T) {
 }
 
 func TestBuildTemplateQueryConnection_WithData(t *testing.T) {
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"id": 1}, {"id": 2}, {"id": 3},
 	}
 	tc := int64(100)
@@ -129,7 +129,7 @@ func TestBuildTemplateQueryConnection_WithData(t *testing.T) {
 }
 
 func TestBuildTemplateQueryConnection_OverFetch(t *testing.T) {
-	data := []map[string]interface{}{
+	data := []map[string]any{
 		{"id": 1}, {"id": 2}, {"id": 3},
 	}
 	first := 3
@@ -140,7 +140,7 @@ func TestBuildTemplateQueryConnection_OverFetch(t *testing.T) {
 }
 
 func TestBuildTemplateQueryConnection_NilFirst(t *testing.T) {
-	data := []map[string]interface{}{{"id": 1}}
+	data := []map[string]any{{"id": 1}}
 	conn := buildTemplateQueryConnection(data, 1, nil, nil, nil)
 	if conn.PageInfo.HasNextPage {
 		t.Error("expected hasNextPage=false when first is nil")
@@ -150,9 +150,9 @@ func TestBuildTemplateQueryConnection_NilFirst(t *testing.T) {
 func TestBuildTemplateQueryConnection_VariousSizes(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		dataSize := rapid.IntRange(0, 50).Draw(rt, "dataSize")
-		data := make([]map[string]interface{}, dataSize)
+		data := make([]map[string]any, dataSize)
 		for i := range data {
-			data[i] = map[string]interface{}{"id": i}
+			data[i] = map[string]any{"id": i}
 		}
 
 		// originalLen may be larger than dataSize (over-fetch scenario).
@@ -256,10 +256,10 @@ func TestConvertReloadResult_WithFailures(t *testing.T) {
 
 // mockRawExecutor implements template.RawExecutor for resolver-level tests.
 type mockRawExecutor struct {
-	data []map[string]interface{}
+	data []map[string]any
 }
 
-func (m *mockRawExecutor) ExecuteRaw(_ context.Context, _ string, _ ...interface{}) (*datasource.QueryResult, error) {
+func (m *mockRawExecutor) ExecuteRaw(_ context.Context, _ string, _ ...any) (*datasource.QueryResult, error) {
 	return &datasource.QueryResult{Data: m.data}, nil
 }
 
@@ -316,7 +316,7 @@ func createResolverTestEngine(t *testing.T, templates []templateDef) *template.T
 		},
 		GraphQLCfg:     config.GraphQLConfig{MaxResultRows: 10000},
 		DatasourceName: "test_ds",
-		Executor:       &mockRawExecutor{data: []map[string]interface{}{{"id": 1}}},
+		Executor:       &mockRawExecutor{data: []map[string]any{{"id": 1}}},
 		Logger:         zap.NewNop(),
 	})
 	if err != nil {

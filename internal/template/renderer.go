@@ -17,7 +17,7 @@ import (
 // renderContext is the data object passed to template.Execute.
 // Templates access parameters via {{.Params.xxx}}.
 type renderContext struct {
-	Params map[string]interface{}
+	Params map[string]any
 }
 
 // render executes the template with the given parameters and performs
@@ -29,7 +29,7 @@ type renderContext struct {
 //  3. Trim result and validate non-empty
 //  4. Check length ≤ maxRenderedSQLLen
 //  5. Run sanitizeSQL security checks
-func (te *TemplateEngine) render(ctx context.Context, tmpl *RegisteredTemplate, params map[string]interface{}, renderTimeout time.Duration, maxRenderedSQLLen int) (string, error) {
+func (te *TemplateEngine) render(ctx context.Context, tmpl *RegisteredTemplate, params map[string]any, renderTimeout time.Duration, maxRenderedSQLLen int) (string, error) {
 	renderCtx := renderContext{Params: params}
 
 	// Create a timeout context for the render phase.

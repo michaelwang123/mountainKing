@@ -19,7 +19,7 @@ type CacheKeyGenerator struct{}
 // Generate produces a cache key from the datasource name, query string, and variables.
 // The query is normalized before hashing to improve cache hit rates.
 // Variables are sorted by key to ensure deterministic output.
-func (g *CacheKeyGenerator) Generate(datasource, query string, variables map[string]interface{}) string {
+func (g *CacheKeyGenerator) Generate(datasource, query string, variables map[string]any) string {
 	normalized := NormalizeQuery(query)
 	sortedVars := sortedVariablesJSON(variables)
 
@@ -32,7 +32,7 @@ func (g *CacheKeyGenerator) Generate(datasource, query string, variables map[str
 
 // sortedVariablesJSON serializes variables as JSON with keys in sorted order.
 // Returns an empty string for nil or empty maps.
-func sortedVariablesJSON(vars map[string]interface{}) string {
+func sortedVariablesJSON(vars map[string]any) string {
 	if len(vars) == 0 {
 		return ""
 	}
@@ -43,7 +43,7 @@ func sortedVariablesJSON(vars map[string]interface{}) string {
 	}
 	sort.Strings(keys)
 
-	ordered := make([]interface{}, 0, len(keys)*2)
+	ordered := make([]any, 0, len(keys)*2)
 	for _, k := range keys {
 		ordered = append(ordered, k, vars[k])
 	}

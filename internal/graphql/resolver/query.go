@@ -83,7 +83,7 @@ func buildPrometheusInstantRequest(
 	timeArg *scalar.DateTime,
 	filters []*generated.PrometheusLabelFilter,
 ) datasource.QueryRequest {
-	opts := map[string]interface{}{
+	opts := map[string]any{
 		"query":      query,
 		"query_type": "instant",
 	}
@@ -113,7 +113,7 @@ func buildPrometheusRangeRequest(
 	step string,
 	filters []*generated.PrometheusLabelFilter,
 ) datasource.QueryRequest {
-	opts := map[string]interface{}{
+	opts := map[string]any{
 		"query":      query,
 		"query_type": "range",
 		"startTime":  startTime.Time.Format(time.RFC3339),
@@ -193,7 +193,7 @@ func convertLabelMatchType(mt generated.LabelMatchType) datasource.FilterOperato
 // buildStarRocksConnection converts raw query result data into a
 // StarRocksConnection with Relay-style pagination.
 func buildStarRocksConnection(
-	data []map[string]interface{},
+	data []map[string]any,
 	totalCount *int64,
 	offset *int,
 	first *int,
@@ -291,13 +291,13 @@ func convertToRangeResult(result *datasource.QueryResult) *generated.PrometheusR
 
 // --- Prometheus data extraction helpers ---
 
-func extractMetricLabels(row map[string]interface{}) []*generated.PrometheusMetricLabel {
+func extractMetricLabels(row map[string]any) []*generated.PrometheusMetricLabel {
 	var labels []*generated.PrometheusMetricLabel
 	metricRaw, ok := row["metric"]
 	if !ok {
 		return labels
 	}
-	metricMap, ok := metricRaw.(map[string]interface{})
+	metricMap, ok := metricRaw.(map[string]any)
 	if !ok {
 		return labels
 	}
@@ -309,7 +309,7 @@ func extractMetricLabels(row map[string]interface{}) []*generated.PrometheusMetr
 	return labels
 }
 
-func extractDataPoint(row map[string]interface{}) *generated.PrometheusDataPoint {
+func extractDataPoint(row map[string]any) *generated.PrometheusDataPoint {
 	dp := &generated.PrometheusDataPoint{}
 	if ts, ok := row["timestamp"]; ok {
 		dp.Timestamp = toFloat64(ts)
@@ -321,18 +321,18 @@ func extractDataPoint(row map[string]interface{}) *generated.PrometheusDataPoint
 	return dp
 }
 
-func extractDataPoints(row map[string]interface{}) []*generated.PrometheusDataPoint {
+func extractDataPoints(row map[string]any) []*generated.PrometheusDataPoint {
 	valuesRaw, ok := row["values"]
 	if !ok {
 		return nil
 	}
-	values, ok := valuesRaw.([]interface{})
+	values, ok := valuesRaw.([]any)
 	if !ok {
 		return nil
 	}
 	points := make([]*generated.PrometheusDataPoint, 0, len(values))
 	for _, v := range values {
-		pair, ok := v.(map[string]interface{})
+		pair, ok := v.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -349,7 +349,7 @@ func extractDataPoints(row map[string]interface{}) []*generated.PrometheusDataPo
 	return points
 }
 
-func toFloat64(v interface{}) float64 {
+func toFloat64(v any) float64 {
 	switch val := v.(type) {
 	case float64:
 		return val

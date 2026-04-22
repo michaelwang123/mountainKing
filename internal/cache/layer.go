@@ -113,7 +113,7 @@ func (cl *CacheLayer) GetOrLoad(ctx context.Context, key string, datasource stri
 	}
 
 	// Step 2: Cache miss → singleflight
-	val, sfErr, _ := cl.sfGroup.Do(key, func() (interface{}, error) {
+	val, sfErr, _ := cl.sfGroup.Do(key, func() (any, error) {
 		result, loadErr := loader()
 		if loadErr != nil {
 			return nil, loadErr

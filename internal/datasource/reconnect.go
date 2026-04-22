@@ -96,7 +96,7 @@ func (m *DataSourceManager) startReconnectLoop(dsName string, initialInterval, m
 
 // parseReconnectIntervals extracts reconnect_interval and max_reconnect_interval
 // from a data source's Options map, falling back to defaults if not present.
-func parseReconnectIntervals(options map[string]interface{}) (initial, max time.Duration) {
+func parseReconnectIntervals(options map[string]any) (initial, max time.Duration) {
 	initial = defaultReconnectInterval
 	max = defaultMaxReconnectInterval
 
@@ -121,7 +121,7 @@ func parseReconnectIntervals(options map[string]interface{}) (initial, max time.
 
 // parseDuration attempts to parse a duration from various types that may appear
 // in a config options map (string like "5s", or numeric seconds).
-func parseDuration(v interface{}) (time.Duration, error) {
+func parseDuration(v any) (time.Duration, error) {
 	switch val := v.(type) {
 	case string:
 		return time.ParseDuration(val)

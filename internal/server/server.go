@@ -139,7 +139,7 @@ func (s *Server) NewGraphQLHandler() http.Handler {
 					return graphql.OneShot(&graphql.Response{
 						Errors: gqlerror.List{{
 							Message: fmt.Sprintf("query depth %d exceeds maximum allowed depth %d", depth, maxDepth),
-							Extensions: map[string]interface{}{
+							Extensions: map[string]any{
 								"code":           "VALIDATION_DEPTH_EXCEEDED",
 								"classification": "VALIDATION",
 							},

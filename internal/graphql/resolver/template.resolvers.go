@@ -125,13 +125,13 @@ func (r *mutationResolver) ReloadTemplates(ctx context.Context) (*generated.Relo
 // Template resolver helper functions
 // ---------------------------------------------------------------------------
 
-// convertJSONToMap converts a scalar.JSON value to map[string]interface{}.
+// convertJSONToMap converts a scalar.JSON value to map[string]any.
 // Returns nil if the input is nil (no parameters provided).
-func convertJSONToMap(j scalar.JSON) map[string]interface{} {
+func convertJSONToMap(j scalar.JSON) map[string]any {
 	if j == nil {
 		return nil
 	}
-	result := make(map[string]interface{}, len(j))
+	result := make(map[string]any, len(j))
 	for k, v := range j {
 		result[k] = v
 	}
@@ -176,7 +176,7 @@ func skipCacheRequested(ctx context.Context) bool {
 // result data. It uses the over-fetch strategy: the pagination wrapper
 // requested first+1 rows, so if originalLen > first, hasNextPage is true.
 func buildTemplateQueryConnection(
-	data []map[string]interface{},
+	data []map[string]any,
 	originalLen int,
 	totalCount *int64,
 	offset *int,

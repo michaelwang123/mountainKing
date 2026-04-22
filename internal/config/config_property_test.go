@@ -139,17 +139,17 @@ func TestProperty91_StarRocksWhitelistRequired(t *testing.T) {
 
 		// Pick a strategy for missing/empty whitelist
 		strategy := rapid.IntRange(0, 2).Draw(rt, "strategy")
-		var opts map[string]interface{}
+		var opts map[string]any
 		switch strategy {
 		case 0:
 			// No allowed_tables key at all
-			opts = map[string]interface{}{}
+			opts = map[string]any{}
 		case 1:
 			// allowed_tables is nil
-			opts = map[string]interface{}{"allowed_tables": nil}
+			opts = map[string]any{"allowed_tables": nil}
 		case 2:
 			// allowed_tables is empty map
-			opts = map[string]interface{}{"allowed_tables": map[string]interface{}{}}
+			opts = map[string]any{"allowed_tables": map[string]any{}}
 		}
 
 		cfg.Datasources = []DataSourceConfig{

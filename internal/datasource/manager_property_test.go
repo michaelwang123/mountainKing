@@ -35,7 +35,7 @@ func TestProperty12_ExponentialBackoffReconnectInterval(t *testing.T) {
 		initial := time.Duration(initialSec) * time.Second
 		maxInterval := time.Duration(maxSec) * time.Second
 
-		options := map[string]interface{}{
+		options := map[string]any{
 			"reconnect_interval":     fmt.Sprintf("%ds", initialSec),
 			"max_reconnect_interval": fmt.Sprintf("%ds", maxSec),
 		}
@@ -302,7 +302,7 @@ func TestProperty38_DataSourceEnableDisable(t *testing.T) {
 }
 
 // errorAs is a helper that wraps errors.As for use in tests.
-func errorAs(err error, target interface{}) bool {
+func errorAs(err error, target any) bool {
 	switch v := target.(type) {
 	case **apierrors.APIError:
 		for e := err; e != nil; {

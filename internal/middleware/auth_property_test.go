@@ -47,7 +47,7 @@ func generateES256Token(key *ecdsa.PrivateKey, claims jwt.MapClaims) (string, er
 }
 
 // writePEM writes a PEM-encoded public key to a temp file and returns the path.
-func writePEM(dir string, pub interface{}) (string, error) {
+func writePEM(dir string, pub any) (string, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return "", err

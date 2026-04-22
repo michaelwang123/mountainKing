@@ -13,7 +13,7 @@ import (
 func TestBuildInstant_BasicQuery(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": "up",
 		},
 	}
@@ -36,7 +36,7 @@ func TestBuildInstant_BasicQuery(t *testing.T) {
 func TestBuildInstant_WithTime(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": "up",
 			"time":  "1234567890",
 		},
@@ -54,7 +54,7 @@ func TestBuildInstant_WithTime(t *testing.T) {
 func TestBuildInstant_MissingQuery(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{},
+		Options: map[string]any{},
 	}
 
 	_, _, err := b.BuildInstant(req)
@@ -76,7 +76,7 @@ func TestBuildInstant_NilOptions(t *testing.T) {
 func TestBuildInstant_WithFilters(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": "http_requests_total",
 		},
 		Filters: []datasource.FilterCondition{
@@ -101,7 +101,7 @@ func TestBuildInstant_WithFilters(t *testing.T) {
 func TestBuildInstant_LIKEFilterBecomesRegex(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": "up",
 		},
 		Filters: []datasource.FilterCondition{
@@ -122,7 +122,7 @@ func TestBuildInstant_LIKEFilterBecomesRegex(t *testing.T) {
 func TestBuildInstant_UnsupportedFilterSkipped(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": "up",
 		},
 		Filters: []datasource.FilterCondition{
@@ -142,7 +142,7 @@ func TestBuildInstant_UnsupportedFilterSkipped(t *testing.T) {
 func TestBuildRange_BasicQuery(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query":     "rate(http_requests_total[5m])",
 			"startTime": "2024-01-01T00:00:00Z",
 			"endTime":   "2024-01-01T01:00:00Z",
@@ -171,7 +171,7 @@ func TestBuildRange_BasicQuery(t *testing.T) {
 func TestBuildRange_MissingStartTime(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query":   "up",
 			"endTime": "2024-01-01T01:00:00Z",
 			"step":    "15s",
@@ -187,7 +187,7 @@ func TestBuildRange_MissingStartTime(t *testing.T) {
 func TestBuildRange_MissingEndTime(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query":     "up",
 			"startTime": "2024-01-01T00:00:00Z",
 			"step":      "15s",
@@ -203,7 +203,7 @@ func TestBuildRange_MissingEndTime(t *testing.T) {
 func TestBuildRange_MissingStep(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query":     "up",
 			"startTime": "2024-01-01T00:00:00Z",
 			"endTime":   "2024-01-01T01:00:00Z",
@@ -219,7 +219,7 @@ func TestBuildRange_MissingStep(t *testing.T) {
 func TestBuildRange_WithFilters(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query":     "http_requests_total",
 			"startTime": "2024-01-01T00:00:00Z",
 			"endTime":   "2024-01-01T01:00:00Z",
@@ -273,7 +273,7 @@ func TestFilterOpToLabelMatch(t *testing.T) {
 func TestBuildInstant_EmptyQueryString(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": "",
 		},
 	}
@@ -287,7 +287,7 @@ func TestBuildInstant_EmptyQueryString(t *testing.T) {
 func TestBuildInstant_NonStringQuery(t *testing.T) {
 	b := NewPromQLQueryBuilder()
 	req := datasource.QueryRequest{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"query": 12345,
 		},
 	}

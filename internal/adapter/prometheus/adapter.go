@@ -349,11 +349,11 @@ func (a *Adapter) convertResponse(data *prometheusData) (*datasource.QueryResult
 		return a.convertString(data.Result)
 	default:
 		// Fallback: return raw data as a single row.
-		row := map[string]interface{}{
+		row := map[string]any{
 			"resultType": string(data.ResultType),
 			"raw":        string(data.Result),
 		}
-		return &datasource.QueryResult{Data: []map[string]interface{}{row}}, nil
+		return &datasource.QueryResult{Data: []map[string]any{row}}, nil
 	}
 }
 
@@ -373,12 +373,12 @@ func (a *Adapter) convertVector(raw json.RawMessage) (*datasource.QueryResult, e
 	}
 
 	var warnings []string
-	data := make([]map[string]interface{}, 0, len(results))
+	data := make([]map[string]any, 0, len(results))
 	for _, r := range results {
 		ts, val, w := parseTimestampValue(r.Value)
 		warnings = append(warnings, w...)
 
-		row := map[string]interface{}{
+		row := map[string]any{
 			"metric":    r.Metric,
 			"value":     val,
 			"timestamp": ts,
@@ -409,7 +409,7 @@ func (a *Adapter) convertMatrix(raw json.RawMessage, _ *[]string) (*datasource.Q
 	}
 
 	var warnings []string
-	data := make([]map[string]interface{}, 0, len(results))
+	data := make([]map[string]any, 0, len(results))
 	for _, r := range results {
 		timestamps := make([]float64, 0, len(r.Values))
 		values := make([]*float64, 0, len(r.Values))
@@ -424,7 +424,7 @@ func (a *Adapter) convertMatrix(raw json.RawMessage, _ *[]string) (*datasource.Q
 			values = append(values, val)
 		}
 
-		row := map[string]interface{}{
+		row := map[string]any{
 			"metric":     r.Metric,
 			"values":     values,
 			"timestamps": timestamps,
@@ -444,11 +444,11 @@ func (a *Adapter) convertScalar(raw json.RawMessage) (*datasource.QueryResult, e
 	}
 
 	ts, val, warnings := parseTimestampValue(pair)
-	row := map[string]interface{}{
+	row := map[string]any{
 		"value":     val,
 		"timestamp": ts,
 	}
-	return &datasource.QueryResult{Data: []map[string]interface{}{row}, Warnings: warnings}, nil
+	return &datasource.QueryResult{Data: []map[string]any{row}, Warnings: warnings}, nil
 }
 
 // convertString converts a Prometheus string result.
@@ -471,11 +471,11 @@ func (a *Adapter) convertString(raw json.RawMessage) (*datasource.QueryResult, e
 			fmt.Sprintf("prometheus parse string value: %v", err))
 	}
 
-	row := map[string]interface{}{
+	row := map[string]any{
 		"value":     val,
 		"timestamp": ts,
 	}
-	return &datasource.QueryResult{Data: []map[string]interface{}{row}}, nil
+	return &datasource.QueryResult{Data: []map[string]any{row}}, nil
 }
 
 // parseTimestampValue parses a Prometheus [timestamp, value_string] pair.
@@ -563,7 +563,7 @@ func (a *Adapter) setAvailable(v bool) {
 }
 
 // getIntOpt extracts an integer option from the options map with a default fallback.
-func getIntOpt(options map[string]interface{}, key string, defaultVal int) int {
+func getIntOpt(options map[string]any, key string, defaultVal int) int {
 	if options == nil {
 		return defaultVal
 	}
@@ -585,7 +585,7 @@ func getIntOpt(options map[string]interface{}, key string, defaultVal int) int {
 }
 
 // getDurationOpt extracts a duration option from the options map with a default fallback.
-func getDurationOpt(options map[string]interface{}, key string, defaultVal time.Duration) time.Duration {
+func getDurationOpt(options map[string]any, key string, defaultVal time.Duration) time.Duration {
 	if options == nil {
 		return defaultVal
 	}
