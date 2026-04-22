@@ -1,0 +1,9 @@
+{{define "time_filter"}}
+  {{if eq .Params.period "daily"}}
+    AND {{.Column}} >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+  {{else if eq .Params.period "weekly"}}
+    AND {{.Column}} >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  {{else}}
+    AND {{.Column}} >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+  {{end}}
+{{end}}

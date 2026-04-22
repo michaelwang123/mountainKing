@@ -171,7 +171,7 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 15: countEnabled 一致性** — Validates: Requirements 3.5
     - **Property 16: 功能禁用行为** — Validates: Requirements 3.9
 
-- [ ] 15. 可观测性集成
+- [x] 15. 可观测性集成
   - [x] 15.1 实现 Prometheus 指标注册函数（internal/template/metrics.go 追加）：NewTemplateMetrics 函数（接收 *prometheus.Registry 和 customLabels，创建并注册 6 个指标到 Registry，返回 *TemplateMetrics）。注意：TemplateMetrics 结构体已在 Task 12.1 中定义，此处仅添加注册函数
     - _Requirements: 9.1, 9.2, 9.6_
     - _Design: 组件与接口 §13 (Prometheus 指标注册)_
@@ -181,15 +181,15 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
   - [x] 15.3 集成结构化日志：模板查询执行日志（Info 级别）、渲染后 SQL 日志（Debug 级别，脱敏后）
     - _Requirements: 9.4, 6.7_
     - _Design: 组件与接口 §13 (结构化日志)_
-  - [-] 15.4 编写可观测性属性测试
+  - [x] 15.4 编写可观测性属性测试
     - **Property 56: 查询延迟指标记录** — Validates: Requirements 9.1
     - **Property 57: 查询计数指标记录** — Validates: Requirements 9.2
     - **Property 58: 渲染延迟指标记录** — Validates: Requirements 9.6
     - **Property 59: Tracing Span 创建** — Validates: Requirements 9.3
     - **Property 60: 审计日志记录** — Validates: Requirements 9.5
 
-- [ ] 16. 服务初始化集成
-  - [~] 16.1 修改 main.go 初始化流程，按以下 8 步顺序集成（与设计文档 §17 对齐）：
+- [x] 16. 服务初始化集成
+  - [x] 16.1 修改 main.go 初始化流程，按以下 8 步顺序集成（与设计文档 §17 对齐）：
     1. LoadConfig() — 解析 config.yaml
     2. NewMetricsCollector() — 创建指标收集器
     3. 合并模板 TTL 到 CacheLayerConfig — 遍历 cfg.SQLTemplates.Templates，将 cache_ttl 以 "template:{name}" 键合并到 TTLConfig map（★ 必须在 NewCacheLayer 之前）
@@ -200,19 +200,19 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     8. NewResolver() — 创建 GraphQL Resolver（注入 TemplateEngine，nil 表示禁用）
     - _Requirements: 1.1, 3.9_
     - _Design: 组件与接口 §17 (服务初始化集成), D8 (缓存 TTL 预注册)_
-  - [~] 16.2 集成优雅关闭：在现有关闭流程中插入 TemplateWatcher.Stop() 和 TemplateEngine.Close()（在 TracingProvider.Shutdown 之前、DataSourceManager.CloseAll 之前）
+  - [x] 16.2 集成优雅关闭：在现有关闭流程中插入 TemplateWatcher.Stop() 和 TemplateEngine.Close()（在 TracingProvider.Shutdown 之前、DataSourceManager.CloseAll 之前）
     - _Design: 优雅关闭集成_
-  - [~] 16.3 新增 MetricsCollector.CustomLabels() 公开 getter 方法
+  - [x] 16.3 新增 MetricsCollector.CustomLabels() 公开 getter 方法
     - _Design: §17 步骤 6-8 注释_
 
-- [ ] 17. Checkpoint - 确保 GraphQL 端到端集成完成
+- [x] 17. Checkpoint - 确保 GraphQL 端到端集成完成
   - 验证：golangci-lint 通过 + gqlgen 代码生成成功 + templateQuery/templateList/reloadTemplates GraphQL 端到端测试通过 + 指标/Tracing/审计日志正常记录
 
-- [ ] 18. 模板热加载
-  - [~] 18.1 实现文件监听器（internal/template/watcher.go）：TemplateWatcher 结构体，NewTemplateWatcher（filepath.WalkDir 递归添加子目录）、Start（500ms 防抖 + fsnotify.Create 动态添加新子目录）、Stop
+- [x] 18. 模板热加载
+  - [x] 18.1 实现文件监听器（internal/template/watcher.go）：TemplateWatcher 结构体，NewTemplateWatcher（filepath.WalkDir 递归添加子目录）、Start（500ms 防抖 + fsnotify.Create 动态添加新子目录）、Stop
     - _Requirements: 10.6_
     - _Design: 组件与接口 §14 (热加载)_
-  - [~] 18.2 编写热加载单元测试和属性测试
+  - [x] 18.2 编写热加载单元测试和属性测试
     - **Property 61: 热加载原子性** — Validates: Requirements 10.3
     - **Property 62: 错误隔离** — Validates: Requirements 10.4
     - **Property 63: 缓存清除（仅变更）** — Validates: Requirements 10.7
@@ -220,8 +220,8 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - **Property 65: 权限检查** — Validates: Requirements 10.8
     - **Property 66: 模板 hash 追踪** — Validates: Requirements 10.7
 
-- [ ] 19. 集成测试
-  - [~] 19.1 编写端到端集成测试（GraphQL 请求 → Resolver → TemplateEngine → MockRawExecutor → 响应验证），具体测试用例：
+- [x] 19. 集成测试
+  - [x] 19.1 编写端到端集成测试（GraphQL 请求 → Resolver → TemplateEngine → MockRawExecutor → 响应验证），具体测试用例：
     - TestIntegration_TemplateQuery_NormalFlow — 正常查询返回 nodes + pageInfo + totalCount
     - TestIntegration_TemplateQuery_ParamValidationFailure — 必填参数缺失/类型不匹配返回对应错误码
     - TestIntegration_TemplateQuery_CacheHitMiss — 相同参数第二次请求命中缓存，extensions.cache=false 绕过缓存
@@ -230,23 +230,23 @@ mountainKing GraphQL API 服务新增 SQL 模板查询引擎的增量实现计�
     - TestIntegration_TemplateQuery_FeatureDisabled — sql_templates.enabled=false 时返回 VALIDATION_TEMPLATE_NOT_FOUND
     - TestIntegration_TemplateList_Complete — templateList 返回所有已注册模板元信息
     - _Requirements: 3.1, 3.9, 4.5, 5.2, 8.1_
-  - [~] 19.2 编写热加载集成测试，具体测试用例：
+  - [x] 19.2 编写热加载集成测试，具体测试用例：
     - TestIntegration_HotReload_FileChange — 修改模板文件 → Reload → 验证新版本生效
     - TestIntegration_HotReload_CacheClear — hash 变化的模板缓存被清除，未变化的保留
     - TestIntegration_HotReload_ErrorIsolation — 失败模板保留旧版本，其他模板正常更新
     - TestIntegration_HotReload_MutationCooldown — 10s 内重复 Mutation 返回上次结果
     - _Requirements: 10.1, 10.4, 10.7_
-  - [~] 19.3 编写权限集成测试：无 query 权限返回 AUTH_INSUFFICIENT_PERMISSION、无 mutation 权限 reloadTemplates 被拒绝
+  - [x] 19.3 编写权限集成测试：无 query 权限返回 AUTH_INSUFFICIENT_PERMISSION、无 mutation 权限 reloadTemplates 被拒绝
     - _Requirements: 5.7, 10.8_
     - **Property 26: 权限检查** — Validates: Requirements 5.7
 
-- [ ] 20. 文档与示例模板
-  - [~] 20.1 创建示例模板文件：templates/_shared/time_filter.sql.tmpl、templates/fleet/fleet_report.sql.tmpl、templates/driver/driver_score.sql.tmpl
+- [x] 20. 文档与示例模板
+  - [x] 20.1 创建示例模板文件：templates/_shared/time_filter.sql.tmpl、templates/fleet/fleet_report.sql.tmpl、templates/driver/driver_score.sql.tmpl
     - _Design: 需求文档附录 C (SQL 模板文件示例)_
-  - [~] 20.2 验证 config.yaml 中 sql_templates 配置段完整性（Task 1.2 中已添加基础配置，此处补充完整的生产示例注释和说明）
+  - [x] 20.2 验证 config.yaml 中 sql_templates 配置段完整性（Task 1.2 中已添加基础配置，此处补充完整的生产示例注释和说明）
     - _Design: 需求文档附录 A (配置示例)_
 
-- [ ] 21. 最终验收
+- [x] 21. 最终验收
   - 验证：golangci-lint 通过 + 所有单元测试通过 + 所有属性测试通过（P1-P69）+ 集成测试通过 + 示例模板可正常执行 + 性能 SLA 验证（渲染 p99 ≤ 50ms、缓存命中 p99 ≤ 10ms）
 
 ## 属性测试文件映射汇总
