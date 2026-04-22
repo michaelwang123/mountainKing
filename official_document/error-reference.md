@@ -46,6 +46,11 @@ HTTP 状态码：400
 | `VALIDATION_INVALID_IDENTIFIER` | 标识符格式非法 | 标识符包含非 `[a-zA-Z0-9_]` 字符 |
 | `VALIDATION_PROMQL_INJECTION` | PromQL 注入检测 | 标签值包含 PromQL 特殊字符 |
 | `VALIDATION_INVALID_FILTER` | 过滤条件无效 | 过滤条件格式或值不合法 |
+| `VALIDATION_TEMPLATE_NOT_FOUND` | 模板不存在 | 请求的模板名称未在 Template Registry 中注册 |
+| `VALIDATION_UNSAFE_SQL` | 渲染 SQL 不安全 | 渲染结果包含多条 SQL 语句（分号检测）或超过最大长度限制 |
+| `VALIDATION_MISSING_PARAMETER` | 必填参数缺失 | 模板必填参数未在请求中提供 |
+| `VALIDATION_INVALID_PARAMETER_TYPE` | 参数类型不匹配 | 参数值的数据类型与 Schema 定义不匹配 |
+| `VALIDATION_INVALID_PARAMETER_VALUE` | 参数值约束违反 | 参数值不在枚举范围内、超过长度限制、超过数组元素数量限制或不匹配正则约束 |
 
 ## DATASOURCE — 数据源错误
 
@@ -58,6 +63,7 @@ HTTP 状态码：200（GraphQL 层面的部分错误）
 | `DATASOURCE_CONNECTION_EXHAUSTED` | 连接池耗尽 | 连接获取等待超过 `pool_acquire_timeout` |
 | `DATASOURCE_QUERY_ERROR` | 数据源查询错误 | SQL 语法错误、PromQL 语法错误等业务错误 |
 | `DATASOURCE_MAX_DATAPOINTS` | 数据点超限 | Prometheus 返回数据量超过 `max_data_points` |
+| `DATASOURCE_TEMPLATE_QUERY_ERROR` | 模板查询执行错误 | StarRocks 执行模板 SQL 失败 |
 
 ## RATELIMIT — 限流错误
 
@@ -80,6 +86,7 @@ HTTP 状态码：500
 |--------|------|---------|
 | `INTERNAL_UNEXPECTED` | 未预期的内部错误 | 未捕获的异常或编程错误 |
 | `INTERNAL_CACHE_ERROR` | 缓存操作错误 | 缓存后端读写失败（不影响查询，降级为直接查询数据源） |
+| `INTERNAL_TEMPLATE_RENDER_ERROR` | 模板渲染失败 | 模板渲染过程中发生错误（语法错误、未定义参数、渲染超时） |
 
 ## HTTP 状态码映射
 

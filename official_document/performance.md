@@ -9,6 +9,20 @@
 
 以上延迟不含数据源自身查询耗时。
 
+### SQL 模板查询性能目标
+
+| 场景 | 目标值 |
+|------|--------|
+| 模板渲染延迟 (p99) | ≤ 50ms |
+| 模板查询端到端延迟 (p95) | ≤ 500ms |
+| 模板查询端到端延迟 (p99) | ≤ 2s |
+| 缓存命中时延迟 (p99) | ≤ 10ms |
+| 缓存命中率（稳态） | ≥ 60% |
+| 模板热加载耗时 | ≤ 1s |
+| 参数校验延迟 | ≤ 1ms |
+
+以上目标基于 StarRocks 查询本身在合理范围内（≤ 30s query_timeout）的前提。
+
 并发能力：支持至少 1000 个并发 GraphQL 查询连接。
 
 ## 缓存策略
@@ -61,6 +75,27 @@ cache:
     monitoring:
       ttl: 30s        # 监控数据实时性要求高，TTL 较短
 ```
+
+### SQL 模板缓存
+
+模板查询结果复用现有 Cache Layer，支持模板级独立 TTL：
+
+```yaml
+sql_templates:
+  templates:
+    - name: fleet_report
+      cache_ttl: 300s        # 模板级 TTL 覆盖
+    - name: driver_score
+      cache_enabled: false   # 实时性要求高，禁用缓存
+```
+
+缓存 Key 格式：`cache:template:{name}:{xxhash64(params+fields+pagination)}`
+
+特性：
+- 不同 `fields` 参数生成不同缓存 Key（防止字段选择错误命中）
+- `totalCount` 使用独立缓存 Key（`:count` 后缀），不含分页参数
+- 客户端可通过 `extensions.cache: false` 绕过缓存
+- 模板热加载时仅清除 hash 变化的模板缓存
 
 ## DataLoader
 

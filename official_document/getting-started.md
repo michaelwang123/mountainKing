@@ -70,6 +70,22 @@ curl -X POST http://localhost:8080/graphql \
     "query": "{ starrocks(table: \"orders\", fields: [\"order_id\", \"amount\"], first: 10) { nodes { data } pageInfo { hasNextPage endCursor } totalCount } }"
   }'
 
+# SQL 模板查询示例（需启用 sql_templates）
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -d '{
+    "query": "{ templateQuery(templateName: \"fleet_report\", parameters: {eerid: \"EER001\", period: \"monthly\"}, first: 20) { nodes pageInfo { hasNextPage } totalCount } }"
+  }'
+
+# 查询可用模板列表
+curl -X POST http://localhost:8080/graphql \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -d '{
+    "query": "{ templateList { name description countEnabled parameters { name type required } } }"
+  }'
+
 # Prometheus 即时查询示例
 curl -X POST http://localhost:8080/graphql \
   -H "Content-Type: application/json" \

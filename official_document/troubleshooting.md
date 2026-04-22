@@ -183,6 +183,54 @@ Redis 不可用时自动降级为本地限流。服务会后台探测 Redis 恢�
 
 ## Docker / Kubernetes 问题
 
+### SQL 模板引擎问题
+
+### 模板查询返回 VALIDATION_TEMPLATE_NOT_FOUND
+
+可能原因：
+- `sql_templates.enabled` 为 `false`（功能未启用）
+- 模板名称拼写错误
+- 模板文件加载失败（语法错误、文件不存在、超过 1MB、非 UTF-8）
+
+排查：检查启动日志中的模板加载摘要，确认目标模板是否成功注册。使用 `templateList` 查询查看所有已注册模板。
+
+### 模板渲染返回 INTERNAL_TEMPLATE_RENDER_ERROR
+
+可能原因：
+- 模板中引用了未定义的参数（`missingkey=error` 策略）
+- 渲染超时（超过 `render_timeout`，默认 5s）
+- 模板语法错误
+
+排查：检查模板文件语法，确认所有 `{{.Params.xxx}}` 引用的参数都在请求中提供或有默认值。
+
+### 模板渲染返回 VALIDATION_UNSAFE_SQL
+
+可能原因：
+- 渲染结果包含字符串外的分号（多语句注入检测）
+- 渲染结果超过 `max_rendered_sql_length`（默认 64KB）
+- 渲染结果包含未闭合的引号
+
+排查：检查模板文件内容，确保不会生成包含分号的 SQL。如果需要更大的渲染结果，调整 `max_rendered_sql_length` 配置。
+
+### 模板热加载不生效
+
+可能原因：
+- Mutation 触发的 Reload 有 10s 冷却时间
+- 文件系统不支持 fsnotify（某些网络文件系统）
+- 模板文件语法错误（错误隔离：保留旧版本）
+
+排查：检查日志中的 reload 结果，确认是否有加载失败的模板。使用 `reloadTemplates` Mutation 手动触发并查看返回的 `failures` 列表。
+
+### 模板查询等待超时（DATASOURCE_TIMEOUT）
+
+可能原因：
+- 信号量已满（`max_concurrent_queries` 并发数达到上限）
+- StarRocks 查询本身耗时过长
+
+排查：检查 `graphql_template_semaphore_wait_seconds` 指标确认是否为信号量等待。如果是，考虑增大 `max_concurrent_queries` 或优化模板 SQL。
+
+## Docker / Kubernetes 问题
+
 ### Pod 启动后被 kubelet 杀死
 
 可能是启动探针超时。服务启动时需要建立数据源连接，可能耗时较长。检查 `startupProbe` 配置：

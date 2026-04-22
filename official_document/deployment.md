@@ -189,3 +189,6 @@ TLS 终止选项：
 - [ ] 配置 Kubernetes 资源限制
 - [ ] 配置 HPA 自动扩缩容
 - [ ] 确保 StarRocks `allowed_tables` 白名单已配置
+- [ ] 如启用 SQL 模板引擎，确保 `sql_templates.datasource_name` 指向有效的 StarRocks 数据源
+- [ ] 如启用 SQL 模板引擎，确保模板文件目录（`sql_templates.base_dir`）已挂载到容器中
+- [ ] 如启用 SQL 模板引擎，确保模板文件权限正确（只读即可）

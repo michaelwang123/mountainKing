@@ -8,6 +8,8 @@
 - **StarRocks** — OLAP 分析型数据库（通过 MySQL 协议）
 - **Prometheus** — 时序数据库（通过 HTTP API）
 
+此外，StarRocks 适配器还实现了 `RawExecutor` 接口，供 SQL 模板引擎直接执行渲染后的 SQL 语句（绕过白名单和查询构建器）。
+
 ## StarRocks 适配器
 
 ### 连接方式
@@ -27,6 +29,18 @@ GraphQL 查询参数自动转换为 SQL：
 | `totalCount` 字段 | 额外 `COUNT(*)` 查询 |
 
 所有 SQL 使用参数化查询（`?` 占位符），标识符使用反引号包裹。
+
+### RawExecutor 接口
+
+StarRocks 适配器额外实现了 `RawExecutor` 接口，供 SQL 模板引擎使用：
+
+```go
+type RawExecutor interface {
+    ExecuteRaw(ctx context.Context, query string, args ...interface{}) (*QueryResult, error)
+}
+```
+
+`ExecuteRaw` 复用现有 `*sql.DB` 连接池执行任意 SQL，不经过 `SQLQueryBuilder` 和白名单校验。此接口定义在 `internal/template/types.go` 中，实现接口隔离——模板引擎无法访问 `Execute`、`HealthCheck` 等 `DataSource` 接口方法。
 
 ### 白名单校验
 

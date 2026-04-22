@@ -1,10 +1,11 @@
 # GraphQL Multi-DataSource API
 
-A production-grade GraphQL API server in Go that provides a unified query interface across multiple data sources â€?currently StarRocks (OLAP) and Prometheus (metrics). Built with gqlgen, chi, and a comprehensive middleware stack for enterprise-grade security, observability, and resilience.
+A production-grade GraphQL API server in Go that provides a unified query interface across multiple data sources ï¿½?currently StarRocks (OLAP) and Prometheus (metrics). Built with gqlgen, chi, and a comprehensive middleware stack for enterprise-grade security, observability, and resilience.
 
 ## Features
 
 - Unified GraphQL API for querying StarRocks and Prometheus
+- SQL Template Query Engine â€” execute complex multi-table JOIN, CTE, and window function queries via pre-defined Go `text/template` SQL templates with full SQL injection protection
 - Relay-style cursor pagination and traditional offset/limit pagination
 - Instant and range queries for Prometheus
 - Cross-datasource parallel queries with isolated error handling
@@ -19,6 +20,7 @@ A production-grade GraphQL API server in Go that provides a unified query interf
 - Structured JSON logging (zap) with audit trail
 - Sensitive data sanitization in logs and traces
 - Hot-reloadable YAML configuration with env var overrides (12-Factor)
+- SQL template hot-reload via fsnotify file watching and GraphQL Mutation (no restart required)
 - Graceful shutdown with ordered teardown
 - CSRF protection, CORS, gzip compression, body size limits
 - Brute-force authentication failure protection
@@ -30,7 +32,7 @@ A production-grade GraphQL API server in Go that provides a unified query interf
 - Go 1.25+
 - (Optional) StarRocks instance
 - (Optional) Prometheus instance
-- (Optional) Redis â€?for distributed caching/rate limiting
+- (Optional) Redis ï¿½?for distributed caching/rate limiting
 
 ## Getting Started
 
@@ -74,6 +76,7 @@ Key config sections:
 | `auth` | JWT (HS256/RS256/ES256) or API Key authentication |
 | `rate_limit` | Local or distributed (Redis) rate limiting |
 | `cache` | Memory/Redis backend, TTL, jitter, per-datasource TTL |
+| `sql_templates` | SQL template engine: base_dir, templates, parameters, cache TTL |
 | `tracing` | OpenTelemetry OTLP export (gRPC/HTTP) |
 | `metrics` | Custom Prometheus labels |
 | `circuit_breaker` | Failure threshold, open duration |
@@ -94,6 +97,13 @@ starrocks(table: String!, fields: [String!], filters: [StarRocksFilter!],
           orderBy: [StarRocksOrderBy!], first: Int, after: String,
           offset: Int, limit: Int): StarRocksConnection!
 
+# SQL Template query â€” execute pre-defined SQL templates with parameters
+templateQuery(templateName: String!, parameters: JSON, fields: [String!],
+              first: Int, offset: Int, orderBy: [TemplateOrderBy!]): TemplateQueryConnection!
+
+# List all registered SQL templates
+templateList(first: Int, offset: Int): [TemplateInfo!]!
+
 # Prometheus instant query
 prometheusInstant(query: String!, time: DateTime,
                   filters: [PrometheusLabelFilter!]): PrometheusInstantResult!
@@ -108,6 +118,9 @@ prometheusRange(query: String!, startTime: DateTime!, endTime: DateTime!,
 ```graphql
 # Clear cache (all or per-datasource). Requires mutation permission.
 clearCache(datasource: String): Boolean!
+
+# Reload SQL templates from disk. Requires mutation permission.
+reloadTemplates: ReloadTemplatesResult!
 ```
 
 ### Endpoints
@@ -150,6 +163,8 @@ internal/
   redis/                 Shared Redis client
   sanitize/              Sensitive data masking
   server/                HTTP server, routing, graceful shutdown, batch query handling
+  template/              SQL template engine: types, loader, registry, renderer, validator,
+                         sanitizer, funcmap, pagination, cache, engine, watcher, metrics
 pkg/
   retry/                 Retry logic with error classifier and exponential backoff
 deploy/
@@ -157,6 +172,10 @@ deploy/
   docker-compose.yaml    Integration test environment
   k8s/                   Kubernetes manifests (Deployment, Service, ConfigMap, HPA)
   prometheus.yml         Prometheus scrape config
+templates/                         SQL template files directory (configurable via sql_templates.base_dir)
+  _shared/                         Shared template fragments (referenced via {{template}})
+  fleet/                           Fleet report templates
+  driver/                          Driver score templates
 ```
 
 ## Documentation
