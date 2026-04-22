@@ -35,15 +35,15 @@ func TestProperty24_CrossDataSourceParallelQueryAndMerge(t *testing.T) {
 
 		// Create mock datasources that each return unique data.
 		dsNames := make([]string, numDS)
-		expectedData := make(map[string][]map[string]interface{})
+		expectedData := make(map[string][]map[string]any)
 
 		for i := 0; i < numDS; i++ {
 			name := fmt.Sprintf("ds_%d", i)
 			dsNames[i] = name
 			rowCount := rapid.IntRange(1, 5).Draw(t, fmt.Sprintf("rowCount_%d", i))
-			rows := make([]map[string]interface{}, rowCount)
+			rows := make([]map[string]any, rowCount)
 			for j := 0; j < rowCount; j++ {
-				rows[j] = map[string]interface{}{
+				rows[j] = map[string]any{
 					"ds":  name,
 					"idx": j,
 				}
@@ -164,7 +164,7 @@ func TestProperty25_MixedQueryPartialFailureHandling(t *testing.T) {
 						return nil, fmt.Errorf("datasource %s error", n)
 					}
 					return &datasource.QueryResult{
-						Data: []map[string]interface{}{{"source": n}},
+						Data: []map[string]any{{"source": n}},
 					}, nil
 				},
 			}, nil
@@ -267,7 +267,7 @@ func TestProperty92_FailingDataSourceDoesNotCancelOthers(t *testing.T) {
 					case <-time.After(time.Duration(slowDelayMs) * time.Millisecond):
 						slowCompleted.Store(true)
 						return &datasource.QueryResult{
-							Data: []map[string]interface{}{{"slow": true}},
+							Data: []map[string]any{{"slow": true}},
 						}, nil
 					case <-ctx.Done():
 						return nil, ctx.Err()
@@ -338,9 +338,9 @@ func TestProperty30_ResultSetTruncation(t *testing.T) {
 		dataSize := rapid.IntRange(1, 300).Draw(t, "dataSize")
 
 		// Build mock data.
-		data := make([]map[string]interface{}, dataSize)
+		data := make([]map[string]any, dataSize)
 		for i := 0; i < dataSize; i++ {
-			data[i] = map[string]interface{}{"id": i}
+			data[i] = map[string]any{"id": i}
 		}
 
 		result := &datasource.QueryResult{Data: data}

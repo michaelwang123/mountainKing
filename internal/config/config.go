@@ -72,8 +72,8 @@ type DataSourceConfig struct {
 	Name       string                 `mapstructure:"name"`
 	Type       string                 `mapstructure:"type"`
 	Enabled    bool                   `mapstructure:"enabled"`
-	Connection map[string]interface{} `mapstructure:"connection"`
-	Options    map[string]interface{} `mapstructure:"options"`
+	Connection map[string]any `mapstructure:"connection"`
+	Options    map[string]any `mapstructure:"options"`
 }
 
 // AuthConfig holds authentication settings including the authentication method

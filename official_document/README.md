@@ -11,6 +11,7 @@
 | [开发模式指南](development-mode.md) | 本地启动、调试配置、开发/生产模式差异 | 开发者 |
 | [配置参考](configuration.md) | 完整配置项说明、环境变量覆盖、热更新 | 运维人员、开发者 |
 | [GraphQL API 参考](graphql-api.md) | Schema 定义、查询示例、分页与过滤 | 客户端开发者 |
+| [SQL 模板引擎](sql-template-engine.md) | 模板语法、安全函数、最佳实践、端到端示例 | 开发者、模板作者 |
 | [安全指南](security.md) | 认证授权、限流、输入校验、脱敏 | 安全工程师、运维人员 |
 | [数据源适配器](datasource-adapters.md) | StarRocks/Prometheus 适配器详解与扩展指南 | 开发者 |
 | [可观测性](observability.md) | Prometheus 指标、OpenTelemetry 链路追踪、结构化日志 | 运维人员、SRE |

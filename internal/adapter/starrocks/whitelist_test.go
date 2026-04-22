@@ -13,13 +13,13 @@ import (
 
 func TestParseAllowedTables_Valid(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"orders": map[string]interface{}{
-					"columns": []interface{}{"order_id", "user_id", "amount"},
+		Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"orders": map[string]any{
+					"columns": []any{"order_id", "user_id", "amount"},
 				},
-				"users": map[string]interface{}{
-					"columns": []interface{}{"user_id", "username"},
+				"users": map[string]any{
+					"columns": []any{"user_id", "username"},
 				},
 			},
 		},
@@ -52,7 +52,7 @@ func TestParseAllowedTables_Valid(t *testing.T) {
 
 func TestParseAllowedTables_MissingKey(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{},
+		Options: map[string]any{},
 	}
 
 	_, err := ParseAllowedTables(cfg)
@@ -70,8 +70,8 @@ func TestParseAllowedTables_MissingKey(t *testing.T) {
 
 func TestParseAllowedTables_EmptyTables(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{},
+		Options: map[string]any{
+			"allowed_tables": map[string]any{},
 		},
 	}
 
@@ -83,10 +83,10 @@ func TestParseAllowedTables_EmptyTables(t *testing.T) {
 
 func TestParseAllowedTables_InvalidTableName(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"drop table;--": map[string]interface{}{
-					"columns": []interface{}{"id"},
+		Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"drop table;--": map[string]any{
+					"columns": []any{"id"},
 				},
 			},
 		},
@@ -100,10 +100,10 @@ func TestParseAllowedTables_InvalidTableName(t *testing.T) {
 
 func TestParseAllowedTables_InvalidColumnName(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"orders": map[string]interface{}{
-					"columns": []interface{}{"valid_col", "bad col!"},
+		Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"orders": map[string]any{
+					"columns": []any{"valid_col", "bad col!"},
 				},
 			},
 		},
@@ -117,9 +117,9 @@ func TestParseAllowedTables_InvalidColumnName(t *testing.T) {
 
 func TestParseAllowedTables_MissingColumns(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"orders": map[string]interface{}{},
+		Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"orders": map[string]any{},
 			},
 		},
 	}
@@ -132,10 +132,10 @@ func TestParseAllowedTables_MissingColumns(t *testing.T) {
 
 func TestParseAllowedTables_EmptyColumns(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"orders": map[string]interface{}{
-					"columns": []interface{}{},
+		Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"orders": map[string]any{
+					"columns": []any{},
 				},
 			},
 		},
@@ -149,7 +149,7 @@ func TestParseAllowedTables_EmptyColumns(t *testing.T) {
 
 func TestParseAllowedTables_WrongType(t *testing.T) {
 	cfg := datasource.DataSourceConfig{
-		Options: map[string]interface{}{
+		Options: map[string]any{
 			"allowed_tables": "not a map",
 		},
 	}

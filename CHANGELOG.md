@@ -6,6 +6,21 @@
 
 ### Added
 - 基于 gqlgen + chi 的 GraphQL API 服务框架
+- SQL 模板查询引擎（TemplateEngine）：
+  - 模板加载与注册（Go `text/template`，UTF-8 校验，SHA-256 hash 追踪）
+  - 模板渲染（render_timeout 超时控制，max_rendered_sql_length 长度限制）
+  - 参数校验（类型匹配、必填检查、枚举/长度/正则约束、默认值填充）
+  - 分页包装器（over-fetch 策略，参数化 LIMIT/OFFSET，safeIdentifier 字段校验）
+  - 缓存集成（模板级 TTL、totalCount 独立缓存、cache_enabled 禁用、extensions.cache 绕过）
+  - 热加载（fsnotify 自动重载 + reloadTemplates Mutation 手动重载，500ms 防抖，hash 比较仅清除变更模板缓存）
+  - 12 个安全/工具模板函数（safeString、quote、safeInt、safeFloat、safeIdentifier、safeInList、safeLike、join、default、upper、lower、trimSpace）
+  - 7 状态词法扫描器（多语句注入检测、SQL 注释移除、StarRocks Optimizer Hint 保留）
+  - 并发控制（信号量限制 max_concurrent_queries，防止连接池饿死）
+  - Prometheus 指标（graphql_template_query_duration_seconds、graphql_template_queries_total、graphql_template_render_duration_seconds、graphql_template_semaphore_wait_seconds、graphql_template_cache_hits_total）
+  - OpenTelemetry Span（Template Query {name}，含 template.name、db.system、db.statement 属性）
+  - 审计日志（TemplateName 字段记录模板名称）
+  - GraphQL 集成（templateQuery 查询、templateList 元信息列表、reloadTemplates Mutation）
+  - RawExecutor 接口隔离（TemplateEngine 仅通过 ExecuteRaw 访问 StarRocks Adapter）
 - StarRocks 数据源适配器（MySQL 协议，参数化查询，白名单校验）
 - Prometheus 数据源适配器（HTTP API，即时查询和范围查询）
 - 跨数据源并行查询与结果合并，部分失败隔离

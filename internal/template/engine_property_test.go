@@ -39,11 +39,11 @@ type MockRawExecutor struct {
 	currentRunning int32 // atomic: currently executing goroutines
 	maxObserved    int32 // atomic: peak concurrent executions observed
 	delay          time.Duration
-	data           []map[string]interface{}
+	data           []map[string]any
 	err            error
 }
 
-func (m *MockRawExecutor) ExecuteRaw(ctx context.Context, query string, args ...interface{}) (*datasource.QueryResult, error) {
+func (m *MockRawExecutor) ExecuteRaw(ctx context.Context, query string, args ...any) (*datasource.QueryResult, error) {
 	// Track concurrency.
 	current := atomic.AddInt32(&m.currentRunning, 1)
 	defer atomic.AddInt32(&m.currentRunning, -1)
@@ -182,7 +182,7 @@ func TestProperty23_ConcurrencyLimit(t *testing.T) {
 
 		mock := &MockRawExecutor{
 			delay: 50 * time.Millisecond,
-			data:  []map[string]interface{}{{"id": float64(1)}},
+			data:  []map[string]any{{"id": float64(1)}},
 		}
 
 		te := createTestEngine(t, mock, maxConcurrent)
@@ -197,7 +197,7 @@ func TestProperty23_ConcurrencyLimit(t *testing.T) {
 				defer wg.Done()
 				_, _ = te.Execute(context.Background(), &TemplateQueryRequest{
 					TemplateName: "test_query",
-					Parameters:   map[string]interface{}{"id": float64(1)},
+					Parameters:   map[string]any{"id": float64(1)},
 				})
 			}()
 		}
@@ -223,9 +223,9 @@ func TestProperty23_ConcurrencyLimit(t *testing.T) {
 func TestProperty24_ResultDataPassthrough(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		numRows := rapid.IntRange(0, 20).Draw(rt, "numRows")
-		data := make([]map[string]interface{}, numRows)
+		data := make([]map[string]any, numRows)
 		for i := 0; i < numRows; i++ {
-			data[i] = map[string]interface{}{
+			data[i] = map[string]any{
 				"id":   float64(i + 1),
 				"name": fmt.Sprintf("user_%d", i+1),
 			}
@@ -236,7 +236,7 @@ func TestProperty24_ResultDataPassthrough(t *testing.T) {
 
 		result, err := te.Execute(context.Background(), &TemplateQueryRequest{
 			TemplateName: "test_query",
-			Parameters:   map[string]interface{}{"id": float64(1)},
+			Parameters:   map[string]any{"id": float64(1)},
 		})
 		if err != nil {
 			rt.Fatalf("unexpected error: %v", err)
@@ -258,7 +258,7 @@ func TestProperty25_QueryTimeoutProtection(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		mock := &MockRawExecutor{
 			delay: 5 * time.Second, // long delay to ensure timeout
-			data:  []map[string]interface{}{{"id": float64(1)}},
+			data:  []map[string]any{{"id": float64(1)}},
 		}
 
 		te := createTestEngine(t, mock, 10)
@@ -269,7 +269,7 @@ func TestProperty25_QueryTimeoutProtection(t *testing.T) {
 
 		_, err := te.Execute(ctx, &TemplateQueryRequest{
 			TemplateName: "test_query",
-			Parameters:   map[string]interface{}{"id": float64(1)},
+			Parameters:   map[string]any{"id": float64(1)},
 		})
 
 		if err == nil {
@@ -306,9 +306,9 @@ func TestProperty25_QueryTimeoutProtection(t *testing.T) {
 func TestProperty27_InterfaceIsolation(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		rowCount := rapid.IntRange(1, 10).Draw(rt, "rowCount")
-		data := make([]map[string]interface{}, rowCount)
+		data := make([]map[string]any, rowCount)
 		for i := 0; i < rowCount; i++ {
-			data[i] = map[string]interface{}{"id": float64(i + 1)}
+			data[i] = map[string]any{"id": float64(i + 1)}
 		}
 
 		// MockRawExecutor only implements RawExecutor, not DataSource.
@@ -319,7 +319,7 @@ func TestProperty27_InterfaceIsolation(t *testing.T) {
 
 		result, err := te.Execute(context.Background(), &TemplateQueryRequest{
 			TemplateName: "test_query",
-			Parameters:   map[string]interface{}{"id": float64(1)},
+			Parameters:   map[string]any{"id": float64(1)},
 		})
 		if err != nil {
 			rt.Fatalf("Execute failed with MockRawExecutor: %v", err)
@@ -337,7 +337,7 @@ func TestProperty27_InterfaceIsolation(t *testing.T) {
 // 1. Execute with valid template and params succeeds
 func TestEngine_ExecuteValidTemplate(t *testing.T) {
 	mock := &MockRawExecutor{
-		data: []map[string]interface{}{
+		data: []map[string]any{
 			{"id": float64(1), "name": "Alice"},
 			{"id": float64(2), "name": "Bob"},
 		},
@@ -346,7 +346,7 @@ func TestEngine_ExecuteValidTemplate(t *testing.T) {
 
 	result, err := te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "test_query",
-		Parameters:   map[string]interface{}{"id": float64(42)},
+		Parameters:   map[string]any{"id": float64(42)},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -366,7 +366,7 @@ func TestEngine_ExecuteNonExistentTemplate(t *testing.T) {
 
 	_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "nonexistent_template",
-		Parameters:   map[string]interface{}{},
+		Parameters:   map[string]any{},
 	})
 	if err == nil {
 		t.Fatal("expected error for non-existent template")
@@ -388,7 +388,7 @@ func TestEngine_ExecuteInvalidParams(t *testing.T) {
 	// "id" is required but not provided
 	_, err := te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "test_query",
-		Parameters:   map[string]interface{}{},
+		Parameters:   map[string]any{},
 	})
 	if err == nil {
 		t.Fatal("expected error for missing required param")
@@ -406,7 +406,7 @@ func TestEngine_ExecuteInvalidParams(t *testing.T) {
 func TestEngine_ExecuteCancelledContext(t *testing.T) {
 	mock := &MockRawExecutor{
 		delay: 5 * time.Second,
-		data:  []map[string]interface{}{{"id": float64(1)}},
+		data:  []map[string]any{{"id": float64(1)}},
 	}
 	te := createTestEngine(t, mock, 10)
 
@@ -415,7 +415,7 @@ func TestEngine_ExecuteCancelledContext(t *testing.T) {
 
 	_, err := te.Execute(ctx, &TemplateQueryRequest{
 		TemplateName: "test_query",
-		Parameters:   map[string]interface{}{"id": float64(1)},
+		Parameters:   map[string]any{"id": float64(1)},
 	})
 	if err == nil {
 		t.Fatal("expected error when context is cancelled")
@@ -427,7 +427,7 @@ func TestEngine_ConcurrencySemaphore(t *testing.T) {
 	maxConcurrent := 3
 	mock := &MockRawExecutor{
 		delay: 100 * time.Millisecond,
-		data:  []map[string]interface{}{{"id": float64(1)}},
+		data:  []map[string]any{{"id": float64(1)}},
 	}
 	te := createTestEngine(t, mock, maxConcurrent)
 
@@ -440,7 +440,7 @@ func TestEngine_ConcurrencySemaphore(t *testing.T) {
 			defer wg.Done()
 			_, _ = te.Execute(context.Background(), &TemplateQueryRequest{
 				TemplateName: "test_query",
-				Parameters:   map[string]interface{}{"id": float64(1)},
+				Parameters:   map[string]any{"id": float64(1)},
 			})
 		}()
 	}

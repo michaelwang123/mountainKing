@@ -70,7 +70,7 @@ func createReloadTestEngine(t *testing.T, templates []testTemplateFile) (*Templa
 	}
 
 	mock := &MockRawExecutor{
-		data: []map[string]interface{}{{"id": float64(1)}},
+		data: []map[string]any{{"id": float64(1)}},
 	}
 
 	te, err := NewTemplateEngine(TemplateEngineConfig{
@@ -496,11 +496,11 @@ func TestReload_UpdatesTemplatesOnFileChange(t *testing.T) {
 
 	// Verify initial template works
 	mock := te.executor.(*MockRawExecutor)
-	mock.data = []map[string]interface{}{{"id": float64(1)}}
+	mock.data = []map[string]any{{"id": float64(1)}}
 
 	result, err := te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "update_test",
-		Parameters:   map[string]interface{}{"id": float64(1)},
+		Parameters:   map[string]any{"id": float64(1)},
 	})
 	if err != nil {
 		t.Fatalf("initial Execute failed: %v", err)
@@ -528,7 +528,7 @@ func TestReload_UpdatesTemplatesOnFileChange(t *testing.T) {
 	// Verify the template was updated (execute again)
 	result, err = te.Execute(context.Background(), &TemplateQueryRequest{
 		TemplateName: "update_test",
-		Parameters:   map[string]interface{}{"id": float64(2)},
+		Parameters:   map[string]any{"id": float64(2)},
 	})
 	if err != nil {
 		t.Fatalf("Execute after reload failed: %v", err)

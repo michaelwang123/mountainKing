@@ -25,10 +25,10 @@ import (
 // Helpers
 // ---------------------------------------------------------------------------
 
-// genParams generates a random map[string]interface{} for cache key testing.
-func genParams(rt *rapid.T, label string) map[string]interface{} {
+// genParams generates a random map[string]any for cache key testing.
+func genParams(rt *rapid.T, label string) map[string]any {
 	n := rapid.IntRange(0, 5).Draw(rt, label+"_count")
-	m := make(map[string]interface{}, n)
+	m := make(map[string]any, n)
 	for i := 0; i < n; i++ {
 		key := rapid.StringMatching(`[a-z]{1,8}`).Draw(rt, fmt.Sprintf("%s_key_%d", label, i))
 		val := rapid.StringMatching(`[a-zA-Z0-9]{0,16}`).Draw(rt, fmt.Sprintf("%s_val_%d", label, i))
@@ -109,7 +109,7 @@ func TestProperty50_CacheKeyDistinctness(t *testing.T) {
 		orderBy := genOrderBy(rt, "orderBy")
 
 		// Mutate one dimension: add an extra param
-		mutatedParams := make(map[string]interface{}, len(params)+1)
+		mutatedParams := make(map[string]any, len(params)+1)
 		for k, v := range params {
 			mutatedParams[k] = v
 		}
@@ -251,7 +251,7 @@ func TestProperty55_TotalCountIndependentCache(t *testing.T) {
 
 // Test 1: generateCacheKey deterministic
 func TestGenerateCacheKey_Deterministic(t *testing.T) {
-	params := map[string]interface{}{"eerid": "EER001", "period": "monthly"}
+	params := map[string]any{"eerid": "EER001", "period": "monthly"}
 	fields := []string{"vehicle_id", "plate_number"}
 	first := intPtr(20)
 	offset := intPtr(0)
@@ -274,8 +274,8 @@ func TestGenerateCacheKey_DifferentParams(t *testing.T) {
 	first := intPtr(10)
 	offset := intPtr(0)
 
-	key1 := generateCacheKey("tmpl", map[string]interface{}{"a": "1"}, fields, first, offset, nil)
-	key2 := generateCacheKey("tmpl", map[string]interface{}{"a": "2"}, fields, first, offset, nil)
+	key1 := generateCacheKey("tmpl", map[string]any{"a": "1"}, fields, first, offset, nil)
+	key2 := generateCacheKey("tmpl", map[string]any{"a": "2"}, fields, first, offset, nil)
 
 	if key1 == key2 {
 		t.Fatalf("different params should produce different keys, got: %s", key1)
@@ -284,7 +284,7 @@ func TestGenerateCacheKey_DifferentParams(t *testing.T) {
 
 // Test 3: generateCacheKey different fields → different keys
 func TestGenerateCacheKey_DifferentFields(t *testing.T) {
-	params := map[string]interface{}{"x": "1"}
+	params := map[string]any{"x": "1"}
 	first := intPtr(10)
 	offset := intPtr(0)
 
@@ -298,7 +298,7 @@ func TestGenerateCacheKey_DifferentFields(t *testing.T) {
 
 // Test 4: generateCacheKey different first/offset → different keys
 func TestGenerateCacheKey_DifferentPagination(t *testing.T) {
-	params := map[string]interface{}{"x": "1"}
+	params := map[string]any{"x": "1"}
 	fields := []string{"a"}
 
 	key1 := generateCacheKey("tmpl", params, fields, intPtr(10), intPtr(0), nil)
@@ -315,7 +315,7 @@ func TestGenerateCacheKey_DifferentPagination(t *testing.T) {
 
 // Test 5: generateCacheKey different orderBy → different keys
 func TestGenerateCacheKey_DifferentOrderBy(t *testing.T) {
-	params := map[string]interface{}{"x": "1"}
+	params := map[string]any{"x": "1"}
 	fields := []string{"a"}
 	first := intPtr(10)
 	offset := intPtr(0)
@@ -338,7 +338,7 @@ func TestGenerateCacheKey_DifferentOrderBy(t *testing.T) {
 
 // Test 6: generateCountCacheKey deterministic
 func TestGenerateCountCacheKey_Deterministic(t *testing.T) {
-	params := map[string]interface{}{"eerid": "EER001", "period": "monthly"}
+	params := map[string]any{"eerid": "EER001", "period": "monthly"}
 
 	key1 := generateCountCacheKey("fleet_report", params)
 	key2 := generateCountCacheKey("fleet_report", params)
@@ -353,7 +353,7 @@ func TestGenerateCountCacheKey_Deterministic(t *testing.T) {
 
 // Test 7: generateCountCacheKey independent of fields/pagination
 func TestGenerateCountCacheKey_IndependentOfFieldsPagination(t *testing.T) {
-	params := map[string]interface{}{"x": "1"}
+	params := map[string]any{"x": "1"}
 
 	countKey := generateCountCacheKey("tmpl", params)
 
@@ -397,7 +397,7 @@ func TestShouldCache_SkipCache(t *testing.T) {
 // Test 11: executeWithCache with nil cacheLayer calls loader directly
 func TestExecuteWithCache_NilCacheLayer(t *testing.T) {
 	loaderCalled := false
-	expectedData := []map[string]interface{}{
+	expectedData := []map[string]any{
 		{"id": float64(1), "name": "test"},
 	}
 
@@ -406,7 +406,7 @@ func TestExecuteWithCache_NilCacheLayer(t *testing.T) {
 		nil, // nil cache layer
 		"analytics_db",
 		"cache:template:test:abc123",
-		func() ([]map[string]interface{}, error) {
+		func() ([]map[string]any, error) {
 			loaderCalled = true
 			return expectedData, nil
 		},
@@ -474,8 +474,8 @@ func TestExecuteWithCache_CacheHit(t *testing.T) {
 	ds := "analytics_db"
 
 	// First call: loader is invoked (cache miss)
-	expectedData := []map[string]interface{}{{"id": float64(1)}}
-	data, called, err := executeWithCache(ctx, cl, ds, key, func() ([]map[string]interface{}, error) {
+	expectedData := []map[string]any{{"id": float64(1)}}
+	data, called, err := executeWithCache(ctx, cl, ds, key, func() ([]map[string]any, error) {
 		return expectedData, nil
 	})
 	if err != nil {
@@ -489,7 +489,7 @@ func TestExecuteWithCache_CacheHit(t *testing.T) {
 	}
 
 	// Second call: loader should NOT be invoked (cache hit)
-	data2, called2, err := executeWithCache(ctx, cl, ds, key, func() ([]map[string]interface{}, error) {
+	data2, called2, err := executeWithCache(ctx, cl, ds, key, func() ([]map[string]any, error) {
 		t.Fatal("loader should not be called on cache hit")
 		return nil, nil
 	})
@@ -547,7 +547,7 @@ func TestExecuteWithCache_LoaderError(t *testing.T) {
 		cl,
 		"analytics_db",
 		"cache:template:test:err",
-		func() ([]map[string]interface{}, error) {
+		func() ([]map[string]any, error) {
 			return nil, fmt.Errorf("db connection failed")
 		},
 	)

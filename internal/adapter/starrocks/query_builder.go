@@ -44,7 +44,7 @@ func NewSQLQueryBuilder(allowedTables map[string]map[string]bool) *SQLQueryBuild
 // Build constructs a SELECT query with parameterized values.
 // It validates table/field names against the whitelist, wraps identifiers in
 // backticks, and uses ? placeholders for filter values.
-func (b *SQLQueryBuilder) Build(req datasource.QueryRequest, table string) (string, []interface{}, error) {
+func (b *SQLQueryBuilder) Build(req datasource.QueryRequest, table string) (string, []any, error) {
 	if err := b.validateTable(table); err != nil {
 		return "", nil, err
 	}
@@ -96,7 +96,7 @@ func (b *SQLQueryBuilder) Build(req datasource.QueryRequest, table string) (stri
 }
 
 // BuildCount constructs a COUNT(*) query with the same filters as Build.
-func (b *SQLQueryBuilder) BuildCount(req datasource.QueryRequest, table string) (string, []interface{}, error) {
+func (b *SQLQueryBuilder) BuildCount(req datasource.QueryRequest, table string) (string, []any, error) {
 	if err := b.validateTable(table); err != nil {
 		return "", nil, err
 	}
@@ -152,13 +152,13 @@ func (b *SQLQueryBuilder) buildSelectClause(fields []string, allowedCols map[str
 }
 
 // buildWhereClause converts filter conditions to a SQL WHERE clause with ? placeholders.
-func (b *SQLQueryBuilder) buildWhereClause(filters []datasource.FilterCondition, allowedCols map[string]bool) (string, []interface{}, error) {
+func (b *SQLQueryBuilder) buildWhereClause(filters []datasource.FilterCondition, allowedCols map[string]bool) (string, []any, error) {
 	if len(filters) == 0 {
 		return "", nil, nil
 	}
 
 	clauses := make([]string, 0, len(filters))
-	var params []interface{}
+	var params []any
 
 	for _, f := range filters {
 		if err := ValidateIdentifier(f.Field); err != nil {
@@ -221,8 +221,8 @@ func (b *SQLQueryBuilder) buildWhereClause(filters []datasource.FilterCondition,
 }
 
 // buildINClause builds an IN or NOT IN clause from a slice value.
-func buildINClause(col string, value interface{}, negate bool) (string, []interface{}, error) {
-	values, ok := value.([]interface{})
+func buildINClause(col string, value any, negate bool) (string, []any, error) {
+	values, ok := value.([]any)
 	if !ok {
 		return "", nil, apierrors.ValidationError(apierrors.ErrValidationInvalidField,
 			"IN/NOT IN operator requires a slice value")
@@ -272,13 +272,13 @@ func (b *SQLQueryBuilder) buildOrderByClause(orderBy []datasource.OrderByClause,
 
 // buildLimitClause builds LIMIT/OFFSET from pagination params.
 // It supports both Relay-style (First/After) and traditional (Limit/Offset) pagination.
-func (b *SQLQueryBuilder) buildLimitClause(p *datasource.PaginationParams) (string, []interface{}) {
+func (b *SQLQueryBuilder) buildLimitClause(p *datasource.PaginationParams) (string, []any) {
 	if p == nil {
 		return "", nil
 	}
 
 	var parts []string
-	var params []interface{}
+	var params []any
 
 	// Determine limit: First takes precedence over Limit.
 	var limit *int

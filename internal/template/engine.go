@@ -202,11 +202,11 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
 	te.observeSemaphoreWait(req.TemplateName, time.Since(semWaitStart))
 
 	// 9. Execute query (with cache if applicable).
-	var data []map[string]interface{}
+	var data []map[string]any
 	if shouldCache(tmpl, req.SkipCache) {
 		cacheKey := generateCacheKey(req.TemplateName, validatedParams, req.Fields, req.First, req.Offset, req.OrderBy)
 		var loaderCalled bool
-		data, loaderCalled, err = executeWithCache(ctx, te.cacheLayer, te.datasourceNameForCache(tmpl), cacheKey, func() ([]map[string]interface{}, error) {
+		data, loaderCalled, err = executeWithCache(ctx, te.cacheLayer, te.datasourceNameForCache(tmpl), cacheKey, func() ([]map[string]any, error) {
 			result, execErr := te.executor.ExecuteRaw(ctx, wrappedSQL, args...)
 			if execErr != nil {
 				return nil, execErr
@@ -421,7 +421,7 @@ func (te *TemplateEngine) executeCountQuery(
 	countSQL string,
 	tmpl *RegisteredTemplate,
 	templateName string,
-	validatedParams map[string]interface{},
+	validatedParams map[string]any,
 	skipCache bool,
 ) (int64, error) {
 	loader := func() (int64, error) {
@@ -441,7 +441,7 @@ func (te *TemplateEngine) executeCountQuery(
 }
 
 // extractCount extracts the count value from a COUNT(*) query result.
-func extractCount(data []map[string]interface{}) int64 {
+func extractCount(data []map[string]any) int64 {
 	if len(data) == 0 {
 		return 0
 	}
@@ -458,7 +458,7 @@ func extractCount(data []map[string]interface{}) int64 {
 }
 
 // toInt64 converts various numeric types to int64.
-func toInt64(v interface{}) int64 {
+func toInt64(v any) int64 {
 	switch val := v.(type) {
 	case int64:
 		return val

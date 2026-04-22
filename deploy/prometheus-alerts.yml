@@ -1,0 +1,67 @@
+# Prometheus alerting rules for mountainKing GraphQL API
+# See deploy/grafana/dashboard.json for corresponding dashboard panels.
+
+groups:
+  - name: mountainking-alerts
+    rules:
+      # P99 延迟超标 — 单数据源 >500ms
+      - alert: HighP99Latency
+        expr: histogram_quantile(0.99, rate(graphql_request_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P99 latency exceeds 500ms"
+          description: "P99 request latency is {{ $value | humanizeDuration }} (threshold: 500ms)."
+
+      # P99 延迟超标 — 整体 >1s（含混合查询）
+      - alert: HighP99LatencyCritical
+        expr: histogram_quantile(0.99, sum(rate(graphql_request_duration_seconds_bucket[5m])) by (le)) > 1.0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Overall P99 latency exceeds 1s"
+          description: "Overall P99 request latency is {{ $value | humanizeDuration }} (threshold: 1s)."
+
+      # 错误率飙升 >5%
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(graphql_errors_total[5m]))
+          / sum(rate(graphql_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Error rate exceeds 5%"
+          description: "Current error rate is {{ $value | humanizePercentage }}."
+
+      # 数据源不可用（连接池完全空：active=0 且 idle=0）
+      - alert: DatasourceUnavailable
+        expr: graphql_datasource_connection_pool_active == 0 and graphql_datasource_connection_pool_idle == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Datasource connection pool empty (active=0, idle=0)"
+          description: "Datasource {{ $labels.datasource }} has no active or idle connections."
+
+      # 熔断器打开
+      - alert: CircuitBreakerOpen
+        expr: graphql_errors_total{error_type="DATASOURCE_CIRCUIT_OPEN"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker is open"
+          description: "Datasource {{ $labels.datasource }} circuit breaker has been triggered."
+
+      # 模板查询信号量饱和
+      - alert: TemplateSemaphoreSaturated
+        expr: histogram_quantile(0.99, rate(graphql_template_semaphore_wait_seconds_bucket[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Template semaphore wait P99 exceeds 1s"
+          description: "Template query semaphore wait P99 is {{ $value | humanizeDuration }}."

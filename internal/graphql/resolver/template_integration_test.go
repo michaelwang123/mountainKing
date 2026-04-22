@@ -31,13 +31,13 @@ import (
 // integrationMockExecutor is a configurable mock that can return different
 // data sets and track call counts.
 type integrationMockExecutor struct {
-	data      []map[string]interface{}
+	data      []map[string]any
 	callCount int
 	lastSQL   string
-	lastArgs  []interface{}
+	lastArgs  []any
 }
 
-func (m *integrationMockExecutor) ExecuteRaw(_ context.Context, query string, args ...interface{}) (*datasource.QueryResult, error) {
+func (m *integrationMockExecutor) ExecuteRaw(_ context.Context, query string, args ...any) (*datasource.QueryResult, error) {
 	m.callCount++
 	m.lastSQL = query
 	m.lastArgs = args
@@ -67,8 +67,8 @@ func gqlCtx(selectedFields ...string) context.Context {
 	// Create OperationContext with Extensions map.
 	opCtx := &graphql.OperationContext{
 		RawQuery:   "query { templateQuery { nodes pageInfo { hasNextPage } totalCount } }",
-		Variables:  map[string]interface{}{},
-		Extensions: map[string]interface{}{},
+		Variables:  map[string]any{},
+		Extensions: map[string]any{},
 		Doc:        &ast.QueryDocument{},
 	}
 
@@ -206,7 +206,7 @@ func createReloadableEngine(t *testing.T, templates []templateDef, executor temp
 // TestIntegration_TemplateQuery_NormalFlow tests the normal query flow:
 // resolver → TemplateEngine → MockRawExecutor → response with nodes, pageInfo, totalCount.
 func TestIntegration_TemplateQuery_NormalFlow(t *testing.T) {
-	mockData := []map[string]interface{}{
+	mockData := []map[string]any{
 		{"id": 1, "name": "Alice"},
 		{"id": 2, "name": "Bob"},
 		{"id": 3, "name": "Charlie"},
@@ -308,7 +308,7 @@ func TestIntegration_TemplateQuery_ParamValidationFailure(t *testing.T) {
 // TestIntegration_TemplateQuery_CacheHitMiss tests cache behavior at the engine level:
 // without a CacheLayer, the executor is called each time (always miss).
 func TestIntegration_TemplateQuery_CacheHitMiss(t *testing.T) {
-	mockData := []map[string]interface{}{{"id": 1}}
+	mockData := []map[string]any{{"id": 1}}
 	executor := &integrationMockExecutor{data: mockData}
 
 	te := createIntegrationEngine(t, []templateDef{
@@ -352,7 +352,7 @@ func TestIntegration_TemplateQuery_CacheHitMiss(t *testing.T) {
 // TestIntegration_TemplateQuery_TotalCountDisabled tests that when count_enabled=false,
 // totalCount returns -1 and warnings are present.
 func TestIntegration_TemplateQuery_TotalCountDisabled(t *testing.T) {
-	mockData := []map[string]interface{}{{"id": 1}}
+	mockData := []map[string]any{{"id": 1}}
 	executor := &integrationMockExecutor{data: mockData}
 
 	countDisabled := false
@@ -404,9 +404,9 @@ func TestIntegration_TemplateQuery_TotalCountDisabled(t *testing.T) {
 // when first=10 and executor returns 11 rows, hasNextPage=true and only 10 rows returned.
 func TestIntegration_TemplateQuery_OverFetchHasNextPage(t *testing.T) {
 	// Generate 11 rows of mock data (over-fetch: first+1).
-	mockData := make([]map[string]interface{}, 11)
+	mockData := make([]map[string]any, 11)
 	for i := 0; i < 11; i++ {
-		mockData[i] = map[string]interface{}{"id": i + 1}
+		mockData[i] = map[string]any{"id": i + 1}
 	}
 	executor := &integrationMockExecutor{data: mockData}
 
@@ -567,7 +567,7 @@ func TestIntegration_TemplateList_Complete(t *testing.T) {
 // and calling Reload causes the new version to take effect.
 func TestIntegration_HotReload_FileChange(t *testing.T) {
 	executor := &integrationMockExecutor{
-		data: []map[string]interface{}{{"v": 1}},
+		data: []map[string]any{{"v": 1}},
 	}
 
 	te, tmpDir := createReloadableEngine(t, []templateDef{
@@ -623,7 +623,7 @@ func TestIntegration_HotReload_FileChange(t *testing.T) {
 // the hash changes are detected by Reload.
 func TestIntegration_HotReload_CacheClear(t *testing.T) {
 	executor := &integrationMockExecutor{
-		data: []map[string]interface{}{{"v": 1}},
+		data: []map[string]any{{"v": 1}},
 	}
 
 	te, tmpDir := createReloadableEngine(t, []templateDef{
@@ -668,7 +668,7 @@ func TestIntegration_HotReload_CacheClear(t *testing.T) {
 // retains its old version while other templates are updated normally.
 func TestIntegration_HotReload_ErrorIsolation(t *testing.T) {
 	executor := &integrationMockExecutor{
-		data: []map[string]interface{}{{"v": 1}},
+		data: []map[string]any{{"v": 1}},
 	}
 
 	te, tmpDir := createReloadableEngine(t, []templateDef{
@@ -736,7 +736,7 @@ func TestIntegration_HotReload_ErrorIsolation(t *testing.T) {
 // within 10s returns the cached result without re-reading files.
 func TestIntegration_HotReload_MutationCooldown(t *testing.T) {
 	executor := &integrationMockExecutor{
-		data: []map[string]interface{}{{"v": 1}},
+		data: []map[string]any{{"v": 1}},
 	}
 
 	te, _ := createReloadableEngine(t, []templateDef{

@@ -71,7 +71,7 @@ func TestProperty32_StructuredLogFormat(t *testing.T) {
 				continue
 			}
 
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			if err := json.Unmarshal([]byte(line), &parsed); err != nil {
 				rt.Fatalf("log output is not valid JSON: %v\noutput: %s", err, line)
 			}
@@ -145,7 +145,7 @@ func TestProperty35_LogLevelConfiguration(t *testing.T) {
 		// Collect which levels appeared in output
 		outputLevels := make(map[string]bool)
 		for _, line := range nonEmptyLines {
-			var parsed map[string]interface{}
+			var parsed map[string]any
 			if err := json.Unmarshal([]byte(line), &parsed); err != nil {
 				rt.Fatalf("log output is not valid JSON: %v\nline: %s", err, line)
 			}

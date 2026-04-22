@@ -23,7 +23,7 @@ func wrapWithPagination(
 	first *int,
 	offset *int,
 	maxResultRows int,
-) (string, []interface{}, error) {
+) (string, []any, error) {
 
 	// Determine LIMIT (over-fetch by 1).
 	limit := maxResultRows + 1
@@ -80,7 +80,7 @@ func wrapWithPagination(
 		fieldSelection, renderedSQL, orderByClause,
 	)
 
-	args := []interface{}{limit, off}
+	args := []any{limit, off}
 	return sql, args, nil
 }
 

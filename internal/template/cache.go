@@ -23,7 +23,7 @@ import (
 // offset, and orderBy (original order preserved) joined by "|".
 func generateCacheKey(
 	templateName string,
-	params map[string]interface{},
+	params map[string]any,
 	fields []string,
 	first *int,
 	offset *int,
@@ -43,7 +43,7 @@ func generateCacheKey(
 //
 // Only templateName + params are used (no fields/first/offset/orderBy) because
 // COUNT(*) results are independent of pagination and field selection.
-func generateCountCacheKey(templateName string, params map[string]interface{}) string {
+func generateCountCacheKey(templateName string, params map[string]any) string {
 	paramStr := buildSortedParams(params)
 
 	h := xxhash.New()
@@ -70,7 +70,7 @@ func shouldCache(tmpl *RegisteredTemplate, skipCache bool) bool {
 // If cacheLayer is nil, the loader is called directly.
 // Otherwise, CacheLayer.GetOrLoad is used with JSON serialization:
 //   - loader: calls the provided loader, JSON-marshals the result to []byte
-//   - cache hit: JSON-unmarshals []byte back to []map[string]interface{}
+//   - cache hit: JSON-unmarshals []byte back to []map[string]any
 //
 // Returns (data, loaderCalled, err) where loaderCalled indicates whether the
 // loader was actually invoked (true = cache miss, false = cache hit).
@@ -79,8 +79,8 @@ func executeWithCache(
 	cacheLayer *cache.CacheLayer,
 	datasourceName string,
 	cacheKey string,
-	loader func() ([]map[string]interface{}, error),
-) ([]map[string]interface{}, bool, error) {
+	loader func() ([]map[string]any, error),
+) ([]map[string]any, bool, error) {
 	// No cache layer — call loader directly.
 	if cacheLayer == nil {
 		data, err := loader()
@@ -110,7 +110,7 @@ func executeWithCache(
 		return nil, loaderCalled, nil
 	}
 
-	var result []map[string]interface{}
+	var result []map[string]any
 	if unmarshalErr := json.Unmarshal(raw, &result); unmarshalErr != nil {
 		return nil, loaderCalled, fmt.Errorf("json unmarshal cached data: %w", unmarshalErr)
 	}
@@ -166,7 +166,7 @@ func executeCount(
 //
 //	params|fields|first|offset|orderBy
 func buildCanonicalString(
-	params map[string]interface{},
+	params map[string]any,
 	fields []string,
 	first *int,
 	offset *int,
@@ -204,7 +204,7 @@ func buildCanonicalString(
 
 // buildSortedParams sorts parameter keys alphabetically and formats each pair
 // as "key=value", joined by "&".
-func buildSortedParams(params map[string]interface{}) string {
+func buildSortedParams(params map[string]any) string {
 	if len(params) == 0 {
 		return ""
 	}

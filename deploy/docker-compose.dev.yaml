@@ -1,0 +1,59 @@
+# =============================================================================
+# mountainKing — 轻量级本地开发环境
+# =============================================================================
+#
+# 仅包含 Redis、Prometheus、Grafana，不包含 StarRocks FE/BE。
+# 适用于本地开发和调试 mountainKing GraphQL API 服务。
+#
+# 使用方法:
+#   启动:   docker compose -f deploy/docker-compose.dev.yaml up -d
+#   停止:   docker compose -f deploy/docker-compose.dev.yaml down
+#   查看日志: docker compose -f deploy/docker-compose.dev.yaml logs -f
+#
+# 服务地址:
+#   Redis:      localhost:6379
+#   Prometheus: http://localhost:9090
+#   Grafana:    http://localhost:3000 (admin/admin)
+#
+# 配合 mountainKing 使用:
+#   1. 启动本 Compose 环境
+#   2. 设置环境变量或修改 config.yaml:
+#        GRAPHQL_SERVER_MODE=development
+#        GRAPHQL_AUTH_METHOD=none
+#        GRAPHQL_CACHE_BACKEND=redis
+#        GRAPHQL_RATE_LIMIT_REDIS_ADDR=localhost:6379
+#   3. 运行: go run cmd/server/main.go
+#   4. 访问 Grafana http://localhost:3000 查看监控面板
+# =============================================================================
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./grafana/dashboard.json:/var/lib/grafana/dashboards/mountainking.json:ro
+      - ./grafana/provisioning/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./grafana/provisioning/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+    depends_on:
+      - prometheus

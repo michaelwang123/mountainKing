@@ -56,7 +56,7 @@ func TestProperty82_DataLoaderPerRequestIsolation(t *testing.T) {
 					resultsByMarker[marker] = response
 					mu.Unlock()
 					return &datasource.QueryResult{
-						Data: []map[string]interface{}{{"marker": marker, "response": response}},
+						Data: []map[string]any{{"marker": marker, "response": response}},
 					}, nil
 				},
 			}, nil
@@ -69,7 +69,7 @@ func TestProperty82_DataLoaderPerRequestIsolation(t *testing.T) {
 		mgr := datasource.NewDataSourceManager(
 			registry,
 			[]config.DataSourceConfig{
-				{Name: "ds1", Type: "mock", Enabled: true, Connection: map[string]interface{}{}, Options: map[string]interface{}{}},
+				{Name: "ds1", Type: "mock", Enabled: true, Connection: map[string]any{}, Options: map[string]any{}},
 			},
 			retry.Config{MaxRetries: 0, RetryInterval: time.Millisecond},
 			logger,
@@ -97,7 +97,7 @@ func TestProperty82_DataLoaderPerRequestIsolation(t *testing.T) {
 
 				marker := fmt.Sprintf("req_%d", idx)
 				res, err := dl.Load(context.Background(), "ds1", datasource.QueryRequest{
-					Options: map[string]interface{}{"marker": marker},
+					Options: map[string]any{"marker": marker},
 				})
 				results[idx] = requestResult{marker: marker, result: res, err: err}
 			}(i)

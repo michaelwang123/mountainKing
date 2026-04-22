@@ -121,9 +121,9 @@ func TestValidateConfig_NoCSRFWarningInDev(t *testing.T) {
 func TestValidateConfig_DatasourceEmptyName(t *testing.T) {
 	cfg := validBaseConfig()
 	cfg.Datasources = []DataSourceConfig{
-		{Name: "", Type: "starrocks", Enabled: true, Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"t": map[string]interface{}{"columns": []interface{}{"id"}},
+		{Name: "", Type: "starrocks", Enabled: true, Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"t": map[string]any{"columns": []any{"id"}},
 			},
 		}},
 	}
@@ -179,7 +179,7 @@ func TestValidateConfig_DisabledDatasourceSkipped(t *testing.T) {
 func TestValidateConfig_NegativePoolSize(t *testing.T) {
 	cfg := validBaseConfig()
 	cfg.Datasources = []DataSourceConfig{
-		{Name: "ds1", Type: "prometheus", Enabled: true, Options: map[string]interface{}{
+		{Name: "ds1", Type: "prometheus", Enabled: true, Options: map[string]any{
 			"pool_size": -5,
 		}},
 	}
@@ -195,7 +195,7 @@ func TestValidateConfig_NegativePoolSize(t *testing.T) {
 func TestValidateConfig_StarRocksMissingWhitelist(t *testing.T) {
 	cfg := validBaseConfig()
 	cfg.Datasources = []DataSourceConfig{
-		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]interface{}{}},
+		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]any{}},
 	}
 	_, err := ValidateConfig(cfg)
 	if err == nil {
@@ -209,8 +209,8 @@ func TestValidateConfig_StarRocksMissingWhitelist(t *testing.T) {
 func TestValidateConfig_StarRocksEmptyWhitelist(t *testing.T) {
 	cfg := validBaseConfig()
 	cfg.Datasources = []DataSourceConfig{
-		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{},
+		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]any{
+			"allowed_tables": map[string]any{},
 		}},
 	}
 	_, err := ValidateConfig(cfg)
@@ -222,10 +222,10 @@ func TestValidateConfig_StarRocksEmptyWhitelist(t *testing.T) {
 func TestValidateConfig_StarRocksInvalidColumnName(t *testing.T) {
 	cfg := validBaseConfig()
 	cfg.Datasources = []DataSourceConfig{
-		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"orders": map[string]interface{}{
-					"columns": []interface{}{"valid_col", "invalid-col!"},
+		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"orders": map[string]any{
+					"columns": []any{"valid_col", "invalid-col!"},
 				},
 			},
 		}},
@@ -242,10 +242,10 @@ func TestValidateConfig_StarRocksInvalidColumnName(t *testing.T) {
 func TestValidateConfig_StarRocksValidWhitelist(t *testing.T) {
 	cfg := validBaseConfig()
 	cfg.Datasources = []DataSourceConfig{
-		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]interface{}{
-			"allowed_tables": map[string]interface{}{
-				"orders": map[string]interface{}{
-					"columns": []interface{}{"order_id", "amount"},
+		{Name: "sr", Type: "starrocks", Enabled: true, Options: map[string]any{
+			"allowed_tables": map[string]any{
+				"orders": map[string]any{
+					"columns": []any{"order_id", "amount"},
 				},
 			},
 		}},

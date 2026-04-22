@@ -53,7 +53,7 @@ func TestProperty41_MissingRequiredParams(t *testing.T) {
 		}
 
 		// Empty params map — required param is missing.
-		_, err := validateParams(map[string]interface{}{}, schemas)
+		_, err := validateParams(map[string]any{}, schemas)
 		if err == nil {
 			rt.Fatalf("expected VALIDATION_MISSING_PARAMETER for missing required param %q", paramName)
 		}
@@ -77,7 +77,7 @@ func TestProperty42_TypeMismatch(t *testing.T) {
 		// Generate a schema type and a mismatched value.
 		schemaType := rapid.SampledFrom([]string{"string", "int", "float", "boolean", "string[]"}).Draw(rt, "type")
 
-		var mismatchedVal interface{}
+		var mismatchedVal any
 		switch schemaType {
 		case "string":
 			// Provide a non-string value.
@@ -106,7 +106,7 @@ func TestProperty42_TypeMismatch(t *testing.T) {
 			},
 		}
 
-		params := map[string]interface{}{paramName: mismatchedVal}
+		params := map[string]any{paramName: mismatchedVal}
 		_, err := validateParams(params, schemas)
 		if err == nil {
 			rt.Fatalf("expected VALIDATION_INVALID_PARAMETER_TYPE for type %q with value %v (%T)", schemaType, mismatchedVal, mismatchedVal)
@@ -140,7 +140,7 @@ func TestProperty43_DefaultValueFilling(t *testing.T) {
 		}
 
 		// Empty params — default should be filled.
-		result, err := validateParams(map[string]interface{}{}, schemas)
+		result, err := validateParams(map[string]any{}, schemas)
 		if err != nil {
 			rt.Fatalf("unexpected error: %v", err)
 		}
@@ -196,7 +196,7 @@ func TestProperty44_EnumConstraint(t *testing.T) {
 			},
 		}
 
-		params := map[string]interface{}{paramName: invalidVal}
+		params := map[string]any{paramName: invalidVal}
 		_, err := validateParams(params, schemas)
 		if err == nil {
 			rt.Fatalf("expected VALIDATION_INVALID_PARAMETER_VALUE for value %q not in enum %v", invalidVal, enumVals)
@@ -232,7 +232,7 @@ func TestProperty45_StringLengthConstraint(t *testing.T) {
 			},
 		}
 
-		params := map[string]interface{}{paramName: longStr}
+		params := map[string]any{paramName: longStr}
 		_, err := validateParams(params, schemas)
 		if err == nil {
 			rt.Fatalf("expected VALIDATION_INVALID_PARAMETER_VALUE for string length %d > max_length %d", overLen, maxLen)
@@ -271,7 +271,7 @@ func TestProperty46_ArraySizeConstraint(t *testing.T) {
 			},
 		}
 
-		params := map[string]interface{}{paramName: items}
+		params := map[string]any{paramName: items}
 		_, err := validateParams(params, schemas)
 		if err == nil {
 			rt.Fatalf("expected VALIDATION_INVALID_PARAMETER_VALUE for array size %d > max_items %d", overSize, maxItems)
@@ -309,7 +309,7 @@ func TestProperty47_PatternConstraint(t *testing.T) {
 			},
 		}
 
-		params := map[string]interface{}{paramName: invalidVal}
+		params := map[string]any{paramName: invalidVal}
 		_, err := validateParams(params, schemas)
 		if err == nil {
 			rt.Fatalf("expected VALIDATION_INVALID_PARAMETER_VALUE for value %q not matching pattern %q", invalidVal, pattern.String())
@@ -331,7 +331,7 @@ func TestValidateParams_ValidParams(t *testing.T) {
 		{Name: "age", Type: "int", Required: true},
 		{Name: "score", Type: "float", Required: false, Default: float64(0.0)},
 	}
-	params := map[string]interface{}{
+	params := map[string]any{
 		"name": "Alice",
 		"age":  float64(30), // JSON number
 	}
@@ -355,7 +355,7 @@ func TestValidateParams_RequiredMissing(t *testing.T) {
 	schemas := []ParamSchema{
 		{Name: "id", Type: "string", Required: true, MaxLength: 1024},
 	}
-	_, err := validateParams(map[string]interface{}{}, schemas)
+	_, err := validateParams(map[string]any{}, schemas)
 	if err == nil {
 		t.Fatal("expected error for missing required param")
 	}
@@ -369,7 +369,7 @@ func TestValidateParams_OptionalMissingNoDefault(t *testing.T) {
 	schemas := []ParamSchema{
 		{Name: "optional_field", Type: "string", Required: false, MaxLength: 1024},
 	}
-	result, err := validateParams(map[string]interface{}{}, schemas)
+	result, err := validateParams(map[string]any{}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -383,7 +383,7 @@ func TestValidateParams_DefaultValueFilled(t *testing.T) {
 	schemas := []ParamSchema{
 		{Name: "period", Type: "string", Required: false, Default: "monthly", MaxLength: 1024},
 	}
-	result, err := validateParams(map[string]interface{}{}, schemas)
+	result, err := validateParams(map[string]any{}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -398,7 +398,7 @@ func TestValidateParams_StringType(t *testing.T) {
 		{Name: "s", Type: "string", Required: true, MaxLength: 1024},
 	}
 	// Valid string.
-	result, err := validateParams(map[string]interface{}{"s": "hello"}, schemas)
+	result, err := validateParams(map[string]any{"s": "hello"}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestValidateParams_StringType(t *testing.T) {
 	}
 
 	// Invalid: non-string.
-	_, err = validateParams(map[string]interface{}{"s": 123}, schemas)
+	_, err = validateParams(map[string]any{"s": 123}, schemas)
 	if err == nil {
 		t.Fatal("expected error for non-string value")
 	}
@@ -424,7 +424,7 @@ func TestValidateParams_IntType(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected int64
 	}{
 		{"int", 42, 42},
@@ -435,7 +435,7 @@ func TestValidateParams_IntType(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := validateParams(map[string]interface{}{"n": tc.input}, schemas)
+			result, err := validateParams(map[string]any{"n": tc.input}, schemas)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -446,7 +446,7 @@ func TestValidateParams_IntType(t *testing.T) {
 	}
 
 	// Invalid: float with decimal.
-	_, err := validateParams(map[string]interface{}{"n": 3.14}, schemas)
+	_, err := validateParams(map[string]any{"n": 3.14}, schemas)
 	if err == nil {
 		t.Fatal("expected error for float with decimal part")
 	}
@@ -460,7 +460,7 @@ func TestValidateParams_FloatType(t *testing.T) {
 	schemas := []ParamSchema{
 		{Name: "f", Type: "float", Required: true},
 	}
-	result, err := validateParams(map[string]interface{}{"f": 3.14}, schemas)
+	result, err := validateParams(map[string]any{"f": 3.14}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -469,7 +469,7 @@ func TestValidateParams_FloatType(t *testing.T) {
 	}
 
 	// Invalid: bool is not a float.
-	_, err = validateParams(map[string]interface{}{"f": true}, schemas)
+	_, err = validateParams(map[string]any{"f": true}, schemas)
 	if err == nil {
 		t.Fatal("expected error for bool as float")
 	}
@@ -483,7 +483,7 @@ func TestValidateParams_BooleanType(t *testing.T) {
 	schemas := []ParamSchema{
 		{Name: "b", Type: "boolean", Required: true},
 	}
-	result, err := validateParams(map[string]interface{}{"b": true}, schemas)
+	result, err := validateParams(map[string]any{"b": true}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -492,7 +492,7 @@ func TestValidateParams_BooleanType(t *testing.T) {
 	}
 
 	// Invalid: string is not a bool.
-	_, err = validateParams(map[string]interface{}{"b": "true"}, schemas)
+	_, err = validateParams(map[string]any{"b": "true"}, schemas)
 	if err == nil {
 		t.Fatal("expected error for string as boolean")
 	}
@@ -501,14 +501,14 @@ func TestValidateParams_BooleanType(t *testing.T) {
 	}
 }
 
-// 9. String[] type validation ([]string and []interface{}).
+// 9. String[] type validation ([]string and []any).
 func TestValidateParams_StringSliceType(t *testing.T) {
 	schemas := []ParamSchema{
 		{Name: "ids", Type: "string[]", Required: true, MaxItems: 1000},
 	}
 
 	// []string input.
-	result, err := validateParams(map[string]interface{}{"ids": []string{"a", "b"}}, schemas)
+	result, err := validateParams(map[string]any{"ids": []string{"a", "b"}}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -520,8 +520,8 @@ func TestValidateParams_StringSliceType(t *testing.T) {
 		t.Fatalf("expected [a b], got %v", ids)
 	}
 
-	// []interface{} input with string elements.
-	result, err = validateParams(map[string]interface{}{"ids": []interface{}{"x", "y"}}, schemas)
+	// []any input with string elements.
+	result, err = validateParams(map[string]any{"ids": []any{"x", "y"}}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -534,7 +534,7 @@ func TestValidateParams_StringSliceType(t *testing.T) {
 	}
 
 	// Invalid: plain string.
-	_, err = validateParams(map[string]interface{}{"ids": "not_a_slice"}, schemas)
+	_, err = validateParams(map[string]any{"ids": "not_a_slice"}, schemas)
 	if err == nil {
 		t.Fatal("expected error for non-slice value")
 	}
@@ -550,7 +550,7 @@ func TestValidateParams_EnumConstraint(t *testing.T) {
 	}
 
 	// Valid enum value.
-	result, err := validateParams(map[string]interface{}{"period": "daily"}, schemas)
+	result, err := validateParams(map[string]any{"period": "daily"}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -559,7 +559,7 @@ func TestValidateParams_EnumConstraint(t *testing.T) {
 	}
 
 	// Invalid enum value.
-	_, err = validateParams(map[string]interface{}{"period": "yearly"}, schemas)
+	_, err = validateParams(map[string]any{"period": "yearly"}, schemas)
 	if err == nil {
 		t.Fatal("expected error for invalid enum value")
 	}
@@ -575,13 +575,13 @@ func TestValidateParams_MaxLengthConstraint(t *testing.T) {
 	}
 
 	// Within limit.
-	_, err := validateParams(map[string]interface{}{"name": "short"}, schemas)
+	_, err := validateParams(map[string]any{"name": "short"}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Exceeds limit.
-	_, err = validateParams(map[string]interface{}{"name": "this_is_too_long"}, schemas)
+	_, err = validateParams(map[string]any{"name": "this_is_too_long"}, schemas)
 	if err == nil {
 		t.Fatal("expected error for string exceeding max_length")
 	}
@@ -597,13 +597,13 @@ func TestValidateParams_MaxItemsConstraint(t *testing.T) {
 	}
 
 	// Within limit.
-	_, err := validateParams(map[string]interface{}{"ids": []string{"a", "b"}}, schemas)
+	_, err := validateParams(map[string]any{"ids": []string{"a", "b"}}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Exceeds limit.
-	_, err = validateParams(map[string]interface{}{"ids": []string{"a", "b", "c", "d"}}, schemas)
+	_, err = validateParams(map[string]any{"ids": []string{"a", "b", "c", "d"}}, schemas)
 	if err == nil {
 		t.Fatal("expected error for array exceeding max_items")
 	}
@@ -620,13 +620,13 @@ func TestValidateParams_PatternConstraint(t *testing.T) {
 	}
 
 	// Valid pattern match.
-	_, err := validateParams(map[string]interface{}{"date": "2024-01-15"}, schemas)
+	_, err := validateParams(map[string]any{"date": "2024-01-15"}, schemas)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	// Invalid pattern.
-	_, err = validateParams(map[string]interface{}{"date": "not-a-date"}, schemas)
+	_, err = validateParams(map[string]any{"date": "not-a-date"}, schemas)
 	if err == nil {
 		t.Fatal("expected error for pattern mismatch")
 	}
@@ -643,7 +643,7 @@ func TestValidateParams_MultipleSchemas(t *testing.T) {
 		{Name: "limit", Type: "int", Required: false, Default: int64(100)},
 	}
 
-	params := map[string]interface{}{
+	params := map[string]any{
 		"eerid": "EER001",
 	}
 
@@ -669,7 +669,7 @@ func TestValidateParams_OriginalNotModified(t *testing.T) {
 		{Name: "opt", Type: "string", Required: false, Default: "default_val", MaxLength: 1024},
 	}
 
-	original := map[string]interface{}{
+	original := map[string]any{
 		"name": "Alice",
 	}
 

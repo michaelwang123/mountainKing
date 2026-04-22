@@ -19,7 +19,7 @@ import (
 
 // HotReloadCallback is called when a hot-reloadable config value changes.
 // The key is the config path (e.g. "logging.level") and value is the new value.
-type HotReloadCallback func(key string, value interface{})
+type HotReloadCallback func(key string, value any)
 
 // hotReloadableKeys defines the set of config keys that support hot-reloading.
 // Changes to keys not in this set require a service restart.
@@ -42,7 +42,7 @@ type HotReloader struct {
 	debounce   time.Duration
 	logger     *zap.Logger
 	stopCh     chan struct{}
-	snapshot   map[string]interface{}
+	snapshot   map[string]any
 }
 
 // NewHotReloader creates a new HotReloader for the given config file.
@@ -205,8 +205,8 @@ func (hr *HotReloader) reload() {
 }
 
 // captureSnapshot takes a snapshot of all hot-reloadable config values.
-func (hr *HotReloader) captureSnapshot() map[string]interface{} {
-	snap := make(map[string]interface{}, len(hotReloadableKeys))
+func (hr *HotReloader) captureSnapshot() map[string]any {
+	snap := make(map[string]any, len(hotReloadableKeys))
 	for key := range hotReloadableKeys {
 		snap[key] = hr.viper.Get(key)
 	}

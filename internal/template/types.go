@@ -31,13 +31,13 @@ type RawExecutor interface {
 	// through SQLQueryBuilder or whitelist validation.
 	//   query: the rendered SQL statement (already security-checked)
 	//   args:  SQL parameters (for parameterised LIMIT/OFFSET values)
-	ExecuteRaw(ctx context.Context, query string, args ...interface{}) (*datasource.QueryResult, error)
+	ExecuteRaw(ctx context.Context, query string, args ...any) (*datasource.QueryResult, error)
 }
 
 // TemplateQueryRequest represents a template query request from the resolver.
 type TemplateQueryRequest struct {
 	TemplateName string
-	Parameters   map[string]interface{}
+	Parameters   map[string]any
 	Fields       []string
 	First        *int
 	Offset       *int
@@ -48,7 +48,7 @@ type TemplateQueryRequest struct {
 
 // TemplateQueryResult holds the result of a template query execution.
 type TemplateQueryResult struct {
-	Data       []map[string]interface{}
+	Data       []map[string]any
 	TotalCount *int64 // -1 means count_enabled=false
 	Warnings   []string
 }

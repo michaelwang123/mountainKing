@@ -10,7 +10,7 @@ import (
 
 func TestCacheKeyGenerator_Generate_Deterministic(t *testing.T) {
 	gen := &CacheKeyGenerator{}
-	vars := map[string]interface{}{"limit": 10, "offset": 0}
+	vars := map[string]any{"limit": 10, "offset": 0}
 	query := "{ starrocks(table: \"events\") { id } }"
 
 	key1 := gen.Generate("myds", query, vars)
@@ -65,8 +65,8 @@ func TestCacheKeyGenerator_Generate_DifferentVariables(t *testing.T) {
 	gen := &CacheKeyGenerator{}
 	query := "{ users { id } }"
 
-	key1 := gen.Generate("ds", query, map[string]interface{}{"a": 1})
-	key2 := gen.Generate("ds", query, map[string]interface{}{"a": 2})
+	key1 := gen.Generate("ds", query, map[string]any{"a": 1})
+	key2 := gen.Generate("ds", query, map[string]any{"a": 2})
 
 	if key1 == key2 {
 		t.Error("keys for different variables should differ")
@@ -78,8 +78,8 @@ func TestCacheKeyGenerator_Generate_VariableOrderIndependent(t *testing.T) {
 	query := "{ users { id } }"
 
 	// Go maps are unordered, but our sorted serialization should produce the same key
-	vars1 := map[string]interface{}{"b": 2, "a": 1}
-	vars2 := map[string]interface{}{"a": 1, "b": 2}
+	vars1 := map[string]any{"b": 2, "a": 1}
+	vars2 := map[string]any{"a": 1, "b": 2}
 
 	key1 := gen.Generate("ds", query, vars1)
 	key2 := gen.Generate("ds", query, vars2)
@@ -94,7 +94,7 @@ func TestCacheKeyGenerator_Generate_NilAndEmptyVars(t *testing.T) {
 	query := "{ users { id } }"
 
 	keyNil := gen.Generate("ds", query, nil)
-	keyEmpty := gen.Generate("ds", query, map[string]interface{}{})
+	keyEmpty := gen.Generate("ds", query, map[string]any{})
 
 	if keyNil != keyEmpty {
 		t.Errorf("nil and empty vars should produce same key: %q vs %q", keyNil, keyEmpty)
