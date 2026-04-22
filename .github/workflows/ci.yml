@@ -39,7 +39,7 @@ jobs:
       - name: Run gosec
         run: gosec -fmt=json -out=gosec-report.json ./... || true
       - name: Upload gosec report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gosec-report
           path: gosec-report.json
@@ -55,7 +55,7 @@ jobs:
       - name: Run tests with coverage
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.out
