@@ -160,3 +160,13 @@ func (mc *MetricsCollector) Handler() http.Handler {
 func (mc *MetricsCollector) Registry() *prometheus.Registry {
 	return mc.registry
 }
+
+// CustomLabels returns a copy of the custom labels attached to all metrics.
+// The returned map is safe to modify without affecting the collector.
+func (mc *MetricsCollector) CustomLabels() map[string]string {
+	result := make(map[string]string, len(mc.customLabels))
+	for k, v := range mc.customLabels {
+		result[k] = v
+	}
+	return result
+}

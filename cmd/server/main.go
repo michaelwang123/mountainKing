@@ -37,6 +37,7 @@ import (
 	redisclient "github.com/michaelwang123/mountainKing/internal/redis"
 	"github.com/michaelwang123/mountainKing/internal/sanitize"
 	"github.com/michaelwang123/mountainKing/internal/server"
+	"github.com/michaelwang123/mountainKing/internal/template"
 	"github.com/michaelwang123/mountainKing/pkg/retry"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -141,6 +142,15 @@ func main() {
 		for dsName, dsCacheCfg := range cfg.Cache.PerDatasource {
 			ttlConfig[dsName] = dsCacheCfg.TTL
 		}
+		// Merge template-level cache TTLs into TTLConfig before creating CacheLayer.
+		// This must happen before NewCacheLayer to avoid data races on the ttlConfig map.
+		if cfg.SQLTemplates.Enabled {
+			for _, tmplCfg := range cfg.SQLTemplates.Templates {
+				if tmplCfg.CacheTTL != nil {
+					ttlConfig["template:"+tmplCfg.Name] = *tmplCfg.CacheTTL
+				}
+			}
+		}
 		cacheLayer = cache.NewCacheLayer(cache.CacheLayerConfig{
 			Backend:    backend,
 			TTLConfig:  ttlConfig,
@@ -215,9 +225,47 @@ func main() {
 	}
 
 	// 14. Create GraphQL schema + resolvers.
+	// Create TemplateEngine if sql_templates is enabled.
+	var templateEngine *template.TemplateEngine
+	if cfg.SQLTemplates.Enabled {
+		srDS, dsErr := dsManager.Get(cfg.SQLTemplates.DatasourceName)
+		if dsErr != nil {
+			logger.Fatal("sql_templates enabled but configured datasource not available",
+				zap.String("datasource_name", cfg.SQLTemplates.DatasourceName),
+				zap.Error(dsErr))
+		}
+		srAdapter, ok := srDS.(*starrocks.Adapter)
+		if !ok {
+			logger.Fatal("sql_templates requires a StarRocks datasource",
+				zap.String("datasource_name", cfg.SQLTemplates.DatasourceName))
+		}
+
+		templateMetrics := template.NewTemplateMetrics(metricsCollector.Registry(), metricsCollector.CustomLabels())
+
+		templateEngine, err = template.NewTemplateEngine(template.TemplateEngineConfig{
+			Config:         cfg.SQLTemplates,
+			GraphQLCfg:     cfg.GraphQL,
+			DatasourceName: srAdapter.Name(),
+			Executor:       srAdapter,
+			CacheLayer:     cacheLayer,
+			Sanitizer:      sanitizer,
+			AuditLogger:    auditLogger,
+			Metrics:        templateMetrics,
+			Tracer:         tracingProvider.Tracer(),
+			Logger:         logger.Logger,
+		})
+		if err != nil {
+			logger.Fatal("failed to init template engine", zap.Error(err))
+		}
+		logger.Info("template engine initialized",
+			zap.String("datasource", srAdapter.Name()),
+			zap.Int("template_count", len(cfg.SQLTemplates.Templates)))
+	}
+
 	res := &resolver.Resolver{
-		DSManager:     dsManager,
-		GraphQLConfig: cfg.GraphQL,
+		DSManager:      dsManager,
+		GraphQLConfig:  cfg.GraphQL,
+		TemplateEngine: templateEngine,
 	}
 	if cacheLayer != nil {
 		res.CacheClearer = cacheLayer
@@ -308,6 +356,13 @@ func main() {
 	// TracingProvider.Shutdown (independent 5s timeout).
 	if tpErr := tracingProvider.Shutdown(context.Background()); tpErr != nil {
 		logger.Error("tracing provider shutdown error", zap.Error(tpErr))
+	}
+
+	// Close TemplateEngine before datasource connections.
+	if templateEngine != nil {
+		if teErr := templateEngine.Close(); teErr != nil {
+			logger.Error("template engine close error", zap.Error(teErr))
+		}
 	}
 
 	// Close all data source connections.
