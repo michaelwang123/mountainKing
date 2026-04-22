@@ -75,13 +75,14 @@ func wrapWithPagination(
 		orderByClause = " ORDER BY " + strings.Join(obParts, ", ")
 	}
 
+	// StarRocks does not support parameterized LIMIT/OFFSET (? placeholders).
+	// Inline the integer values directly — safe because they are int types.
 	sql := fmt.Sprintf(
-		"SELECT %s FROM (%s) AS __tq_wrapper__%s LIMIT ? OFFSET ?",
-		fieldSelection, renderedSQL, orderByClause,
+		"SELECT %s FROM (%s) AS __tq_wrapper__%s LIMIT %d OFFSET %d",
+		fieldSelection, renderedSQL, orderByClause, limit, off,
 	)
 
-	args := []any{limit, off}
-	return sql, args, nil
+	return sql, nil, nil
 }
 
 // wrapWithCount wraps the rendered SQL with a COUNT(*) query.

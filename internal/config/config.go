@@ -69,9 +69,9 @@ type GraphQLConfig struct {
 // Each data source has a type identifier, connection parameters, and custom options
 // that are passed to the corresponding adapter factory.
 type DataSourceConfig struct {
-	Name       string                 `mapstructure:"name"`
-	Type       string                 `mapstructure:"type"`
-	Enabled    bool                   `mapstructure:"enabled"`
+	Name       string         `mapstructure:"name"`
+	Type       string         `mapstructure:"type"`
+	Enabled    bool           `mapstructure:"enabled"`
 	Connection map[string]any `mapstructure:"connection"`
 	Options    map[string]any `mapstructure:"options"`
 }
@@ -322,9 +322,40 @@ func LoadConfig(configPath string) (*Config, error) {
 		}
 	}
 
+	// Expand ${VAR} references in string values loaded from YAML.
+	// This allows config.yaml to use environment variable placeholders like
+	// ${SR_DB_HOST}, ${SR_DB_PASSWORD}, etc. for sensitive or environment-specific values.
+	for _, key := range v.AllKeys() {
+		val := v.Get(key)
+		if strVal, ok := val.(string); ok {
+			expanded := os.ExpandEnv(strVal)
+			if expanded != strVal {
+				v.Set(key, expanded)
+			}
+		}
+	}
+
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	// Expand ${VAR} environment variable references in datasource connection
+	// and password fields. Viper's AllKeys() doesn't traverse into array
+	// elements (datasources[]), so we must expand after Unmarshal.
+	for i := range cfg.Datasources {
+		conn := cfg.Datasources[i].Connection
+		for k, v := range conn {
+			if s, ok := v.(string); ok {
+				conn[k] = os.ExpandEnv(s)
+			}
+		}
+		opts := cfg.Datasources[i].Options
+		for k, v := range opts {
+			if s, ok := v.(string); ok {
+				opts[k] = os.ExpandEnv(s)
+			}
+		}
 	}
 
 	// Post-unmarshal env var overrides for keys where Viper's AutomaticEnv

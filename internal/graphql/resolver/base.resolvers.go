@@ -19,6 +19,7 @@ func (r *queryResolver) Starrocks(ctx context.Context, table string, fields []st
 	req := buildStarRocksQueryRequest(
 		fields, filters, orderBy, first, after, offset, limit,
 	)
+	req.Options = map[string]any{"table": table}
 	req.NeedCount = fieldRequested(ctx, "totalCount")
 
 	result, err := r.DSManager.ExecuteWithRetry(

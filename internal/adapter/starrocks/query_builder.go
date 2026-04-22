@@ -278,7 +278,6 @@ func (b *SQLQueryBuilder) buildLimitClause(p *datasource.PaginationParams) (stri
 	}
 
 	var parts []string
-	var params []any
 
 	// Determine limit: First takes precedence over Limit.
 	var limit *int
@@ -299,16 +298,16 @@ func (b *SQLQueryBuilder) buildLimitClause(p *datasource.PaginationParams) (stri
 		offset = p.Offset
 	}
 
+	// StarRocks does not support parameterized LIMIT/OFFSET (? placeholders).
+	// Inline the integer values directly — safe because they are int types.
 	if limit != nil {
-		parts = append(parts, "LIMIT ?")
-		params = append(params, *limit)
+		parts = append(parts, fmt.Sprintf("LIMIT %d", *limit))
 	}
 	if offset != nil {
-		parts = append(parts, "OFFSET ?")
-		params = append(params, *offset)
+		parts = append(parts, fmt.Sprintf("OFFSET %d", *offset))
 	}
 
-	return strings.Join(parts, " "), params
+	return strings.Join(parts, " "), nil
 }
 
 // quoteIdentifier wraps an identifier in backticks.

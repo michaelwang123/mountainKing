@@ -119,13 +119,13 @@ apikey:
 
 ### rate_limit — 限流配置
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `mode` | string | `local` | 限流模式：`local`（单实例）或 `distributed`（Redis 分布式） |
-| `requests_per_window` | int | `100` | 每个时间窗口最大请求数 |
-| `window_size` | duration | `60s` | 时间窗口大小 |
-| `redis.addr` | string | — | 分布式模式 Redis 地址 |
-| `redis.password` | string | — | Redis 密码 |
+| 配置项　　　　　　　　| 类型　　 | 默认值　| 说明　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| -----------------------| ----------| ---------| -------------------------------------------------------------|
+| `mode`　　　　　　　　| string　 | `local` | 限流模式：`local`（单实例）或 `distributed`（Redis 分布式） |
+| `requests_per_window` | int　　　| `100`　 | 每个时间窗口最大请求数　　　　　　　　　　　　　　　　　　　|
+| `window_size`　　　　 | duration | `60s`　 | 时间窗口大小　　　　　　　　　　　　　　　　　　　　　　　　|
+| `redis.addr`　　　　　| string　 | —　　　 | 分布式模式 Redis 地址　　　　　　　　　　　　　　　　　　　 |
+| `redis.password`　　　| string　 | —　　　 | Redis 密码　　　　　　　　　　　　　　　　　　　　　　　　　|
 
 ### cache — 缓存配置
 
@@ -158,13 +158,13 @@ apikey:
 
 ### logging — 日志配置
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `level` | string | `info` | 日志级别：`debug`/`info`/`warn`/`error` |
-| `format` | string | `json` | 日志格式 |
-| `audit.enabled` | bool | `false` | 是否启用审计日志 |
-| `audit.output` | string | `stdout` | 审计日志输出：`stdout` 或 `file` |
-| `audit.file_path` | string | — | 审计日志文件路径 |
+| 配置项　　　　　　| 类型　 | 默认值　 | 说明　　　　　　　　　　　　　　　　　　|
+| -------------------| --------| ----------| -----------------------------------------|
+| `level`　　　　　 | string | `info`　 | 日志级别：`debug`/`info`/`warn`/`error` |
+| `format`　　　　　| string | `json`　 | 日志格式　　　　　　　　　　　　　　　　|
+| `audit.enabled`　 | bool　 | `false`　| 是否启用审计日志　　　　　　　　　　　　|
+| `audit.output`　　| string | `stdout` | 审计日志输出：`stdout` 或 `file`　　　　|
+| `audit.file_path` | string | —　　　　| 审计日志文件路径　　　　　　　　　　　　|
 
 ### sanitization — 敏感信息脱敏
 
