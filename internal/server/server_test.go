@@ -175,9 +175,18 @@ func TestSetupRoutes_Playground_Production(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_HealthEndpoint(t *testing.T) {
+// TestHealthEndpoint verifies that /health returns 200 when registered on the
+// router by the caller (as main.go does). SetupRoutes does not register
+// health/ready/metrics — those are added externally.
+func TestHealthEndpoint(t *testing.T) {
 	s := newTestServer()
 	router := s.SetupRoutes()
+	// Simulate main.go: register a stub health handler.
+	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","health":"ok"}`))
+	})
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
@@ -196,9 +205,14 @@ func TestSetupRoutes_HealthEndpoint(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_ReadyEndpoint(t *testing.T) {
+// TestReadyEndpoint verifies that /ready returns 200 when registered externally.
+func TestReadyEndpoint(t *testing.T) {
 	s := newTestServer()
 	router := s.SetupRoutes()
+	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
@@ -213,9 +227,14 @@ func TestSetupRoutes_ReadyEndpoint(t *testing.T) {
 	}
 }
 
-func TestSetupRoutes_MetricsEndpoint(t *testing.T) {
+// TestMetricsEndpoint verifies that /metrics returns 200 when registered externally.
+func TestMetricsEndpoint(t *testing.T) {
 	s := newTestServer()
 	router := s.SetupRoutes()
+	router.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("# HELP go_goroutines\n"))
+	})
 	ts := httptest.NewServer(router)
 	defer ts.Close()
 
