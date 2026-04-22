@@ -38,6 +38,9 @@ func newTestTemplate(t *testing.T, name, content string) *RegisteredTemplate {
 	}
 }
 
+// testRenderEngine returns a minimal TemplateEngine suitable for calling te.render() in tests.
+var testRenderEngine = &TemplateEngine{}
+
 // defaultRenderTimeout is the standard timeout used in most tests.
 const defaultRenderTimeout = 5 * time.Second
 
@@ -66,7 +69,7 @@ func TestProperty8_RenderResultNonEmpty(t *testing.T) {
 		tmplContent := "SELECT " + word + " FROM t"
 		tmpl := newTestTemplate(t, "test_p8", tmplContent)
 
-		result, err := render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+		result, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 		if err != nil {
 			rt.Fatalf("render returned error: %v", err)
 		}
@@ -81,7 +84,7 @@ func TestProperty8_RenderResultNonEmpty(t *testing.T) {
 // =============================================================================
 // Property 9: 渲染结果长度限制
 // **Validates: Requirements 2.10**
-// For any successful render, len(result) ≤ maxRenderedSQLLen.
+// For any successful render, len(result) <= maxRenderedSQLLen.
 // =============================================================================
 
 func TestProperty9_RenderResultLengthLimit(t *testing.T) {
@@ -92,9 +95,9 @@ func TestProperty9_RenderResultLengthLimit(t *testing.T) {
 		tmplContent := "SELECT " + word + " FROM t"
 		tmpl := newTestTemplate(t, "test_p9", tmplContent)
 
-		result, err := render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, maxLen)
+		result, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, maxLen)
 		if err != nil {
-			// If error, it should be because length exceeded — that's fine.
+			// If error, it should be because length exceeded -- that's fine.
 			return
 		}
 
@@ -118,10 +121,10 @@ func TestProperty10_RenderTimeoutProtection(t *testing.T) {
 		tmplContent := "SELECT " + word + " FROM t"
 		tmpl := newTestTemplate(t, "test_p10", tmplContent)
 
-		_, err := render(context.Background(), tmpl, map[string]interface{}{}, time.Nanosecond, defaultMaxRenderedSQLLen)
+		_, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, time.Nanosecond, defaultMaxRenderedSQLLen)
 		if err == nil {
 			// It's possible the render completed before the 1ns timeout on fast machines.
-			// This is acceptable — the property is that IF timeout occurs, the error code is correct.
+			// This is acceptable -- the property is that IF timeout occurs, the error code is correct.
 			return
 		}
 
@@ -149,8 +152,8 @@ func TestProperty12_RenderDeterminism(t *testing.T) {
 		params := map[string]interface{}{"name": paramVal}
 		_ = word // used for variety in generation
 
-		result1, err1 := render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
-		result2, err2 := render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+		result1, err1 := testRenderEngine.render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+		result2, err2 := testRenderEngine.render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 
 		if (err1 == nil) != (err2 == nil) {
 			rt.Fatalf("render determinism violated: err1=%v, err2=%v", err1, err2)
@@ -171,7 +174,7 @@ func TestProperty12_RenderDeterminism(t *testing.T) {
 // 1. Simple template renders correctly
 func TestRender_SimpleTemplate(t *testing.T) {
 	tmpl := newTestTemplate(t, "simple", "SELECT * FROM users")
-	result, err := render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	result, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -184,7 +187,7 @@ func TestRender_SimpleTemplate(t *testing.T) {
 func TestRender_TemplateWithParams(t *testing.T) {
 	tmpl := newTestTemplate(t, "with_params", "SELECT * FROM users WHERE id = {{.Params.id | safeInt}}")
 	params := map[string]interface{}{"id": int64(42)}
-	result, err := render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	result, err := testRenderEngine.render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -198,7 +201,7 @@ func TestRender_TemplateWithParams(t *testing.T) {
 func TestRender_EmptyResultReturnsError(t *testing.T) {
 	// Template that renders to only whitespace.
 	tmpl := newTestTemplate(t, "empty", "   \n\t  ")
-	_, err := render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	_, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err == nil {
 		t.Fatal("expected error for empty render result")
 	}
@@ -213,7 +216,7 @@ func TestRender_ExceedingMaxLengthReturnsError(t *testing.T) {
 	// Create a template that produces output longer than our small max.
 	longSQL := "SELECT " + strings.Repeat("x", 100) + " FROM t"
 	tmpl := newTestTemplate(t, "long", longSQL)
-	_, err := render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, 50)
+	_, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, 50)
 	if err == nil {
 		t.Fatal("expected error for exceeding max length")
 	}
@@ -229,7 +232,7 @@ func TestRender_TimeoutReturnsError(t *testing.T) {
 	// Use an already-cancelled context to guarantee the timeout path fires.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // cancel immediately
-	_, err := render(ctx, tmpl, map[string]interface{}{}, time.Nanosecond, defaultMaxRenderedSQLLen)
+	_, err := testRenderEngine.render(ctx, tmpl, map[string]interface{}{}, time.Nanosecond, defaultMaxRenderedSQLLen)
 	if err == nil {
 		t.Fatal("expected error for timeout")
 	}
@@ -241,10 +244,10 @@ func TestRender_TimeoutReturnsError(t *testing.T) {
 
 // 6. Template with syntax error in execution returns INTERNAL_TEMPLATE_RENDER_ERROR
 func TestRender_TemplateSyntaxErrorInExecution(t *testing.T) {
-	// Create a template that references a missing key — with missingkey=error this will fail.
+	// Create a template that references a missing key -- with missingkey=error this will fail.
 	tmpl := newTestTemplate(t, "missing_key", "SELECT {{.Params.nonexistent}} FROM t")
 	params := map[string]interface{}{} // "nonexistent" not provided
-	_, err := render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	_, err := testRenderEngine.render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err == nil {
 		t.Fatal("expected error for missing key in template execution")
 	}
@@ -258,7 +261,7 @@ func TestRender_TemplateSyntaxErrorInExecution(t *testing.T) {
 func TestRender_SemicolonDetectionReturnsUnsafeSQL(t *testing.T) {
 	// Template that produces SQL with a semicolon outside string literals.
 	tmpl := newTestTemplate(t, "semicolon", "SELECT 1; DROP TABLE users")
-	_, err := render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	_, err := testRenderEngine.render(context.Background(), tmpl, map[string]interface{}{}, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err == nil {
 		t.Fatal("expected error for semicolon in rendered SQL")
 	}
@@ -268,17 +271,17 @@ func TestRender_SemicolonDetectionReturnsUnsafeSQL(t *testing.T) {
 	}
 }
 
-// 8. Deterministic rendering (same input → same output)
+// 8. Deterministic rendering (same input -> same output)
 func TestRender_Deterministic(t *testing.T) {
 	tmpl := newTestTemplate(t, "deterministic", "SELECT * FROM t WHERE name = {{.Params.name | quote}} AND id = {{.Params.id | safeInt}}")
 	params := map[string]interface{}{"name": "O'Brien", "id": int64(7)}
 
-	result1, err := render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	result1, err := testRenderEngine.render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err != nil {
 		t.Fatalf("first render failed: %v", err)
 	}
 
-	result2, err := render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
+	result2, err := testRenderEngine.render(context.Background(), tmpl, params, defaultRenderTimeout, defaultMaxRenderedSQLLen)
 	if err != nil {
 		t.Fatalf("second render failed: %v", err)
 	}

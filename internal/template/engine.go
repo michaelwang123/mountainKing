@@ -151,7 +151,7 @@ func (te *TemplateEngine) Execute(ctx context.Context, req *TemplateQueryRequest
 
 	// 4. Render template (with render_timeout).
 	renderStart := time.Now()
-	renderedSQL, err := render(ctx, tmpl, validatedParams, te.config.RenderTimeout, te.config.MaxRenderedSQLLen)
+	renderedSQL, err := te.render(ctx, tmpl, validatedParams, te.config.RenderTimeout, te.config.MaxRenderedSQLLen)
 	renderDuration := time.Since(renderStart)
 	te.observeRenderDuration(req.TemplateName, renderDuration)
 	if err != nil {
@@ -353,6 +353,9 @@ func (te *TemplateEngine) Reload(ctx context.Context, fromMutation bool) (*Reloa
 		return nil, fmt.Errorf("reload loadAll: %w", err)
 	}
 
+	// Save the count of freshly loaded templates BEFORE error isolation merge.
+	freshSuccessCount := len(lr.Registered)
+
 	// Error isolation: for templates that failed to load, copy old version.
 	oldAll := te.registry.GetAll()
 	oldMap := make(map[string]*RegisteredTemplate, len(oldAll))
@@ -378,14 +381,9 @@ func (te *TemplateEngine) Reload(ctx context.Context, fromMutation bool) (*Reloa
 		for name, newHash := range lr.Hashes {
 			oldHash, exists := te.registry.GetHash(name)
 			if !exists || oldHash != newHash {
-				prefix := fmt.Sprintf("cache:template:%s:", name)
-				_ = te.cacheLayer.ClearByDatasource(ctx, "")
-				// Use DeleteByPrefix pattern via ClearByDatasource with the template prefix.
-				// Since ClearByDatasource uses "cache:{datasource}:" prefix, we need to
-				// use the cache backend directly if available. For now, log the intent.
+				_ = te.cacheLayer.ClearByDatasource(ctx, "template:"+name)
 				te.logger.Info("clearing cache for changed template",
 					zap.String("name", name),
-					zap.String("prefix", prefix),
 				)
 			}
 		}
@@ -396,7 +394,7 @@ func (te *TemplateEngine) Reload(ctx context.Context, fromMutation bool) (*Reloa
 
 	duration := time.Since(startTime)
 	result := &ReloadResult{
-		SuccessCount: len(lr.Registered),
+		SuccessCount: freshSuccessCount,
 		Failures:     lr.Failures,
 		Duration:     duration,
 	}

@@ -29,7 +29,7 @@ type renderContext struct {
 //  3. Trim result and validate non-empty
 //  4. Check length ≤ maxRenderedSQLLen
 //  5. Run sanitizeSQL security checks
-func render(ctx context.Context, tmpl *RegisteredTemplate, params map[string]interface{}, renderTimeout time.Duration, maxRenderedSQLLen int) (string, error) {
+func (te *TemplateEngine) render(ctx context.Context, tmpl *RegisteredTemplate, params map[string]interface{}, renderTimeout time.Duration, maxRenderedSQLLen int) (string, error) {
 	renderCtx := renderContext{Params: params}
 
 	// Create a timeout context for the render phase.
@@ -53,6 +53,16 @@ func render(ctx context.Context, tmpl *RegisteredTemplate, params map[string]int
 	var result renderResult
 	select {
 	case <-timeoutCtx.Done():
+		// Track the leaked goroutine (template.Execute is synchronous and can't be cancelled).
+		if te.metrics != nil && te.metrics.RenderGoroutineLeaks != nil {
+			te.metrics.RenderGoroutineLeaks.Inc()
+			// Spawn a goroutine to wait for the leaked render goroutine to finish,
+			// then decrement the gauge.
+			go func() {
+				<-ch // wait for the leaked goroutine to complete
+				te.metrics.RenderGoroutineLeaks.Dec()
+			}()
+		}
 		return "", apierrors.NewAPIError(
 			apierrors.ErrInternalTemplateRenderError,
 			fmt.Sprintf("template %q render timed out after %s", tmpl.Name, renderTimeout),

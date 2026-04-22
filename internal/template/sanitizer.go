@@ -89,7 +89,12 @@ func sanitizeSQL(sql string) (string, error) {
 			}
 
 		case stateInSingleQuote:
-			if ch == '\\' && i+1 < n && sql[i+1] == '\'' {
+			if ch == '\\' && i+1 < n && sql[i+1] == '\\' {
+				// Escaped backslash \\ — write both and stay in state
+				out.WriteByte('\\')
+				out.WriteByte('\\')
+				i += 2
+			} else if ch == '\\' && i+1 < n && sql[i+1] == '\'' {
 				// Backslash-escaped quote \' — write both and stay in state
 				out.WriteByte('\\')
 				out.WriteByte('\'')
