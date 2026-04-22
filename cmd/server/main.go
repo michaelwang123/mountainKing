@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -227,6 +228,7 @@ func main() {
 	// 14. Create GraphQL schema + resolvers.
 	// Create TemplateEngine if sql_templates is enabled.
 	var templateEngine *template.TemplateEngine
+	var templateWatcher *template.TemplateWatcher
 	if cfg.SQLTemplates.Enabled {
 		srDS, dsErr := dsManager.Get(cfg.SQLTemplates.DatasourceName)
 		if dsErr != nil {
@@ -260,6 +262,24 @@ func main() {
 		logger.Info("template engine initialized",
 			zap.String("datasource", srAdapter.Name()),
 			zap.Int("template_count", len(cfg.SQLTemplates.Templates)))
+
+		// Start TemplateWatcher for fsnotify-based hot reload.
+		watchDirs := []string{cfg.SQLTemplates.BaseDir}
+		sharedDir := cfg.SQLTemplates.SharedDir
+		if sharedDir == "" {
+			sharedDir = filepath.Join(cfg.SQLTemplates.BaseDir, "_shared")
+		}
+		if sharedDir != cfg.SQLTemplates.BaseDir {
+			watchDirs = append(watchDirs, sharedDir)
+		}
+		var twErr error
+		templateWatcher, twErr = template.NewTemplateWatcher(templateEngine, watchDirs, logger.Logger)
+		if twErr != nil {
+			logger.Warn("failed to create template watcher, fsnotify hot-reload disabled", zap.Error(twErr))
+		} else {
+			templateWatcher.Start()
+			logger.Info("template watcher started", zap.Strings("watch_dirs", watchDirs))
+		}
 	}
 
 	res := &resolver.Resolver{
@@ -356,6 +376,13 @@ func main() {
 	// TracingProvider.Shutdown (independent 5s timeout).
 	if tpErr := tracingProvider.Shutdown(context.Background()); tpErr != nil {
 		logger.Error("tracing provider shutdown error", zap.Error(tpErr))
+	}
+
+	// Close TemplateWatcher before TemplateEngine.
+	if templateWatcher != nil {
+		if twErr := templateWatcher.Stop(); twErr != nil {
+			logger.Error("template watcher stop error", zap.Error(twErr))
+		}
 	}
 
 	// Close TemplateEngine before datasource connections.

@@ -450,3 +450,70 @@ func TestSanitizeSQL_ComplexSQLWithHintsAndStrings(t *testing.T) {
 		t.Fatalf("double-quoted identifier was modified: %q", result)
 	}
 }
+
+// =============================================================================
+// Bugfix C2: sanitizer 反斜杠序列处理修复验证
+// =============================================================================
+
+// TestSanitizeSQL_EscapedBackslashClosesString verifies that \\\\ inside a
+// single-quoted string is treated as an escaped backslash, and the following
+// ' correctly closes the string.
+func TestSanitizeSQL_EscapedBackslashClosesString(t *testing.T) {
+	// Input: SELECT * FROM t WHERE x = 'a\\' AND 1=1
+	// The string 'a\\' should be: a + literal backslash + closing quote
+	// So "AND 1=1" is outside the string — should pass (no semicolon).
+	sql := `SELECT * FROM t WHERE x = 'a\\' AND y = 1`
+	result, err := sanitizeSQL(sql)
+	if err != nil {
+		t.Fatalf("expected no error for escaped backslash closing string, got: %v", err)
+	}
+	if !strings.Contains(result, "AND y = 1") {
+		t.Fatalf("expected 'AND y = 1' outside string, got: %q", result)
+	}
+}
+
+// TestSanitizeSQL_EscapedBackslashThenSemicolon verifies that \\\\ followed by
+// ' closes the string, and a subsequent semicolon is detected as injection.
+func TestSanitizeSQL_EscapedBackslashThenSemicolon(t *testing.T) {
+	// Input: SELECT * FROM t WHERE x = 'a\\'; DROP TABLE users
+	// The string 'a\\' closes at the second ', so "; DROP TABLE" is outside.
+	sql := `SELECT * FROM t WHERE x = 'a\\'; DROP TABLE users`
+	_, err := sanitizeSQL(sql)
+	if err == nil {
+		t.Fatal("expected VALIDATION_UNSAFE_SQL for semicolon after escaped backslash string")
+	}
+	apiErr, ok := err.(*apierrors.APIError)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.Code != apierrors.ErrValidationUnsafeSQL {
+		t.Fatalf("expected code %q, got %q", apierrors.ErrValidationUnsafeSQL, apiErr.Code)
+	}
+}
+
+// TestSanitizeSQL_DoubleBackslashInsideString verifies that multiple \\\\
+// pairs inside a string are handled correctly.
+func TestSanitizeSQL_DoubleBackslashInsideString(t *testing.T) {
+	// 'a\\\\b' = a + backslash + backslash + b — string stays open until final '
+	sql := `SELECT * FROM t WHERE x = 'a\\\\b'`
+	result, err := sanitizeSQL(sql)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != sql {
+		t.Fatalf("expected %q, got %q", sql, result)
+	}
+}
+
+// TestSanitizeSQL_BackslashQuoteStillWorks verifies that simple \' (without
+// preceding backslash) still works as escaped quote.
+func TestSanitizeSQL_BackslashQuoteStillWorks(t *testing.T) {
+	sql := `SELECT * FROM t WHERE x = 'it\'s fine'`
+	result, err := sanitizeSQL(sql)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != sql {
+		t.Fatalf("expected %q, got %q", sql, result)
+	}
+}

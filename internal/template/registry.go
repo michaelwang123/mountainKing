@@ -5,6 +5,7 @@
 package template
 
 import (
+	"sort"
 	"sync"
 	"text/template"
 	"time"
@@ -51,7 +52,7 @@ func (r *TemplateRegistry) Get(name string) (*RegisteredTemplate, bool) {
 	return t, ok
 }
 
-// GetAll returns a snapshot slice of all registered templates.
+// GetAll returns a snapshot slice of all registered templates, sorted by name.
 // The caller receives a copy of the slice; the underlying map is not exposed.
 func (r *TemplateRegistry) GetAll() []*RegisteredTemplate {
 	r.mu.RLock()
@@ -60,6 +61,9 @@ func (r *TemplateRegistry) GetAll() []*RegisteredTemplate {
 	for _, t := range r.templates {
 		result = append(result, t)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result
 }
 
