@@ -135,14 +135,76 @@ CLOSED ────────────────────────�
 1. 停止接受新连接
 2. 等待 in-flight 请求完成（最长 `max_wait_time`，默认 30s）
 3. TracingProvider.Shutdown（独立 5s 超时）
-4. 刷新 Prometheus 指标
-5. DataSourceManager.CloseAll（关闭所有数据源连接池）
-6. Logger.Sync（刷新日志缓冲区）
+4. TemplateEngine.Close（释放模板引擎资源）
+5. 刷新 Prometheus 指标
+6. DataSourceManager.CloseAll（关闭所有数据源连接池）
+7. Logger.Sync（刷新日志缓冲区）
+
+## SQL 模板查询引擎（TemplateEngine）
+
+TemplateEngine 作为 StarRocks 数据源的扩展查询方式，通过预定义的 Go `text/template` 模板文件支持复杂的多表 JOIN、CTE、窗口函数等高级 SQL 查询场景。
+
+### 架构集成
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    GraphQL Layer                         │
+│                                                         │
+│  starrocks(table, filters...)   templateQuery(name, params...)  │
+│       │                                │                │
+│  queryResolver.Starrocks()    queryResolver.TemplateQuery()     │
+└───────┬────────────────────────────────┬────────────────┘
+        │                                │
+        │                      ┌─────────▼──────────┐
+        │                      │   TemplateEngine    │
+        │                      │  ┌───────────────┐  │
+        │                      │  │ Registry      │  │
+        │                      │  │ ParamValidator │  │
+        │                      │  │ SQLSanitizer  │  │
+        │                      │  │ Semaphore(10) │  │
+        │                      │  └───────────────┘  │
+        │                      └─────────┬──────────┘
+        │                                │ RawExecutor interface
+        ▼                                ▼
+┌────────────────────────────────────────────────────────┐
+│                StarRocks Adapter                        │
+│  Execute(QueryRequest)      ExecuteRaw(sql, args...)    │
+│  [DataSource interface]     [RawExecutor interface]     │
+│       │                           │                     │
+│       ▼                           ▼                     │
+│  ┌────────────────────────────────────────┐             │
+│  │         *sql.DB 连接池 (共享)           │             │
+│  └────────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 核心组件
+
+| 组件 | 说明 |
+|------|------|
+| `TemplateRegistry` | RWMutex 保护的模板注册表，支持原子更新 |
+| `Loader` | 模板文件加载、UTF-8 校验、SHA-256 hash 计算 |
+| `Renderer` | 模板渲染，render_timeout 超时控制 |
+| `Validator` | 参数类型/必填/枚举/长度/正则校验 |
+| `Sanitizer` | 7 状态词法扫描器，检测多语句注入、移除注释、保留 Hint |
+| `FuncMap` | 12 个自定义模板函数（safeString、quote、safeInt 等） |
+| `Pagination` | 分页包装器，over-fetch 策略，参数化 LIMIT/OFFSET |
+| `Watcher` | fsnotify 文件监听，500ms 防抖，动态子目录支持 |
+
+### 接口隔离
+
+TemplateEngine 通过 `RawExecutor` 接口（仅 `ExecuteRaw` 方法）与 StarRocks Adapter 交互，确保模板引擎无法调用白名单查询等其他方法。`DataSource` 接口不做修改，Prometheus 适配器不受影响。
+
+### 并发保护
+
+通过 `max_concurrent_queries` 信号量（默认 10）限制模板查询并发数，防止长时间运行的复杂报表查询饿死共享连接池中的单表查询。
 
 ## 技术栈
 
 | 组件 | 技术选型 | 理由 |
 |------|---------|------|
+| 模板引擎 | Go `text/template` | 标准库，零外部依赖，沙箱安全 |
+| 文件监听 | fsnotify | 复用现有 HotReloader 依赖 |
 | GraphQL 框架 | gqlgen | Go 生态最成熟的 Schema-first 框架，编译时代码生成 |
 | HTTP 路由 | chi | 轻量级、兼容 net/http、中间件生态丰富 |
 | 配置管理 | Viper | YAML + 环境变量覆盖 + 热更新 |

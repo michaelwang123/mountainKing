@@ -43,6 +43,17 @@
 |--------|------|------|------|
 | `graphql_errors_total` | Counter | `error_type`, `datasource` | 错误总数 |
 
+### SQL 模板引擎指标
+
+| 指标名 | 类型 | 标签 | 说明 |
+|--------|------|------|------|
+| `graphql_template_query_duration_seconds` | Histogram | `template_name`, `datasource` | 模板查询处理延迟 |
+| `graphql_template_queries_total` | Counter | `template_name`, `status` | 模板查询总数（success/error） |
+| `graphql_template_render_duration_seconds` | Histogram | `template_name` | 模板渲染延迟（独立于查询执行） |
+| `graphql_template_semaphore_wait_seconds` | Histogram | `template_name` | 信号量等待时间 |
+| `graphql_template_cache_hits_total` | Counter | `template_name`, `result` | 模板缓存命中/未命中（hit/miss） |
+| `graphql_template_render_goroutine_leaks` | Gauge | — | 泄漏的渲染 goroutine 数量 |
+
 ### 自定义标签
 
 通过配置为所有指标附加自定义标签，便于在 Grafana 中多维度筛选：
@@ -82,6 +93,9 @@ Root Span: GraphQL query GetOrders
 ├── Resolver Span: Resolver starrocks
 │   └── DataSource Span: StarRocks Query
 │       └── (SQL 执行)
+├── Resolver Span: Resolver templateQuery
+│   └── Template Query Span: Template Query fleet_report
+│       └── (模板渲染 + SQL 执行)
 ├── Resolver Span: Resolver prometheusInstant
 │   └── DataSource Span: Prometheus Query
 │       └── (HTTP API 调用)
@@ -105,6 +119,11 @@ Root Span: GraphQL query GetOrders
 - `db.system` — 数据源系统（starrocks/prometheus）
 - `db.statement` — 查询语句（经脱敏处理）
 - `db.datasource` — 数据源名称
+
+#### Template Query Span
+- `template.name` — 模板名称
+- `db.system` — starrocks
+- `db.statement` — 渲染后的 SQL（经脱敏处理）
 
 #### Redis Span
 - `db.system` — redis
@@ -176,6 +195,9 @@ logging:
 3. **数据源健康**：`graphql_datasource_connection_pool_*` 指标
 4. **缓存效率**：`graphql_cache_hits_total` / (`hits` + `misses`) 计算命中率
 5. **错误趋势**：`graphql_errors_total` 按 `error_type` 分组
+6. **模板查询**：`graphql_template_query_duration_seconds` P50/P95/P99 按 `template_name` 分组
+7. **模板缓存**：`graphql_template_cache_hits_total` 按 `result` (hit/miss) 分组计算命中率
+8. **模板并发**：`graphql_template_semaphore_wait_seconds` 监控信号量等待时间
 
 ### HPA 扩缩容指标
 

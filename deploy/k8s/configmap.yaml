@@ -94,3 +94,22 @@ data:
 
     shutdown:
       max_wait_time: 30s
+
+    # SQL Template Engine (disabled by default)
+    # Enable to support complex SQL queries via pre-defined Go text/template files
+    sql_templates:
+      enabled: false
+      datasource_name: analytics_db
+      base_dir: ./templates
+      render_timeout: 5s
+      max_rendered_sql_length: 65536
+      max_concurrent_queries: 10
+      # templates:
+      #   - name: fleet_report
+      #     file: fleet/fleet_report.sql.tmpl
+      #     description: Fleet report
+      #     cache_ttl: 300s
+      #     parameters:
+      #       - name: eerid
+      #         type: string
+      #         required: true

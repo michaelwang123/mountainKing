@@ -24,6 +24,22 @@
 
 ## 数据源
 
+### SQL 模板查询和普通 StarRocks 查询有什么区别？
+
+普通 `starrocks` 查询仅支持单表 SELECT + WHERE + ORDER BY + LIMIT，通过白名单校验保证安全。SQL 模板查询支持任意复杂度的 SQL（多表 JOIN、CTE、窗口函数等），通过预定义的 Go `text/template` 模板文件和多层安全函数保证安全。两者共享同一个 StarRocks 连接池。
+
+### 如何创建新的 SQL 模板？
+
+1. 在 `sql_templates.base_dir` 目录下创建 `.sql.tmpl` 文件
+2. 在 `config.yaml` 的 `sql_templates.templates` 中添加模板条目（名称、文件路径、参数 Schema）
+3. 重启服务或通过 `reloadTemplates` Mutation / fsnotify 自动加载
+
+注意：新增模板条目（config.yaml 变更）需要重启服务，但模板文件内容变更可通过热加载生效。
+
+### SQL 模板支持哪些自定义函数？
+
+12 个函数：`safeString`、`quote`、`safeInt`、`safeFloat`、`safeIdentifier`、`safeInList`、`safeLike`（安全函数）和 `join`、`default`、`upper`、`lower`、`trimSpace`（工具函数）。同时支持 Go `text/template` 内置函数（`eq`、`ne`、`if`、`range` 等）。
+
 ### 如何添加新的数据源类型？
 
 实现 `DataSource` 接口 → 注册到 `AdapterRegistry` → 创建 `.graphql` Schema 文件 → 重新执行 `go generate` → 在配置文件中添加数据源条目。详见 [数据源适配器 — 扩展新数据源](datasource-adapters.md#扩展新数据源)。
@@ -74,6 +90,10 @@ mutation { clearCache(datasource: "analytics_db") }  # 清除指定数据源
 ```
 
 需要认证主体具有 `mutation` 操作权限。
+
+### SQL 模板查询的缓存如何工作？
+
+模板查询结果复用现有 Cache Layer。每个模板可独立配置 `cache_ttl` 和 `cache_enabled`。缓存 Key 基于模板名称 + 参数 + 字段选择 + 分页参数生成（不使用渲染后的 SQL，避免空白差异导致缓存未命中）。`totalCount` 使用独立缓存 Key。模板热加载时仅清除 hash 变化的模板缓存。
 
 ### 缓存如何防止穿透/雪崩/击穿？
 

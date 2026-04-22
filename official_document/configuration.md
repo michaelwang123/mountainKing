@@ -220,6 +220,84 @@ apikey:
 |--------|------|--------|------|
 | `max_wait_time` | duration | `30s` | 等待 in-flight 请求完成的最大时间 |
 
+### sql_templates — SQL 模板引擎配置
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `enabled` | bool | `false` | 是否启用 SQL 模板引擎 |
+| `datasource_name` | string | — | 关联的 StarRocks 数据源名称（启用时必填） |
+| `base_dir` | string | `./templates` | 模板文件基础目录 |
+| `shared_dir` | string | `base_dir/_shared` | 共享模板片段目录 |
+| `render_timeout` | duration | `5s` | 模板渲染超时 |
+| `max_rendered_sql_length` | int | `65536` | 渲染结果最大字节数（64KB） |
+| `max_concurrent_queries` | int | `10` | 模板查询最大并发数（信号量） |
+
+#### 模板条目配置
+
+每个模板条目包含：
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `name` | string | — | 模板名称，仅允许 `[a-zA-Z0-9_-]`，1-64 字符 |
+| `file` | string | — | 模板文件路径（相对于 base_dir） |
+| `description` | string | — | 模板描述 |
+| `cache_enabled` | bool | `true` | 是否启用缓存 |
+| `cache_ttl` | duration | 数据源默认 TTL | 缓存 TTL |
+| `count_enabled` | bool | `true` | 是否支持 totalCount 查询 |
+| `parameters` | []object | — | 参数 Schema 列表 |
+
+#### 参数 Schema 配置
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `name` | string | — | 参数名称 |
+| `type` | string | — | 参数类型：`string`、`int`、`float`、`boolean`、`string[]` |
+| `required` | bool | `false` | 是否必填 |
+| `default` | string | — | 默认值（按 type 自动转换） |
+| `enum` | []string | — | 枚举约束 |
+| `max_length` | int | `1024` | 字符串最大长度 |
+| `max_items` | int | `1000` | 数组最大元素数 |
+| `pattern` | string | — | 正则约束（RE2 语法） |
+
+#### 配置示例
+
+```yaml
+sql_templates:
+  enabled: true
+  datasource_name: analytics_db
+  base_dir: ./templates
+  render_timeout: 5s
+  max_rendered_sql_length: 65536
+  max_concurrent_queries: 10
+  templates:
+    - name: fleet_report
+      file: fleet/fleet_report.sql.tmpl
+      description: 车队综合报表
+      cache_ttl: 300s
+      parameters:
+        - name: eerid
+          type: string
+          required: true
+          max_length: 64
+        - name: period
+          type: string
+          default: monthly
+          enum: [daily, weekly, monthly]
+    - name: driver_score
+      file: driver/driver_score.sql.tmpl
+      description: 驾驶员评分报表
+      cache_enabled: false
+      count_enabled: false
+      parameters:
+        - name: driver_id
+          type: int
+          required: true
+        - name: start_date
+          type: string
+          required: true
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+```
+
 ## 完整配置示例
 
 完整配置示例请参阅项目根目录的 `config.yaml` 文件。

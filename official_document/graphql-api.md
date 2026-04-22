@@ -150,6 +150,66 @@ query DashboardData {
 
 如果某个数据源查询失败，其他数据源的结果仍会正常返回，失败信息包含在 `errors` 字段中。
 
+### SQL 模板查询
+
+通过预定义的 SQL 模板执行复杂查询（多表 JOIN、CTE、窗口函数等）：
+
+```graphql
+query {
+  templateQuery(
+    templateName: "fleet_report"
+    parameters: { eerid: "EER001", period: "monthly", vehicle_ids: ["V001", "V002"] }
+    fields: ["vehicle_id", "plate_number", "event_count"]
+    first: 20
+    offset: 0
+    orderBy: [{ field: "event_count", direction: DESC }]
+  ) {
+    nodes
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+    totalCount
+  }
+}
+```
+
+参数说明：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `templateName` | String! | 是 | 模板名称 |
+| `parameters` | JSON | 否 | 业务参数键值对 |
+| `fields` | [String!] | 否 | 返回字段列表（字段选择优化） |
+| `first` | Int | 否 | 返回行数限制 |
+| `offset` | Int | 否 | 偏移量 |
+| `orderBy` | [TemplateOrderBy!] | 否 | 排序条件 |
+
+返回类型 `TemplateQueryConnection`：
+- `nodes` — `[JSON!]!` 结果行数组
+- `pageInfo` — 分页信息（hasNextPage, hasPreviousPage）
+- `totalCount` — 总记录数（模板禁用 count 时返回 -1）
+
+### 模板列表查询
+
+查询所有已注册模板的元信息：
+
+```graphql
+query {
+  templateList {
+    name
+    description
+    countEnabled
+    parameters {
+      name
+      type
+      required
+      defaultValue
+    }
+  }
+}
+```
+
 ## Mutation 操作
 
 本服务仅支持管理类 Mutation，不支持数据写入。
@@ -167,6 +227,23 @@ mutation {
 ```
 
 需要认证主体具有 `mutation` 操作权限。
+
+### 重新加载 SQL 模板
+
+```graphql
+mutation {
+  reloadTemplates {
+    successCount
+    failures {
+      name
+      error
+    }
+    duration
+  }
+}
+```
+
+需要认证主体具有 `mutation` 操作权限。支持 10s 冷却时间防止高频调用。模板文件变更也会通过 fsnotify 自动触发重新加载（500ms 防抖）。
 
 ## 批量查询
 
@@ -241,10 +318,10 @@ curl -X POST http://localhost:8080/graphql \
 | 前缀 | 分类 | 示例 |
 |------|------|------|
 | `AUTH_*` | 认证授权 | `AUTH_TOKEN_EXPIRED`, `AUTH_INSUFFICIENT_PERMISSION` |
-| `VALIDATION_*` | 请求验证 | `VALIDATION_SYNTAX_ERROR`, `VALIDATION_COMPLEXITY_EXCEEDED` |
+| `VALIDATION_*` | 请求验证 | `VALIDATION_SYNTAX_ERROR`, `VALIDATION_COMPLEXITY_EXCEEDED`, `VALIDATION_TEMPLATE_NOT_FOUND` |
 | `DATASOURCE_*` | 数据源 | `DATASOURCE_TIMEOUT`, `DATASOURCE_UNAVAILABLE` |
 | `RATELIMIT_*` | 限流 | `RATELIMIT_EXCEEDED` |
-| `INTERNAL_*` | 内部错误 | `INTERNAL_UNEXPECTED` |
+| `INTERNAL_*` | 内部错误 | `INTERNAL_UNEXPECTED`, `INTERNAL_TEMPLATE_RENDER_ERROR` |
 
 ## 响应扩展字段
 
