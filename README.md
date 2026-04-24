@@ -68,24 +68,24 @@ Hot-reloadable at runtime: log level, rate limit params, cache TTL.
 
 Key config sections:
 
-| Section | Description |
-|---------|-------------|
-| `server` | Port, mode, timeouts, batch limits |
-| `graphql` | Introspection, complexity/depth limits, max result rows |
-| `datasources` | StarRocks/Prometheus connection configs with whitelist |
-| `auth` | JWT (HS256/RS256/ES256) or API Key authentication |
-| `rate_limit` | Local or distributed (Redis) rate limiting |
-| `cache` | Memory/Redis backend, TTL, jitter, per-datasource TTL |
-| `sql_templates` | SQL template engine: base_dir, templates, parameters, cache TTL |
-| `tracing` | OpenTelemetry OTLP export (gRPC/HTTP) |
-| `metrics` | Custom Prometheus labels |
-| `circuit_breaker` | Failure threshold, open duration |
-| `retry` | Max retries, exponential backoff |
-| `cors` | Cross-origin resource sharing |
-| `compression` | gzip response compression |
-| `logging` | Level, format, audit log |
-| `sanitization` | Regex-based sensitive data masking |
-| `shutdown` | Graceful shutdown max wait time |
+| Section           | Description                                                     |
+| -------------------| -----------------------------------------------------------------|
+| `server`          | Port, mode, timeouts, batch limits                              |
+| `graphql`         | Introspection, complexity/depth limits, max result rows         |
+| `datasources`     | StarRocks/Prometheus connection configs with whitelist          |
+| `auth`            | JWT (HS256/RS256/ES256) or API Key authentication               |
+| `rate_limit`      | Local or distributed (Redis) rate limiting                      |
+| `cache`           | Memory/Redis backend, TTL, jitter, per-datasource TTL           |
+| `sql_templates`   | SQL template engine: base_dir, templates, parameters, cache TTL |
+| `tracing`         | OpenTelemetry OTLP export (gRPC/HTTP)                           |
+| `metrics`         | Custom Prometheus labels                                        |
+| `circuit_breaker` | Failure threshold, open duration                                |
+| `retry`           | Max retries, exponential backoff                                |
+| `cors`            | Cross-origin resource sharing                                   |
+| `compression`     | gzip response compression                                       |
+| `logging`         | Level, format, audit log                                        |
+| `sanitization`    | Regex-based sensitive data masking                              |
+| `shutdown`        | Graceful shutdown max wait time                                 |
 
 ## GraphQL Schema
 
@@ -198,7 +198,7 @@ Comprehensive Apache-style project documentation is available in the [`official_
 | [Troubleshooting](official_document/troubleshooting.md) | Common issues diagnosis and solutions |
 | [FAQ](official_document/faq.md) | Frequently asked questions |
 
-See also: [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md)
+See also: [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) · [Tutorial Course](course/index.md)
 
 ## Code Generation
 
