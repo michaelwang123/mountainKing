@@ -1,0 +1,257 @@
+/* ============================================
+   MountainKing Documentation Site - CSS Animations
+   Based on css-animation-guide.md design system
+   ============================================ */
+
+/* 1. Dash flow - SVG dashed line flowing animation */
+@keyframes dash-flow {
+    to { stroke-dashoffset: -20; }
+}
+.animate-dash-flow {
+    animation: dash-flow 1.5s linear infinite;
+}
+
+/* 2. Pulse glow - breathing glow effect */
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(0, 255, 170, 0.3),
+                    0 0 16px rgba(0, 255, 170, 0.1);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(0, 255, 170, 0.6),
+                    0 0 32px rgba(0, 255, 170, 0.3);
+    }
+}
+.animate-pulse-glow {
+    animation: pulse-glow 2.5s ease-in-out infinite;
+}
+
+/* 3. Moving dots */
+@keyframes move-dot-right {
+    0% { transform: translateX(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateX(160px); opacity: 0; }
+}
+.animate-dot-move {
+    animation: move-dot-right 2s ease-in-out infinite;
+}
+.animate-dot-move-delay-1 {
+    animation: move-dot-right 2s ease-in-out infinite;
+    animation-delay: 0.7s;
+}
+.animate-dot-move-delay-2 {
+    animation: move-dot-right 2s ease-in-out infinite;
+    animation-delay: 1.4s;
+}
+
+/* 4. Fade in up */
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+    animation: fade-in-up 0.8s ease-out forwards;
+    opacity: 0;
+}
+.delay-100 { animation-delay: 0.1s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+.delay-600 { animation-delay: 0.6s; }
+.delay-800 { animation-delay: 0.8s; }
+
+/* 5. Slow spin */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+    animation: spin-slow 8s linear infinite;
+}
+
+/* 6. Shimmer sweep */
+@keyframes shimmer {
+    0% { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+.animate-shimmer {
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(0, 255, 170, 0.08) 50%,
+        transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s ease-in-out infinite;
+}
+
+/* 7. Float animation for hero */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+.animate-float {
+    animation: float 4s ease-in-out infinite;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Documentation page styles */
+.doc-content {
+    color: #d1d5db;
+    line-height: 1.8;
+}
+.doc-content h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #374151;
+}
+.doc-content h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #6ee7b7;
+    margin-top: 2.5rem;
+    margin-bottom: 0.75rem;
+}
+.doc-content h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #a7f3d0;
+    margin-top: 2rem;
+    margin-bottom: 0.5rem;
+}
+.doc-content h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #d1fae5;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+.doc-content p {
+    margin-bottom: 1rem;
+}
+.doc-content a {
+    color: #34d399;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.doc-content a:hover {
+    color: #6ee7b7;
+}
+.doc-content code {
+    background: #1f2937;
+    color: #a7f3d0;
+    padding: 0.15rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+}
+.doc-content pre {
+    background: #111827;
+    border: 1px solid #374151;
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+}
+.doc-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85rem;
+    color: #e5e7eb;
+}
+.doc-content ul, .doc-content ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+.doc-content ul { list-style-type: disc; }
+.doc-content ol { list-style-type: decimal; }
+.doc-content li {
+    margin-bottom: 0.4rem;
+}
+.doc-content blockquote {
+    border-left: 3px solid #10b981;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #9ca3af;
+    font-style: italic;
+}
+.doc-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+.doc-content th {
+    background: #1f2937;
+    color: #a7f3d0;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #374151;
+}
+.doc-content td {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid #1f2937;
+}
+.doc-content tr:hover td {
+    background: #111827;
+}
+.doc-content strong {
+    color: #ffffff;
+    font-weight: 600;
+}
+.doc-content hr {
+    border: none;
+    border-top: 1px solid #374151;
+    margin: 2rem 0;
+}
+.doc-content img {
+    max-width: 100%;
+    border-radius: 0.5rem;
+}
+
+/* Sidebar navigation */
+.sidebar-link {
+    display: block;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    color: #9ca3af;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 0.875rem;
+}
+.sidebar-link:hover {
+    background: #1f2937;
+    color: #6ee7b7;
+}
+.sidebar-link.active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+    border-left: 3px solid #10b981;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #111827;
+}
+::-webkit-scrollbar-thumb {
+    background: #374151;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #4b5563;
+}

@@ -62,7 +62,7 @@
 metrics:
   custom_labels:
     env: production
-    cluster: cn-east-1
+    cluster: my-cluster
     instance: "${HOSTNAME}"
 ```
 

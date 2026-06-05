@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MountainKing - GraphQL Multi-DataSource API</title>
+    <meta name="description" content="基于 Go 语言的生产级 GraphQL API 服务器，提供跨多数据源的统一查询接口">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛰️</text></svg>">
+</head>
+<body class="bg-gray-950 text-white min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <a href="index.html" class="flex items-center gap-2">
+                <span class="text-2xl">⛰️</span>
+                <span class="text-lg font-bold text-white">MountainKing</span>
+            </a>
+            <div class="hidden md:flex items-center gap-6">
+                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">快速开始</a>
+                <a href="doc.html?file=architecture" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">架构</a>
+                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">API 参考</a>
+                <a href="doc.html?file=security" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">安全</a>
+                <a href="doc.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">全部文档</a>
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" class="text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                </a>
+            </div>
+            <!-- Mobile menu button -->
+            <button id="mobile-menu-btn" class="md:hidden text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="pt-32 pb-20 px-6 relative overflow-hidden">
+        <!-- Background gradient -->
+        <div class="absolute inset-0 bg-gradient-to-b from-emerald-950/20 via-gray-950 to-gray-950"></div>
+        <!-- Grid pattern -->
+        <div class="absolute inset-0 opacity-[0.03]" style="background-image: url(&quot;data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2310b981' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E&quot;)"></div>
+
+        <div class="max-w-5xl mx-auto relative z-10 text-center">
+            <div class="animate-fade-in-up">
+                <span class="inline-block px-4 py-1.5 rounded-full text-xs font-medium bg-emerald-950/50 border border-emerald-700/50 text-emerald-400 mb-6">
+                    Production-Ready GraphQL Gateway
+                </span>
+            </div>
+            <h1 class="text-4xl md:text-6xl font-bold mb-6 animate-fade-in-up delay-100">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-100 to-gray-300">MountainKing</span>
+            </h1>
+            <p class="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto mb-10 animate-fade-in-up delay-200">
+                基于 Go 语言的生产级 GraphQL API 服务器<br>
+                统一接入 StarRocks 和 Prometheus 多数据源的查询网关
+            </p>
+            <div class="flex flex-wrap gap-4 justify-center animate-fade-in-up delay-300">
+                <a href="doc.html?file=getting-started" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">
+                    快速开始 →
+                </a>
+                <a href="doc.html?file=architecture" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium transition-colors border border-gray-700">
+                    架构概览
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Flow Animation -->
+    <section class="py-16 px-6">
+        <div class="max-w-5xl mx-auto">
+            <h2 class="text-2xl font-bold text-center mb-12 animate-fade-in-up">
+                <span class="text-emerald-400">数据流</span> 架构
+            </h2>
+            <div class="relative bg-gray-900 border border-gray-800 rounded-2xl p-10 overflow-hidden animate-shimmer">
+                <div class="flex items-center justify-between gap-4">
+                    <!-- Left: Data Sources -->
+                    <div class="flex flex-col gap-4">
+                        <div class="flex items-center gap-3 animate-fade-in-up">
+                            <div class="w-12 h-12 rounded-lg border border-gray-700 flex items-center justify-center bg-gray-800 animate-pulse-glow">
+                                <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 2v3M15 2v3M4 9h16"/>
+                                </svg>
+                            </div>
+                            <span class="text-sm text-gray-400">StarRocks</span>
+                        </div>
+                        <div class="flex items-center gap-3 animate-fade-in-up delay-200">
+                            <div class="w-12 h-12 rounded-lg border border-gray-700 flex items-center justify-center bg-gray-800 animate-pulse-glow">
+                                <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                </svg>
+                            </div>
+                            <span class="text-sm text-gray-400">Prometheus</span>
+                        </div>
+                        <div class="flex items-center gap-3 animate-fade-in-up delay-400">
+                            <div class="w-12 h-12 rounded-lg border border-gray-700 flex items-center justify-center bg-gray-800 animate-pulse-glow">
+                                <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </div>
+                            <span class="text-sm text-gray-400">SQL Templates</span>
+                        </div>
+                    </div>
+
+                    <!-- Middle: Flow lines + Processing node -->
+                    <div class="flex-1 flex items-center justify-center relative min-h-[120px]">
+                        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 120" fill="none">
+                            <path d="M 40 30 H 180" stroke="rgba(0,255,170,0.3)" stroke-width="1.5" stroke-dasharray="6 4" class="animate-dash-flow"/>
+                            <path d="M 40 60 H 180" stroke="rgba(0,255,170,0.3)" stroke-width="1.5" stroke-dasharray="6 4" class="animate-dash-flow"/>
+                            <path d="M 40 90 H 180" stroke="rgba(0,255,170,0.3)" stroke-width="1.5" stroke-dasharray="6 4" class="animate-dash-flow"/>
+                            <path d="M 220 60 H 360" stroke="rgba(0,255,170,0.3)" stroke-width="1.5" stroke-dasharray="6 4" class="animate-dash-flow"/>
+                        </svg>
+                        <div class="absolute left-[10%] top-[22%] w-2 h-2 rounded-full bg-emerald-400 animate-dot-move"></div>
+                        <div class="absolute left-[10%] top-[48%] w-2 h-2 rounded-full bg-emerald-400 animate-dot-move-delay-1"></div>
+                        <div class="absolute left-[10%] top-[72%] w-2 h-2 rounded-full bg-emerald-400 animate-dot-move-delay-2"></div>
+
+                        <!-- Central processing node -->
+                        <div class="relative z-10 w-16 h-16 rounded-xl border-2 border-emerald-500/50 bg-gray-900 flex items-center justify-center animate-pulse-glow">
+                            <svg class="w-8 h-8 text-emerald-400 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Right: Output -->
+                    <div class="flex items-center gap-3 animate-fade-in-up delay-600">
+                        <div class="w-12 h-12 rounded-lg border border-emerald-700 flex items-center justify-center bg-emerald-950">
+                            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                        </div>
+                        <span class="text-sm text-emerald-400 font-medium">GraphQL API</span>
+                    </div>
+                </div>
+                <!-- Labels -->
+                <div class="flex justify-between mt-6 px-4 text-xs text-gray-500">
+                    <span>数据源层</span>
+                    <span>GraphQL Engine</span>
+                    <span>客户端</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section class="py-16 px-6">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-2xl font-bold text-center mb-4 text-white">核心特性</h2>
+            <p class="text-center text-gray-400 mb-12">企业级功能，开箱即用</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Feature cards -->
+                <div class="group relative bg-gray-900 border border-gray-800 rounded-xl p-6 transition-all duration-300 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1">
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div class="relative z-10">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-4">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-medium mb-2">多数据源统一查询</h3>
+                        <p class="text-sm text-gray-400">StarRocks OLAP + Prometheus 时序数据，单一 GraphQL 端点访问所有数据</p>
+                    </div>
+                </div>
+
+                <div class="group relative bg-gray-900 border border-gray-800 rounded-xl p-6 transition-all duration-300 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1">
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div class="relative z-10">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-4">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-medium mb-2">SQL 模板引擎</h3>
+                        <p class="text-sm text-gray-400">Go text/template 驱动，支持复杂 JOIN、CTE、窗口函数，内置 SQL 注入防护</p>
+                    </div>
+                </div>
+
+                <div class="group relative bg-gray-900 border border-gray-800 rounded-xl p-6 transition-all duration-300 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1">
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div class="relative z-10">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-4">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-medium mb-2">企业级安全</h3>
+                        <p class="text-sm text-gray-400">JWT/API Key 认证、RBAC 授权、限流、CSRF 防护、敏感信息脱敏</p>
+                    </div>
+                </div>
+
+                <div class="group relative bg-gray-900 border border-gray-800 rounded-xl p-6 transition-all duration-300 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1">
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div class="relative z-10">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-4">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-medium mb-2">高性能缓存</h3>
+                        <p class="text-sm text-gray-400">内存 LRU + Redis 二级缓存，穿透/雪崩/击穿三重防护</p>
+                    </div>
+                </div>
+
+                <div class="group relative bg-gray-900 border border-gray-800 rounded-xl p-6 transition-all duration-300 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1">
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div class="relative z-10">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-4">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-medium mb-2">全面可观测性</h3>
+                        <p class="text-sm text-gray-400">Prometheus 指标、OpenTelemetry 分布式追踪、结构化 JSON 日志</p>
+                    </div>
+                </div>
+
+                <div class="group relative bg-gray-900 border border-gray-800 rounded-xl p-6 transition-all duration-300 hover:border-emerald-700 hover:shadow-lg hover:shadow-emerald-900/20 hover:-translate-y-1">
+                    <div class="absolute inset-0 rounded-xl bg-gradient-to-b from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    <div class="relative z-10">
+                        <div class="w-10 h-10 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center mb-4">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-medium mb-2">弹性设计</h3>
+                        <p class="text-sm text-gray-400">熔断器、指数退避重试、优雅降级、Kubernetes 就绪</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start Code Block -->
+    <section class="py-16 px-6">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-2xl font-bold text-center mb-4 text-white">5 分钟上手</h2>
+            <p class="text-center text-gray-400 mb-10">从克隆到查询，只需几步</p>
+
+            <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                <div class="flex items-center gap-2 px-4 py-3 bg-gray-800/50 border-b border-gray-700">
+                    <div class="w-3 h-3 rounded-full bg-red-500/60"></div>
+                    <div class="w-3 h-3 rounded-full bg-yellow-500/60"></div>
+                    <div class="w-3 h-3 rounded-full bg-green-500/60"></div>
+                    <span class="ml-2 text-xs text-gray-500">terminal</span>
+                </div>
+                <pre class="p-6 text-sm overflow-x-auto"><code class="text-gray-300"><span class="text-gray-500"># 克隆项目</span>
+<span class="text-emerald-400">$</span> git clone https://github.com/michaelwang123/mountainKing.git
+<span class="text-emerald-400">$</span> cd mountainKing
+
+<span class="text-gray-500"># 安装依赖并运行</span>
+<span class="text-emerald-400">$</span> go mod download
+<span class="text-emerald-400">$</span> go run cmd/server/main.go
+
+<span class="text-gray-500"># 开发模式（启用 Playground）</span>
+<span class="text-emerald-400">$</span> GRAPHQL_SERVER_MODE=development go run cmd/server/main.go
+
+<span class="text-gray-500"># 访问 GraphQL Playground</span>
+<span class="text-emerald-400">$</span> open http://localhost:8080/playground</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <!-- Documentation Links -->
+    <section class="py-16 px-6 bg-gray-900/30">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-2xl font-bold text-center mb-4 text-white">文档导航</h2>
+            <p class="text-center text-gray-400 mb-12">全面覆盖从入门到生产部署</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <a href="doc.html?file=getting-started" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">🚀</div>
+                    <h4 class="text-white font-medium text-sm">快速开始</h4>
+                    <p class="text-xs text-gray-500 mt-1">环境搭建、首次查询</p>
+                </a>
+                <a href="doc.html?file=architecture" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">🏗️</div>
+                    <h4 class="text-white font-medium text-sm">架构概览</h4>
+                    <p class="text-xs text-gray-500 mt-1">系统设计与组件关系</p>
+                </a>
+                <a href="doc.html?file=configuration" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">⚙️</div>
+                    <h4 class="text-white font-medium text-sm">配置参考</h4>
+                    <p class="text-xs text-gray-500 mt-1">完整配置项与环境变量</p>
+                </a>
+                <a href="doc.html?file=graphql-api" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">📡</div>
+                    <h4 class="text-white font-medium text-sm">GraphQL API</h4>
+                    <p class="text-xs text-gray-500 mt-1">Schema、查询与 Mutation</p>
+                </a>
+                <a href="doc.html?file=sql-template-engine" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">📝</div>
+                    <h4 class="text-white font-medium text-sm">SQL 模板引擎</h4>
+                    <p class="text-xs text-gray-500 mt-1">模板语法与最佳实践</p>
+                </a>
+                <a href="doc.html?file=security" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">🔒</div>
+                    <h4 class="text-white font-medium text-sm">安全指南</h4>
+                    <p class="text-xs text-gray-500 mt-1">认证、授权与防护</p>
+                </a>
+                <a href="doc.html?file=observability" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">📊</div>
+                    <h4 class="text-white font-medium text-sm">可观测性</h4>
+                    <p class="text-xs text-gray-500 mt-1">指标、追踪与日志</p>
+                </a>
+                <a href="doc.html?file=deployment" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">🚢</div>
+                    <h4 class="text-white font-medium text-sm">部署指南</h4>
+                    <p class="text-xs text-gray-500 mt-1">Docker、K8s 与 CI/CD</p>
+                </a>
+                <a href="doc.html?file=performance" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">⚡</div>
+                    <h4 class="text-white font-medium text-sm">性能调优</h4>
+                    <p class="text-xs text-gray-500 mt-1">缓存、连接池与基准测试</p>
+                </a>
+                <a href="doc.html?file=datasource-adapters" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">🔌</div>
+                    <h4 class="text-white font-medium text-sm">数据源适配器</h4>
+                    <p class="text-xs text-gray-500 mt-1">适配器详解与扩展</p>
+                </a>
+                <a href="doc.html?file=developer-guide" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">👨‍💻</div>
+                    <h4 class="text-white font-medium text-sm">开发者指南</h4>
+                    <p class="text-xs text-gray-500 mt-1">代码规范与贡献流程</p>
+                </a>
+                <a href="doc.html?file=faq" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                    <div class="text-emerald-400 text-lg mb-1">❓</div>
+                    <h4 class="text-white font-medium text-sm">FAQ</h4>
+                    <p class="text-xs text-gray-500 mt-1">常见问题解答</p>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 px-6 border-t border-gray-800">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">⛰️</span>
+                <span class="text-gray-400 text-sm">MountainKing — GraphQL Multi-DataSource API</span>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-gray-500">
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" class="hover:text-emerald-400 transition-colors">GitHub</a>
+                <a href="doc.html" class="hover:text-emerald-400 transition-colors">文档</a>
+                <a href="https://github.com/michaelwang123/mountainKing/blob/main/LICENSE" target="_blank" class="hover:text-emerald-400 transition-colors">许可证</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Mobile menu -->
+    <script>
+        document.getElementById('mobile-menu-btn')?.addEventListener('click', function() {
+            // Simple mobile menu toggle (could be expanded)
+            const nav = document.querySelector('nav');
+            const menu = nav.querySelector('.md\\:flex');
+            if (menu) menu.classList.toggle('hidden');
+        });
+    </script>
+</body>
+</html>

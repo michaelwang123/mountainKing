@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档 - MountainKing</title>
+    <meta name="description" content="MountainKing GraphQL Multi-DataSource API 官方文档">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛰️</text></svg>">
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/highlight.min.js"></script>
+</head>
+<body class="bg-gray-950 text-white min-h-screen">
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <a href="index.html" class="flex items-center gap-2">
+                <span class="text-2xl">⛰️</span>
+                <span class="text-lg font-bold text-white">MountainKing</span>
+            </a>
+            <div class="hidden md:flex items-center gap-6">
+                <a href="index.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">首页</a>
+                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">快速开始</a>
+                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">API 参考</a>
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" class="text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                </a>
+            </div>
+            <!-- Mobile sidebar toggle -->
+            <button id="sidebar-toggle" class="md:hidden text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <div class="flex pt-16">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 bg-gray-900/50 border-r border-gray-800 overflow-y-auto p-4 transform -translate-x-full md:translate-x-0 transition-transform z-40">
+            <div class="mb-6">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">入门</h3>
+                <a href="doc.html?file=getting-started" class="sidebar-link" data-file="getting-started">快速开始</a>
+                <a href="doc.html?file=architecture" class="sidebar-link" data-file="architecture">架构概览</a>
+                <a href="doc.html?file=configuration" class="sidebar-link" data-file="configuration">配置参考</a>
+                <a href="doc.html?file=development-mode" class="sidebar-link" data-file="development-mode">开发模式指南</a>
+            </div>
+            <div class="mb-6">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">核心功能</h3>
+                <a href="doc.html?file=graphql-api" class="sidebar-link" data-file="graphql-api">GraphQL API 参考</a>
+                <a href="doc.html?file=sql-template-engine" class="sidebar-link" data-file="sql-template-engine">SQL 模板引擎</a>
+                <a href="doc.html?file=datasource-adapters" class="sidebar-link" data-file="datasource-adapters">数据源适配器</a>
+            </div>
+            <div class="mb-6">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">运维</h3>
+                <a href="doc.html?file=security" class="sidebar-link" data-file="security">安全指南</a>
+                <a href="doc.html?file=observability" class="sidebar-link" data-file="observability">可观测性</a>
+                <a href="doc.html?file=deployment" class="sidebar-link" data-file="deployment">部署指南</a>
+                <a href="doc.html?file=performance" class="sidebar-link" data-file="performance">性能调优</a>
+            </div>
+            <div class="mb-6">
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">参考</h3>
+                <a href="doc.html?file=developer-guide" class="sidebar-link" data-file="developer-guide">开发者指南</a>
+                <a href="doc.html?file=error-reference" class="sidebar-link" data-file="error-reference">错误码参考</a>
+                <a href="doc.html?file=troubleshooting" class="sidebar-link" data-file="troubleshooting">故障排查</a>
+                <a href="doc.html?file=migration-guide" class="sidebar-link" data-file="migration-guide">迁移指南</a>
+                <a href="doc.html?file=faq" class="sidebar-link" data-file="faq">FAQ</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 md:ml-64 min-h-screen">
+            <div class="max-w-4xl mx-auto px-6 py-10">
+                <!-- Loading state -->
+                <div id="loading" class="flex items-center justify-center py-20">
+                    <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
+                    <span class="ml-3 text-gray-400">加载文档中...</span>
+                </div>
+
+                <!-- Document content -->
+                <article id="doc-content" class="doc-content hidden"></article>
+
+                <!-- Default/index state -->
+                <div id="doc-index" class="hidden">
+                    <h1 class="text-3xl font-bold mb-6">📚 项目文档</h1>
+                    <p class="text-gray-400 mb-8">欢迎阅读 MountainKing GraphQL Multi-DataSource API 项目文档。从左侧导航选择一个主题开始阅读。</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <a href="doc.html?file=getting-started" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">🚀 快速开始</h3>
+                            <p class="text-sm text-gray-500">环境准备、编译运行、首次查询</p>
+                        </a>
+                        <a href="doc.html?file=architecture" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">🏗️ 架构概览</h3>
+                            <p class="text-sm text-gray-500">系统架构、组件关系、请求处理流程</p>
+                        </a>
+                        <a href="doc.html?file=graphql-api" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">📡 GraphQL API 参考</h3>
+                            <p class="text-sm text-gray-500">Schema 定义、查询示例、分页与过滤</p>
+                        </a>
+                        <a href="doc.html?file=sql-template-engine" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">📝 SQL 模板引擎</h3>
+                            <p class="text-sm text-gray-500">模板语法、安全函数、最佳实践</p>
+                        </a>
+                        <a href="doc.html?file=security" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">🔒 安全指南</h3>
+                            <p class="text-sm text-gray-500">认证授权、限流、输入校验、脱敏</p>
+                        </a>
+                        <a href="doc.html?file=deployment" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">🚢 部署指南</h3>
+                            <p class="text-sm text-gray-500">Docker、Kubernetes、CI/CD</p>
+                        </a>
+                        <a href="doc.html?file=observability" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">📊 可观测性</h3>
+                            <p class="text-sm text-gray-500">Prometheus 指标、链路追踪、日志</p>
+                        </a>
+                        <a href="doc.html?file=performance" class="block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all">
+                            <h3 class="text-white font-medium mb-1">⚡ 性能调优</h3>
+                            <p class="text-sm text-gray-500">缓存策略、连接池、基准测试</p>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Error state -->
+                <div id="doc-error" class="hidden text-center py-20">
+                    <div class="text-4xl mb-4">📄</div>
+                    <h2 class="text-xl font-bold text-white mb-2">文档加载失败</h2>
+                    <p class="text-gray-400 mb-6">请检查文件是否存在，或从左侧导航选择一个文档。</p>
+                    <a href="doc.html" class="text-emerald-400 hover:text-emerald-300">← 返回文档首页</a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Configure marked
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            breaks: false,
+            gfm: true
+        });
+
+        // DOM elements
+        const loading = document.getElementById('loading');
+        const docContent = document.getElementById('doc-content');
+        const docIndex = document.getElementById('doc-index');
+        const docError = document.getElementById('doc-error');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+
+        // Mobile sidebar toggle
+        sidebarToggle?.addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+        });
+
+        // Close sidebar on link click (mobile)
+        sidebar?.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth < 768) {
+                    sidebar.classList.add('-translate-x-full');
+                }
+            });
+        });
+
+        // Get file parameter from URL
+        function getFileParam() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('file');
+        }
+
+        // Highlight active sidebar link
+        function highlightActiveLink(file) {
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.dataset.file === file) {
+                    link.classList.add('active');
+                }
+            });
+        }
+
+        // Load and render markdown document
+        async function loadDocument(file) {
+            if (!file) {
+                loading.classList.add('hidden');
+                docContent.classList.add('hidden');
+                docError.classList.add('hidden');
+                docIndex.classList.remove('hidden');
+                return;
+            }
+
+            loading.classList.remove('hidden');
+            docContent.classList.add('hidden');
+            docIndex.classList.add('hidden');
+            docError.classList.add('hidden');
+
+            highlightActiveLink(file);
+
+            try {
+                // Try to fetch from official_document directory
+                const response = await fetch(`official_document/${file}.md`);
+                if (!response.ok) throw new Error('Not found');
+
+                const markdown = await response.text();
+                const html = marked.parse(markdown);
+
+                docContent.innerHTML = html;
+                docContent.classList.remove('hidden');
+                loading.classList.add('hidden');
+
+                // Update page title
+                const h1 = docContent.querySelector('h1');
+                if (h1) {
+                    document.title = `${h1.textContent} - MountainKing`;
+                }
+
+                // Scroll to top
+                window.scrollTo(0, 0);
+
+                // Fix internal links to use doc.html?file= format
+                docContent.querySelectorAll('a').forEach(link => {
+                    const href = link.getAttribute('href');
+                    if (href && href.endsWith('.md') && !href.startsWith('http')) {
+                        const name = href.replace(/^\.?\/?/, '').replace('.md', '');
+                        link.setAttribute('href', `doc.html?file=${name}`);
+                    }
+                });
+
+            } catch (err) {
+                loading.classList.add('hidden');
+                docError.classList.remove('hidden');
+                console.error('Failed to load document:', err);
+            }
+        }
+
+        // Handle popstate (browser back/forward)
+        window.addEventListener('popstate', () => {
+            loadDocument(getFileParam());
+        });
+
+        // Initial load
+        loadDocument(getFileParam());
+    </script>
+</body>
+</html>

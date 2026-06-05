@@ -47,3 +47,6 @@ __debug_bin*
 templates/*
 course/*
 config.yaml
+
+# Local preview
+_preview/

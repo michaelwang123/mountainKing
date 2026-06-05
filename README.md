@@ -1,6 +1,6 @@
 # GraphQL 多数据源 API 服务
 
-[English](README_EN.md) | 中文
+[English](README_EN.md) | 中文 | [📖 在线文档](https://michaelwang123.github.io/mountainKing/)
 
 基于 Go 语言的生产级 GraphQL API 服务器，提供跨多数据源的统一查询接口 — 当前支持 StarRocks（OLAP 分析型数据库）和 Prometheus（时序指标）。基于 gqlgen、chi 和完整的中间件栈构建，具备企业级安全性、可观测性和弹性能力。
 
