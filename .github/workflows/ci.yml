@@ -14,21 +14,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    # golangci-lint v1.64 does not yet support Go 1.25 toolchain; allow failure until upstream catches up
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout=5m
-
   security:
     name: Security Scan
     runs-on: ubuntu-latest
