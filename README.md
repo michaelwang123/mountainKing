@@ -31,7 +31,7 @@
 
 ## 前置要求
 
-- Go 1.25+
+- Go 1.24+
 - （可选）StarRocks 实例
 - （可选）Prometheus 实例
 - （可选）Redis — 用于分布式缓存和限流

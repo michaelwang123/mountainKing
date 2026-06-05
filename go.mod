@@ -1,6 +1,6 @@
 module github.com/michaelwang123/mountainKing
 
-go 1.25.5
+go 1.24.0
 
 require (
 	github.com/99designs/gqlgen v0.17.89
