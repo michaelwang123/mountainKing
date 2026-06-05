@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+      - run: go mod tidy
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
