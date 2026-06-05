@@ -29,7 +29,7 @@ A production-grade GraphQL API server in Go that provides a unified query interf
 
 ## Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - (Optional) StarRocks instance
 - (Optional) Prometheus instance
 - (Optional) Redis — for distributed caching/rate limiting
