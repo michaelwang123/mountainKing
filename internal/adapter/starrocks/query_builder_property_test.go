@@ -164,10 +164,9 @@ func TestProperty15_StarRocksSQLQueryBuild(t *testing.T) {
 		}
 		// Count ? placeholders in the SQL.
 		totalPlaceholders := strings.Count(sql, "?")
+		// StarRocks inlines LIMIT/OFFSET as integers (not parameterized),
+		// so only filter values contribute ? placeholders.
 		expectedPlaceholders := numFilters
-		if hasPagination {
-			expectedPlaceholders += 2 // LIMIT ? OFFSET ?
-		}
 		if totalPlaceholders != expectedPlaceholders {
 			t.Fatalf("expected %d placeholders, got %d in SQL: %s", expectedPlaceholders, totalPlaceholders, sql)
 		}
