@@ -35,23 +35,16 @@ func TestProperty17_LIMITParameterized(t *testing.T) {
 			rt.Fatalf("wrapWithPagination returned error: %v", err)
 		}
 
-		// SQL must contain "LIMIT ?" placeholder, not the actual value
-		if !strings.Contains(sql, "LIMIT ?") {
-			rt.Fatalf("SQL should contain 'LIMIT ?' placeholder, got: %s", sql)
-		}
-		// The actual LIMIT value (first+1) must be in args, not in SQL
+		// StarRocks does not support parameterized LIMIT/OFFSET.
+		// LIMIT value (first+1) must be inlined in SQL as an integer.
 		expectedLimit := first + 1
-		if !strings.Contains(sql, fmt.Sprintf("LIMIT %d", expectedLimit)) {
-			// Good — the value is not in the SQL string
-		} else {
-			rt.Fatalf("LIMIT value %d should not appear in SQL string: %s", expectedLimit, sql)
+		expected := fmt.Sprintf("LIMIT %d OFFSET 0", expectedLimit)
+		if !strings.Contains(sql, expected) {
+			rt.Fatalf("SQL should contain '%s', got: %s", expected, sql)
 		}
-		// Verify args[0] is the LIMIT value
-		if len(args) < 1 {
-			rt.Fatalf("expected at least 1 arg, got %d", len(args))
-		}
-		if args[0] != expectedLimit {
-			rt.Fatalf("expected args[0] = %d, got %v", expectedLimit, args[0])
+		// args should be nil (no parameterized values)
+		if len(args) != 0 {
+			rt.Fatalf("expected 0 args (inline LIMIT/OFFSET), got %d", len(args))
 		}
 	})
 }
@@ -74,16 +67,15 @@ func TestProperty18_OFFSETParameterized(t *testing.T) {
 			rt.Fatalf("wrapWithPagination returned error: %v", err)
 		}
 
-		// SQL must contain "OFFSET ?" placeholder
-		if !strings.Contains(sql, "OFFSET ?") {
-			rt.Fatalf("SQL should contain 'OFFSET ?' placeholder, got: %s", sql)
+		// StarRocks does not support parameterized LIMIT/OFFSET.
+		// OFFSET value must be inlined in SQL as an integer.
+		expected := fmt.Sprintf("OFFSET %d", offset)
+		if !strings.Contains(sql, expected) {
+			rt.Fatalf("SQL should contain '%s', got: %s", expected, sql)
 		}
-		// Verify args[1] is the OFFSET value
-		if len(args) < 2 {
-			rt.Fatalf("expected at least 2 args, got %d", len(args))
-		}
-		if args[1] != offset {
-			rt.Fatalf("expected args[1] = %d, got %v", offset, args[1])
+		// args should be nil
+		if len(args) != 0 {
+			rt.Fatalf("expected 0 args (inline LIMIT/OFFSET), got %d", len(args))
 		}
 	})
 }
@@ -99,17 +91,20 @@ func TestProperty19_DefaultLIMITEnforced(t *testing.T) {
 		maxRows := rapid.IntRange(100, 50000).Draw(rt, "maxRows")
 		baseSQL := "SELECT * FROM test_table"
 
-		_, args, err := wrapWithPagination(baseSQL, nil, nil, nil, nil, maxRows)
+		sql, args, err := wrapWithPagination(baseSQL, nil, nil, nil, nil, maxRows)
 		if err != nil {
 			rt.Fatalf("wrapWithPagination returned error: %v", err)
 		}
 
 		expectedLimit := maxRows + 1
-		if len(args) < 1 {
-			rt.Fatalf("expected at least 1 arg, got %d", len(args))
+		// LIMIT must be inlined in SQL
+		expected := fmt.Sprintf("LIMIT %d", expectedLimit)
+		if !strings.Contains(sql, expected) {
+			rt.Fatalf("expected LIMIT = maxResultRows+1 = %d in SQL, got: %s", expectedLimit, sql)
 		}
-		if args[0] != expectedLimit {
-			rt.Fatalf("expected LIMIT = maxResultRows+1 = %d, got %v", expectedLimit, args[0])
+		// args should be nil
+		if len(args) != 0 {
+			rt.Fatalf("expected 0 args, got %d", len(args))
 		}
 	})
 }
@@ -215,15 +210,13 @@ func TestPagination_BasicFirstAndOffset(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Over-fetch: LIMIT = first + 1 = 21
-	if args[0] != 21 {
-		t.Fatalf("expected LIMIT=21 (over-fetch), got %v", args[0])
+	// Over-fetch: LIMIT = first + 1 = 21, inlined in SQL
+	if !strings.Contains(sql, "LIMIT 21 OFFSET 40") {
+		t.Fatalf("expected inlined LIMIT 21 OFFSET 40, got: %s", sql)
 	}
-	if args[1] != 40 {
-		t.Fatalf("expected OFFSET=40, got %v", args[1])
-	}
-	if !strings.Contains(sql, "LIMIT ? OFFSET ?") {
-		t.Fatalf("expected parameterized LIMIT/OFFSET, got: %s", sql)
+	// args should be nil (StarRocks doesn't support parameterized LIMIT/OFFSET)
+	if len(args) != 0 {
+		t.Fatalf("expected 0 args, got %d", len(args))
 	}
 	if !strings.Contains(sql, "__tq_wrapper__") {
 		t.Fatalf("expected __tq_wrapper__ alias, got: %s", sql)
@@ -238,31 +231,28 @@ func TestPagination_WithoutFirst(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// LIMIT = maxResultRows + 1 = 5001
-	if args[0] != 5001 {
-		t.Fatalf("expected LIMIT=5001 (maxResultRows+1), got %v", args[0])
+	// LIMIT = maxResultRows + 1 = 5001, inlined
+	if !strings.Contains(sql, "LIMIT 5001 OFFSET 10") {
+		t.Fatalf("expected inlined LIMIT 5001 OFFSET 10, got: %s", sql)
 	}
-	if args[1] != 10 {
-		t.Fatalf("expected OFFSET=10, got %v", args[1])
-	}
-	if !strings.Contains(sql, "LIMIT ? OFFSET ?") {
-		t.Fatalf("expected parameterized LIMIT/OFFSET, got: %s", sql)
+	if len(args) != 0 {
+		t.Fatalf("expected 0 args, got %d", len(args))
 	}
 }
 
 // Test 3: Pagination without offset (defaults to 0)
 func TestPagination_WithoutOffset(t *testing.T) {
 	first := 10
-	_, args, err := wrapWithPagination("SELECT * FROM users", nil, nil, &first, nil, 10000)
+	sql, args, err := wrapWithPagination("SELECT * FROM users", nil, nil, &first, nil, 10000)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if args[0] != 11 {
-		t.Fatalf("expected LIMIT=11, got %v", args[0])
+	if !strings.Contains(sql, "LIMIT 11 OFFSET 0") {
+		t.Fatalf("expected inlined LIMIT 11 OFFSET 0, got: %s", sql)
 	}
-	if args[1] != 0 {
-		t.Fatalf("expected OFFSET=0 (default), got %v", args[1])
+	if len(args) != 0 {
+		t.Fatalf("expected 0 args, got %d", len(args))
 	}
 }
 
@@ -325,13 +315,16 @@ func TestPagination_OrderByInvalid(t *testing.T) {
 // Test 8: Over-fetch: first=10 → LIMIT=11
 func TestPagination_OverFetch(t *testing.T) {
 	first := 10
-	_, args, err := wrapWithPagination("SELECT * FROM users", nil, nil, &first, nil, 10000)
+	sql, args, err := wrapWithPagination("SELECT * FROM users", nil, nil, &first, nil, 10000)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if args[0] != 11 {
-		t.Fatalf("expected LIMIT=11 (first+1 over-fetch), got %v", args[0])
+	if !strings.Contains(sql, "LIMIT 11") {
+		t.Fatalf("expected LIMIT=11 (first+1 over-fetch), got: %s", sql)
+	}
+	if len(args) != 0 {
+		t.Fatalf("expected 0 args, got %d", len(args))
 	}
 }
 
