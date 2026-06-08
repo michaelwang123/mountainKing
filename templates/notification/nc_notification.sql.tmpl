@@ -1,0 +1,28 @@
+{{/* 通知消息查询 - 支持按渠道、状态、业务类型过滤 */}}
+{{/* 使用 index 安全访问可选参数，避免 missingkey=error */}}
+SELECT event_time, channel, status, msg_id, business_type,
+       business_source, template_name, user_id, vin, eer_id,
+       fail_stage, fail_reason, event_timestamp, create_time
+FROM nc_notification
+WHERE 1=1
+{{if index .Params "channel"}}
+  AND channel = {{index .Params "channel" | quote}}
+{{end}}
+{{if index .Params "status"}}
+  AND status = {{index .Params "status" | quote}}
+{{end}}
+{{if index .Params "business_type"}}
+  AND business_type = {{index .Params "business_type" | quote}}
+{{end}}
+{{if index .Params "eer_id"}}
+  AND eer_id = {{index .Params "eer_id" | quote}}
+{{end}}
+{{if index .Params "vin"}}
+  AND vin = {{index .Params "vin" | quote}}
+{{end}}
+{{if index .Params "start_date"}}
+  AND event_time >= {{index .Params "start_date" | quote}}
+{{end}}
+{{if index .Params "end_date"}}
+  AND event_time < {{index .Params "end_date" | quote}}
+{{end}}

@@ -44,8 +44,6 @@ debug
 __debug_bin*
 
 
-templates/*
-course/*
 config.yaml
 
 # Local preview

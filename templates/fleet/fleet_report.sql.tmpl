@@ -1,0 +1,25 @@
+{{/* 车队综合报表 - 支持条件分支、CTE、多表 JOIN */}}
+WITH base_events AS (
+  SELECT vehicle_id, event_type, event_time, duration_seconds
+  FROM vehicle_events
+  WHERE eerid = {{.Params.eerid | quote}}
+  {{if eq .Params.period "daily"}}
+    AND event_time >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+  {{else if eq .Params.period "weekly"}}
+    AND event_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+  {{else}}
+    AND event_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+  {{end}}
+  {{if .Params.vehicle_ids}}
+    AND vehicle_id IN ({{.Params.vehicle_ids | safeInList}})
+  {{end}}
+)
+SELECT
+  b.vehicle_id,
+  v.plate_number,
+  COUNT(*) AS event_count,
+  SUM(b.duration_seconds) AS total_duration,
+  AVG(b.duration_seconds) AS avg_duration
+FROM base_events b
+JOIN vehicles v ON b.vehicle_id = v.vehicle_id
+GROUP BY b.vehicle_id, v.plate_number

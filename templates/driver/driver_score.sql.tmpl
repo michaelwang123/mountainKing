@@ -1,0 +1,11 @@
+{{/* 驾驶员评分报表 */}}
+SELECT
+  d.driver_id,
+  d.driver_name,
+  s.score,
+  s.score_date
+FROM driver_scores s
+JOIN drivers d ON s.driver_id = d.driver_id
+WHERE s.driver_id = {{.Params.driver_id | safeInt}}
+  AND s.score_date >= {{.Params.start_date | quote}}
+  AND s.score_date <= {{.Params.end_date | quote}}
