@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程 - MountainKing</title>
+    <meta name="description" content="MountainKing 系统课程 — 12 章从零开始学习 GraphQL 多数据源 API 网关的架构设计、安全体系、缓存策略与生产部署实践">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="assets/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛰️</text></svg>">
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" integrity="sha384-NNQgBjjuhtXzPmmy4gurS5X7P4uTt1DThyevz4Ua0IVK5+kazYQI1W27JHjbbxQz" crossorigin="anonymous" onerror="window.__markedFailed=true"></script>
+    <!-- Highlight.js for code syntax highlighting -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js" integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp" crossorigin="anonymous" onerror="window.__hljsFailed=true"></script>
+    <!-- DOMPurify for XSS protection (marked.js v12+ has no built-in sanitize) -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" integrity="sha384-X2xSGMBMOVfkiMhfsEGrBCOJfC4bLFCe8dOTBqb0PG0sFveMkeuviMXSA27Vqsm" crossorigin="anonymous"></script>
+</head>
+<body class="bg-gray-950 text-white min-h-screen">
+    <!-- Skip to Content -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-emerald-600 focus:text-white focus:rounded focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">跳到主要内容</a>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <a href="index.html" class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
+                <span class="text-2xl">⛰️</span>
+                <span class="text-lg font-bold text-white">MountainKing</span>
+            </a>
+            <div class="hidden md:flex items-center gap-6">
+                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">快速开始</a>
+                <a href="doc.html?file=architecture" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">架构</a>
+                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">API 参考</a>
+                <a href="doc.html?file=security" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">安全</a>
+                <a href="doc.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">全部文档</a>
+                <a href="course.html" class="text-emerald-400 text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">课程</a>
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" aria-label="访问 GitHub 仓库" class="text-gray-400 hover:text-white transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                </a>
+            </div>
+            <!-- Mobile menu button -->
+            <button id="mobile-menu-btn" aria-label="打开导航菜单" aria-expanded="false" aria-controls="mobile-nav-menu" class="md:hidden text-gray-400 hover:text-white min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+            </button>
+        </div>
+        <!-- Mobile slide-in navigation menu -->
+        <div id="mobile-nav-menu" class="md:hidden fixed inset-0 top-16 z-40 pointer-events-none">
+            <!-- Overlay -->
+            <div id="mobile-nav-overlay" class="absolute inset-0 bg-black/50 opacity-0 transition-opacity duration-300 pointer-events-none"></div>
+            <!-- Slide-in panel from right -->
+            <div id="mobile-nav-panel" class="absolute top-0 right-0 h-full w-64 bg-gray-900 border-l border-gray-800 transform translate-x-full transition-transform duration-300 pointer-events-auto">
+                <div class="flex items-center justify-end p-4">
+                    <button id="mobile-menu-close" aria-label="关闭导航菜单" class="text-gray-400 hover:text-white min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="flex flex-col px-4 gap-1">
+                    <a href="doc.html?file=getting-started" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">快速开始</a>
+                    <a href="doc.html?file=architecture" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">架构</a>
+                    <a href="doc.html?file=graphql-api" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">API 参考</a>
+                    <a href="doc.html?file=security" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">安全</a>
+                    <a href="doc.html" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">全部文档</a>
+                    <a href="course.html" class="text-emerald-400 py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">课程</a>
+                    <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        GitHub
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content" class="pt-16 min-h-screen">
+        <div class="max-w-6xl mx-auto px-6 py-10">
+
+            <!-- Loading state -->
+            <div id="loading" class="hidden flex items-center justify-center py-20">
+                <div class="w-8 h-8 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
+                <span class="ml-3 text-gray-400">加载章节中...</span>
+            </div>
+
+            <!-- Chapter Index View -->
+            <section id="chapter-index">
+                <div class="mb-10">
+                    <h1 class="text-3xl font-bold text-white mb-4">📖 MountainKing 系统课程</h1>
+                    <p class="text-gray-400 max-w-2xl">从零开始系统学习 MountainKing GraphQL 多数据源 API 网关。涵盖架构设计、Schema 开发、数据源适配、安全体系、缓存策略、可观测性、弹性设计与生产部署的完整知识体系。</p>
+                </div>
+
+                <!-- Chapter Cards Grid -->
+                <div id="chapter-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+                </div>
+
+                <!-- Appendix Section -->
+                <section class="border-t border-gray-800 pt-8">
+                    <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">📎 附录</h2>
+                    <a href="course.html?chapter=graphql-query-cookbook" class="block p-5 bg-gray-900/50 border border-dashed border-gray-700 rounded-xl hover:border-emerald-700 transition-all min-h-[44px] focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                        <h3 class="text-white font-medium mb-1">📋 GraphQL 查询手册</h3>
+                        <p class="text-sm text-gray-500">常用查询模板、分页示例与最佳实践速查</p>
+                    </a>
+                </section>
+            </section>
+
+            <!-- Chapter Content View -->
+            <article id="chapter-content" class="hidden doc-content">
+            </article>
+
+            <!-- Error State -->
+            <div id="chapter-error" class="hidden">
+                <div class="max-w-md mx-auto text-center py-16">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-900/30 flex items-center justify-center">
+                        <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-bold text-white mb-2">章节加载失败</h2>
+                    <p class="text-gray-400 mb-6">请稍后重试</p>
+                    <a href="course.html" class="text-emerald-400 hover:text-emerald-300 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-3">← 返回课程目录</a>
+                </div>
+            </div>
+
+            <!-- Prev/Next Navigation -->
+            <nav id="chapter-nav" class="hidden border-t border-gray-800 mt-10 pt-6" aria-label="章节导航">
+                <div class="flex items-center justify-between">
+                    <a id="prev-btn" href="#" class="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm text-gray-300 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 hover:text-emerald-400 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                        上一章
+                    </a>
+                    <a id="next-btn" href="#" class="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-sm text-gray-300 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 hover:text-emerald-400 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                        下一章
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+            </nav>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-12 px-6 border-t border-gray-800">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-xl">⛰️</span>
+                <span class="text-gray-400 text-sm">MountainKing — GraphQL Multi-DataSource API</span>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-gray-500">
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-2">GitHub</a>
+                <a href="doc.html" class="hover:text-emerald-400 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-2">文档</a>
+                <a href="https://github.com/michaelwang123/mountainKing/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-2">许可证</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Chapter data - hardcoded ordered array
+        var chapters = [
+            { id: "01-project-overview", number: "01", title: "项目概览与架构设计", summary: "了解 MountainKing 整体架构与设计理念" },
+            { id: "02-quick-start", number: "02", title: "环境搭建与快速上手", summary: "从零搭建开发环境并运行首个查询" },
+            { id: "03-graphql-schema", number: "03", title: "GraphQL Schema 深入解析", summary: "Schema 设计、类型系统与最佳实践" },
+            { id: "04-datasource-adapters", number: "04", title: "数据源适配器详解", summary: "StarRocks 与 Prometheus 适配器实现" },
+            { id: "05-sql-template-engine", number: "05", title: "SQL 模板引擎实战", summary: "模板语法、安全函数与高级用法" },
+            { id: "06-security", number: "06", title: "安全体系详解", summary: "认证授权、限流与安全防护全解析" },
+            { id: "07-caching", number: "07", title: "缓存策略与实践", summary: "多层缓存架构与缓存穿透防护" },
+            { id: "08-observability", number: "08", title: "可观测性体系", summary: "指标、追踪、日志三大支柱实践" },
+            { id: "09-resilience", number: "09", title: "弹性设计模式", summary: "熔断、重试与优雅降级策略" },
+            { id: "10-deployment", number: "10", title: "部署与运维", summary: "Docker/K8s 部署与生产运维指南" },
+            { id: "11-performance", number: "11", title: "性能调优指南", summary: "性能基准测试与深度优化技巧" },
+            { id: "12-advanced-topics", number: "12", title: "高级主题与最佳实践", summary: "扩展开发、架构演进与社区贡献" }
+        ];
+
+        // Pure function: compute prev/next navigation state
+        // Exported as window.getNavState for testability
+        function getNavState(currentIndex, totalChapters) {
+            return {
+                prevDisabled: currentIndex <= 0,
+                nextDisabled: currentIndex >= totalChapters - 1,
+                prevId: currentIndex > 0 ? chapters[currentIndex - 1].id : null,
+                nextId: currentIndex < totalChapters - 1 ? chapters[currentIndex + 1].id : null
+            };
+        }
+        window.getNavState = getNavState;
+
+        // Configure marked (only if loaded successfully)
+        if (!window.__markedFailed) {
+            var markedOptions = {
+                breaks: false,
+                gfm: true
+            };
+            if (!window.__hljsFailed) {
+                markedOptions.highlight = function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        return hljs.highlight(code, { language: lang }).value;
+                    }
+                    return hljs.highlightAuto(code).value;
+                };
+            }
+            marked.setOptions(markedOptions);
+        }
+
+        // DOM elements
+        var loading = document.getElementById('loading');
+        var chapterIndex = document.getElementById('chapter-index');
+        var chapterContent = document.getElementById('chapter-content');
+        var chapterError = document.getElementById('chapter-error');
+        var chapterNav = document.getElementById('chapter-nav');
+        var prevBtn = document.getElementById('prev-btn');
+        var nextBtn = document.getElementById('next-btn');
+        var chapterGrid = document.getElementById('chapter-grid');
+
+        // Mobile nav menu elements
+        var mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        var mobileMenuClose = document.getElementById('mobile-menu-close');
+        var mobileNavMenu = document.getElementById('mobile-nav-menu');
+        var mobileNavOverlay = document.getElementById('mobile-nav-overlay');
+        var mobileNavPanel = document.getElementById('mobile-nav-panel');
+
+        // Open mobile nav menu
+        function openNavMenu() {
+            mobileNavMenu.classList.remove('pointer-events-none');
+            mobileNavOverlay.classList.remove('opacity-0', 'pointer-events-none');
+            mobileNavOverlay.classList.add('opacity-100', 'pointer-events-auto');
+            mobileNavPanel.classList.remove('translate-x-full');
+            mobileNavPanel.classList.add('translate-x-0');
+            mobileMenuBtn.setAttribute('aria-expanded', 'true');
+        }
+
+        // Close mobile nav menu
+        function closeNavMenu() {
+            mobileNavOverlay.classList.remove('opacity-100', 'pointer-events-auto');
+            mobileNavOverlay.classList.add('opacity-0', 'pointer-events-none');
+            mobileNavPanel.classList.remove('translate-x-0');
+            mobileNavPanel.classList.add('translate-x-full');
+            mobileMenuBtn.setAttribute('aria-expanded', 'false');
+            setTimeout(function() {
+                if (mobileNavPanel.classList.contains('translate-x-full')) {
+                    mobileNavMenu.classList.add('pointer-events-none');
+                }
+            }, 300);
+            mobileMenuBtn.focus();
+        }
+
+        // Mobile nav menu toggle
+        mobileMenuBtn.addEventListener('click', function() {
+            var expanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true';
+            if (expanded) {
+                closeNavMenu();
+            } else {
+                openNavMenu();
+            }
+        });
+
+        mobileMenuClose.addEventListener('click', closeNavMenu);
+        mobileNavOverlay.addEventListener('click', closeNavMenu);
+
+        // Close nav menu on link click
+        mobileNavPanel.querySelectorAll('a').forEach(function(link) {
+            link.addEventListener('click', closeNavMenu);
+        });
+
+        // Render chapter index cards
+        function renderChapterIndex() {
+            chapterGrid.innerHTML = '';
+            chapters.forEach(function(chapter) {
+                var card = document.createElement('a');
+                card.href = 'course.html?chapter=' + chapter.id;
+                card.className = 'group block p-5 bg-gray-900 border border-gray-800 rounded-xl hover:border-emerald-700 transition-all duration-300 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950';
+                card.innerHTML =
+                    '<div class="flex items-start gap-3">' +
+                        '<span class="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-900/30 text-emerald-400 text-xs font-bold flex items-center justify-center">' + chapter.number + '</span>' +
+                        '<div>' +
+                            '<h3 class="text-white font-medium text-sm group-hover:text-emerald-400 transition-colors">' + chapter.title + '</h3>' +
+                            '<p class="text-xs text-gray-500 mt-1">' + chapter.summary + '</p>' +
+                        '</div>' +
+                    '</div>';
+                chapterGrid.appendChild(card);
+            });
+        }
+
+        // Get chapter parameter from URL
+        function getChapterParam() {
+            var params = new URLSearchParams(window.location.search);
+            return params.get('chapter');
+        }
+
+        // Update prev/next navigation buttons
+        function updateNavButtons(currentChapterId) {
+            var currentIndex = chapters.findIndex(function(c) { return c.id === currentChapterId; });
+            // If it's the cookbook or not found, hide nav
+            if (currentIndex === -1) {
+                chapterNav.classList.add('hidden');
+                return;
+            }
+
+            var navState = getNavState(currentIndex, chapters.length);
+            chapterNav.classList.remove('hidden');
+
+            if (navState.prevDisabled) {
+                prevBtn.classList.add('opacity-40', 'pointer-events-none');
+                prevBtn.setAttribute('aria-disabled', 'true');
+                prevBtn.removeAttribute('href');
+            } else {
+                prevBtn.classList.remove('opacity-40', 'pointer-events-none');
+                prevBtn.removeAttribute('aria-disabled');
+                prevBtn.href = 'course.html?chapter=' + navState.prevId;
+            }
+
+            if (navState.nextDisabled) {
+                nextBtn.classList.add('opacity-40', 'pointer-events-none');
+                nextBtn.setAttribute('aria-disabled', 'true');
+                nextBtn.removeAttribute('href');
+            } else {
+                nextBtn.classList.remove('opacity-40', 'pointer-events-none');
+                nextBtn.removeAttribute('aria-disabled');
+                nextBtn.href = 'course.html?chapter=' + navState.nextId;
+            }
+        }
+
+        // Load and render a chapter
+        async function loadChapter(chapterId) {
+            if (!chapterId) {
+                // Show chapter index
+                loading.classList.add('hidden');
+                chapterContent.classList.add('hidden');
+                chapterError.classList.add('hidden');
+                chapterNav.classList.add('hidden');
+                chapterIndex.classList.remove('hidden');
+                document.title = '课程 - MountainKing';
+                return;
+            }
+
+            // Show loading, hide others
+            loading.classList.remove('hidden');
+            chapterIndex.classList.add('hidden');
+            chapterContent.classList.add('hidden');
+            chapterError.classList.add('hidden');
+            chapterNav.classList.add('hidden');
+
+            try {
+                var response = await fetch('course/' + chapterId + '.md');
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+
+                var markdown = await response.text();
+
+                // If marked.js failed to load, display raw markdown
+                if (window.__markedFailed) {
+                    chapterContent.innerHTML = '<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word;color:#9ca3af;line-height:1.6;">' +
+                        markdown.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+                        '</pre>';
+                    chapterContent.classList.remove('hidden');
+                    loading.classList.add('hidden');
+                    updateNavButtons(chapterId);
+                    window.scrollTo(0, 0);
+                    return;
+                }
+
+                var html = marked.parse(markdown);
+
+                // Sanitize rendered HTML to prevent XSS
+                var sanitizedHtml = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
+                chapterContent.innerHTML = sanitizedHtml;
+                chapterContent.classList.remove('hidden');
+                loading.classList.add('hidden');
+
+                // Update page title
+                var h1 = chapterContent.querySelector('h1');
+                if (h1) {
+                    var suffix = ' - MountainKing';
+                    var fullTitle = h1.textContent + suffix;
+                    if (fullTitle.length <= 60) {
+                        document.title = fullTitle;
+                    } else {
+                        var maxLen = 60 - suffix.length - 1;
+                        document.title = h1.textContent.slice(0, maxLen) + '…' + suffix;
+                    }
+                }
+
+                // Update navigation
+                updateNavButtons(chapterId);
+
+                // Scroll to top
+                window.scrollTo(0, 0);
+
+            } catch (err) {
+                loading.classList.add('hidden');
+                chapterError.classList.remove('hidden');
+                chapterIndex.classList.remove('hidden');
+                console.error('Failed to load chapter:', err);
+            }
+        }
+
+        // Handle popstate (browser back/forward)
+        window.addEventListener('popstate', function() {
+            loadChapter(getChapterParam());
+        });
+
+        // Initial render
+        renderChapterIndex();
+        loadChapter(getChapterParam());
+    </script>
+</body>
+</html>

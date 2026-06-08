@@ -1,0 +1,20 @@
+{
+  "name": "mountainking-docs-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tests for MountainKing GitHub Pages documentation site",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
+    "fast-check": "^3.23.2",
+    "jsdom": "^25.0.1",
+    "marked": "^18.0.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

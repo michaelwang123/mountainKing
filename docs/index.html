@@ -3,39 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MountainKing - GraphQL Multi-DataSource API</title>
-    <meta name="description" content="基于 Go 语言的生产级 GraphQL API 服务器，提供跨多数据源的统一查询接口">
+    <title>GraphQL 多数据源 API 网关 - MountainKing</title>
+    <meta name="description" content="MountainKing 是基于 Go 语言的生产级 GraphQL API 网关，支持 StarRocks 与 Prometheus 多数据源统一查询，提供企业级安全、缓存和可观测性。">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="assets/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛰️</text></svg>">
 </head>
 <body class="bg-gray-950 text-white min-h-screen">
 
+    <!-- Skip to Content -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-emerald-600 focus:text-white focus:rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">跳到主要内容</a>
+
     <!-- Navigation -->
     <nav class="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
         <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <a href="index.html" class="flex items-center gap-2">
+            <a href="index.html" class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
                 <span class="text-2xl">⛰️</span>
                 <span class="text-lg font-bold text-white">MountainKing</span>
             </a>
             <div class="hidden md:flex items-center gap-6">
-                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">快速开始</a>
-                <a href="doc.html?file=architecture" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">架构</a>
-                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">API 参考</a>
-                <a href="doc.html?file=security" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">安全</a>
-                <a href="doc.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">全部文档</a>
-                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" class="text-gray-400 hover:text-white transition-colors">
+                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">快速开始</a>
+                <a href="doc.html?file=architecture" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">架构</a>
+                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">API 参考</a>
+                <a href="doc.html?file=security" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">安全</a>
+                <a href="doc.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">全部文档</a>
+                <a href="course.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">课程</a>
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" aria-label="访问 GitHub 仓库" class="text-gray-400 hover:text-white transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                 </a>
             </div>
             <!-- Mobile menu button -->
-            <button id="mobile-menu-btn" class="md:hidden text-gray-400 hover:text-white">
+            <button id="mobile-menu-btn" aria-label="打开导航菜单" aria-expanded="false" aria-controls="mobile-nav-menu" class="md:hidden text-gray-400 hover:text-white min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
             </button>
         </div>
+        <!-- Mobile slide-in navigation menu -->
+        <div id="mobile-nav-menu" class="md:hidden fixed inset-0 top-16 z-40 pointer-events-none">
+            <!-- Overlay -->
+            <div id="mobile-nav-overlay" class="absolute inset-0 bg-black/50 opacity-0 transition-opacity duration-300 pointer-events-none"></div>
+            <!-- Slide-in panel from right -->
+            <div id="mobile-nav-panel" class="absolute top-0 right-0 h-full w-64 bg-gray-900 border-l border-gray-800 transform translate-x-full transition-transform duration-300 pointer-events-auto">
+                <div class="flex items-center justify-end p-4">
+                    <button id="mobile-menu-close" aria-label="关闭导航菜单" class="text-gray-400 hover:text-white min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="flex flex-col px-4 gap-1">
+                    <a href="doc.html?file=getting-started" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">快速开始</a>
+                    <a href="doc.html?file=architecture" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">架构</a>
+                    <a href="doc.html?file=graphql-api" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">API 参考</a>
+                    <a href="doc.html?file=security" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">安全</a>
+                    <a href="doc.html" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">全部文档</a>
+                    <a href="course.html" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">课程</a>
+                    <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        GitHub
+                    </a>
+                </nav>
+            </div>
+        </div>
     </nav>
+
+    <!-- Main Content -->
+    <main id="main-content">
 
     <!-- Hero Section -->
     <section class="pt-32 pb-20 px-6 relative overflow-hidden">
@@ -49,6 +83,8 @@
                 <span class="inline-block px-4 py-1.5 rounded-full text-xs font-medium bg-emerald-950/50 border border-emerald-700/50 text-emerald-400 mb-6">
                     Production-Ready GraphQL Gateway
                 </span>
+                <span id="version-badge" class="hidden ml-2 inline-block px-3 py-1 rounded-full text-xs font-medium bg-gray-800 border border-gray-700 text-gray-300">
+                </span>
             </div>
             <h1 class="text-4xl md:text-6xl font-bold mb-6 animate-fade-in-up delay-100">
                 <span class="bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-100 to-gray-300">MountainKing</span>
@@ -58,11 +94,12 @@
                 统一接入 StarRocks 和 Prometheus 多数据源的查询网关
             </p>
             <div class="flex flex-wrap gap-4 justify-center animate-fade-in-up delay-300">
-                <a href="doc.html?file=getting-started" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors">
+                <a href="doc.html?file=getting-started" class="px-6 py-3 min-h-[44px] inline-flex items-center bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     快速开始 →
                 </a>
-                <a href="doc.html?file=architecture" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium transition-colors border border-gray-700">
-                    架构概览
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-6 py-3 min-h-[44px] bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg font-medium transition-colors border border-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                    GitHub
                 </a>
             </div>
         </div>
@@ -272,62 +309,62 @@
             <p class="text-center text-gray-400 mb-12">全面覆盖从入门到生产部署</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <a href="doc.html?file=getting-started" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=getting-started" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">🚀</div>
                     <h4 class="text-white font-medium text-sm">快速开始</h4>
                     <p class="text-xs text-gray-500 mt-1">环境搭建、首次查询</p>
                 </a>
-                <a href="doc.html?file=architecture" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=architecture" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">🏗️</div>
                     <h4 class="text-white font-medium text-sm">架构概览</h4>
                     <p class="text-xs text-gray-500 mt-1">系统设计与组件关系</p>
                 </a>
-                <a href="doc.html?file=configuration" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=configuration" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">⚙️</div>
                     <h4 class="text-white font-medium text-sm">配置参考</h4>
                     <p class="text-xs text-gray-500 mt-1">完整配置项与环境变量</p>
                 </a>
-                <a href="doc.html?file=graphql-api" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=graphql-api" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">📡</div>
                     <h4 class="text-white font-medium text-sm">GraphQL API</h4>
                     <p class="text-xs text-gray-500 mt-1">Schema、查询与 Mutation</p>
                 </a>
-                <a href="doc.html?file=sql-template-engine" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=sql-template-engine" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">📝</div>
                     <h4 class="text-white font-medium text-sm">SQL 模板引擎</h4>
                     <p class="text-xs text-gray-500 mt-1">模板语法与最佳实践</p>
                 </a>
-                <a href="doc.html?file=security" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=security" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">🔒</div>
                     <h4 class="text-white font-medium text-sm">安全指南</h4>
                     <p class="text-xs text-gray-500 mt-1">认证、授权与防护</p>
                 </a>
-                <a href="doc.html?file=observability" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=observability" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">📊</div>
                     <h4 class="text-white font-medium text-sm">可观测性</h4>
                     <p class="text-xs text-gray-500 mt-1">指标、追踪与日志</p>
                 </a>
-                <a href="doc.html?file=deployment" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=deployment" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">🚢</div>
                     <h4 class="text-white font-medium text-sm">部署指南</h4>
                     <p class="text-xs text-gray-500 mt-1">Docker、K8s 与 CI/CD</p>
                 </a>
-                <a href="doc.html?file=performance" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=performance" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">⚡</div>
                     <h4 class="text-white font-medium text-sm">性能调优</h4>
                     <p class="text-xs text-gray-500 mt-1">缓存、连接池与基准测试</p>
                 </a>
-                <a href="doc.html?file=datasource-adapters" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=datasource-adapters" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">🔌</div>
                     <h4 class="text-white font-medium text-sm">数据源适配器</h4>
                     <p class="text-xs text-gray-500 mt-1">适配器详解与扩展</p>
                 </a>
-                <a href="doc.html?file=developer-guide" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=developer-guide" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">👨‍💻</div>
                     <h4 class="text-white font-medium text-sm">开发者指南</h4>
                     <p class="text-xs text-gray-500 mt-1">代码规范与贡献流程</p>
                 </a>
-                <a href="doc.html?file=faq" class="block p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors">
+                <a href="doc.html?file=faq" class="block p-4 min-h-[44px] bg-gray-900 border border-gray-800 rounded-lg hover:border-emerald-700 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
                     <div class="text-emerald-400 text-lg mb-1">❓</div>
                     <h4 class="text-white font-medium text-sm">FAQ</h4>
                     <p class="text-xs text-gray-500 mt-1">常见问题解答</p>
@@ -335,6 +372,8 @@
             </div>
         </div>
     </section>
+
+    </main>
 
     <!-- Footer -->
     <footer class="py-12 px-6 border-t border-gray-800">
@@ -344,21 +383,84 @@
                 <span class="text-gray-400 text-sm">MountainKing — GraphQL Multi-DataSource API</span>
             </div>
             <div class="flex items-center gap-6 text-sm text-gray-500">
-                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" class="hover:text-emerald-400 transition-colors">GitHub</a>
-                <a href="doc.html" class="hover:text-emerald-400 transition-colors">文档</a>
-                <a href="https://github.com/michaelwang123/mountainKing/blob/main/LICENSE" target="_blank" class="hover:text-emerald-400 transition-colors">许可证</a>
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-2">GitHub</a>
+                <a href="doc.html" class="hover:text-emerald-400 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-2">文档</a>
+                <a href="https://github.com/michaelwang123/mountainKing/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-400 transition-colors min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg px-2">许可证</a>
             </div>
         </div>
     </footer>
 
-    <!-- Mobile menu -->
+    <!-- Mobile menu script -->
     <script>
-        document.getElementById('mobile-menu-btn')?.addEventListener('click', function() {
-            // Simple mobile menu toggle (could be expanded)
-            const nav = document.querySelector('nav');
-            const menu = nav.querySelector('.md\\:flex');
-            if (menu) menu.classList.toggle('hidden');
-        });
+        (function() {
+            var menuBtn = document.getElementById('mobile-menu-btn');
+            var closeBtn = document.getElementById('mobile-menu-close');
+            var menuContainer = document.getElementById('mobile-nav-menu');
+            var overlay = document.getElementById('mobile-nav-overlay');
+            var panel = document.getElementById('mobile-nav-panel');
+
+            function openMenu() {
+                menuContainer.classList.remove('pointer-events-none');
+                overlay.classList.remove('opacity-0', 'pointer-events-none');
+                overlay.classList.add('opacity-100', 'pointer-events-auto');
+                panel.classList.remove('translate-x-full');
+                panel.classList.add('translate-x-0');
+                menuBtn.setAttribute('aria-expanded', 'true');
+            }
+
+            function closeMenu() {
+                overlay.classList.remove('opacity-100', 'pointer-events-auto');
+                overlay.classList.add('opacity-0', 'pointer-events-none');
+                panel.classList.remove('translate-x-0');
+                panel.classList.add('translate-x-full');
+                menuBtn.setAttribute('aria-expanded', 'false');
+                // After transition completes, disable pointer events on container
+                setTimeout(function() {
+                    if (panel.classList.contains('translate-x-full')) {
+                        menuContainer.classList.add('pointer-events-none');
+                    }
+                }, 300);
+                menuBtn.focus();
+            }
+
+            menuBtn.addEventListener('click', function() {
+                var expanded = menuBtn.getAttribute('aria-expanded') === 'true';
+                if (expanded) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            });
+
+            closeBtn.addEventListener('click', closeMenu);
+            overlay.addEventListener('click', closeMenu);
+
+            // Close on link click
+            panel.querySelectorAll('a').forEach(function(link) {
+                link.addEventListener('click', closeMenu);
+            });
+        })();
+
+        // Fetch version.json and display version badge
+        (function() {
+            fetch('version.json')
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data && data.version) {
+                        var badge = document.getElementById('version-badge');
+                        if (badge) {
+                            badge.textContent = 'v' + data.version;
+                            badge.classList.remove('hidden');
+                        }
+                    }
+                })
+                .catch(function() {
+                    // Hide badge on failure (it's already hidden by default)
+                });
+        })();
     </script>
 </body>
 </html>

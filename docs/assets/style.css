@@ -60,6 +60,7 @@
 .delay-400 { animation-delay: 0.4s; }
 .delay-500 { animation-delay: 0.5s; }
 .delay-600 { animation-delay: 0.6s; }
+.delay-700 { animation-delay: 700ms; }
 .delay-800 { animation-delay: 0.8s; }
 
 /* 5. Slow spin */
@@ -222,8 +223,10 @@
 
 /* Sidebar navigation */
 .sidebar-link {
-    display: block;
+    display: flex;
+    align-items: center;
     padding: 0.5rem 1rem;
+    min-height: 44px;
     border-radius: 0.5rem;
     color: #9ca3af;
     text-decoration: none;

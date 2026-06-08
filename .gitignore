@@ -53,3 +53,9 @@ _preview/
 
 # Kiro specs (private design documents)
 .kiro/specs/
+
+# Node.js dependencies (docs test infrastructure)
+docs/tests/node_modules/
+
+# Doc site local preview build
+_site/

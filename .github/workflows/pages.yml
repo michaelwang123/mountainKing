@@ -8,6 +8,7 @@ on:
     paths:
       - 'docs/**'
       - 'official_document/**'
+      - 'course/**'
       - '.github/workflows/pages.yml'
   # Allow manual trigger
   workflow_dispatch:
@@ -29,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -46,8 +49,17 @@ jobs:
           mkdir -p _site/official_document
           cp official_document/*.md _site/official_document/
 
+          # Copy course markdown files into the site
+          # These are fetched client-side by course.html
+          mkdir -p _site/course
+          cp course/*.md _site/course/
+
           # Create a .nojekyll file to prevent Jekyll processing
           touch _site/.nojekyll
+
+          # Generate version.json from latest git tag
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          echo "{\"version\": \"${VERSION}\"}" > _site/version.json
 
           echo "✅ Site built successfully"
           echo "📁 Files in _site:"

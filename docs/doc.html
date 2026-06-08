@@ -4,45 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文档 - MountainKing</title>
-    <meta name="description" content="MountainKing GraphQL Multi-DataSource API 官方文档">
+    <meta name="description" content="MountainKing GraphQL Multi-DataSource API 官方文档 — 完整的配置参考、架构指南、安全实践与部署说明">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="assets/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛰️</text></svg>">
     <!-- Marked.js for markdown rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js" integrity="sha384-NNQgBjjuhtXzPmmy4gurS5X7P4uTt1DThyevz4Ua0IVK5+kazYQI1W27JHjbbxQz" crossorigin="anonymous" onerror="window.__markedFailed=true"></script>
     <!-- Highlight.js for code syntax highlighting -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css" integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/highlight.min.js" integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp" crossorigin="anonymous" onerror="window.__hljsFailed=true"></script>
+    <!-- DOMPurify for XSS protection (marked.js v12+ has no built-in sanitize) -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" integrity="sha384-X2xSGMBMOVfkiMhfsEGrBCOJfC4bLFCe8dOTBqb0PG0sFveMkeuviMXSA27Vqsm" crossorigin="anonymous"></script>
 </head>
 <body class="bg-gray-950 text-white min-h-screen">
+    <!-- Skip to Content -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-emerald-600 focus:text-white focus:rounded focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">跳到主要内容</a>
 
     <!-- Navigation -->
     <nav class="fixed top-0 w-full z-50 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
         <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <a href="index.html" class="flex items-center gap-2">
+            <a href="index.html" class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
                 <span class="text-2xl">⛰️</span>
                 <span class="text-lg font-bold text-white">MountainKing</span>
             </a>
             <div class="hidden md:flex items-center gap-6">
-                <a href="index.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">首页</a>
-                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">快速开始</a>
-                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm">API 参考</a>
-                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" class="text-gray-400 hover:text-white transition-colors">
+                <a href="doc.html?file=getting-started" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">快速开始</a>
+                <a href="doc.html?file=architecture" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">架构</a>
+                <a href="doc.html?file=graphql-api" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">API 参考</a>
+                <a href="doc.html?file=security" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">安全</a>
+                <a href="doc.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">全部文档</a>
+                <a href="course.html" class="text-gray-400 hover:text-emerald-400 transition-colors text-sm min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">课程</a>
+                <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" aria-label="访问 GitHub 仓库" class="text-gray-400 hover:text-white transition-colors min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                 </a>
             </div>
-            <!-- Mobile sidebar toggle -->
-            <button id="sidebar-toggle" class="md:hidden text-gray-400 hover:text-white">
+            <!-- Mobile menu button -->
+            <button id="mobile-menu-btn" aria-label="打开导航菜单" aria-expanded="false" aria-controls="mobile-nav-menu" class="md:hidden text-gray-400 hover:text-white min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                 </svg>
             </button>
         </div>
+        <!-- Mobile slide-in navigation menu -->
+        <div id="mobile-nav-menu" class="md:hidden fixed inset-0 top-16 z-40 pointer-events-none">
+            <!-- Overlay -->
+            <div id="mobile-nav-overlay" class="absolute inset-0 bg-black/50 opacity-0 transition-opacity duration-300 pointer-events-none"></div>
+            <!-- Slide-in panel from right -->
+            <div id="mobile-nav-panel" class="absolute top-0 right-0 h-full w-64 bg-gray-900 border-l border-gray-800 transform translate-x-full transition-transform duration-300 pointer-events-auto">
+                <div class="flex items-center justify-end p-4">
+                    <button id="mobile-menu-close" aria-label="关闭导航菜单" class="text-gray-400 hover:text-white min-h-[44px] min-w-[44px] inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950 rounded-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+                <nav class="flex flex-col px-4 gap-1">
+                    <a href="doc.html?file=getting-started" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">快速开始</a>
+                    <a href="doc.html?file=architecture" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">架构</a>
+                    <a href="doc.html?file=graphql-api" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">API 参考</a>
+                    <a href="doc.html?file=security" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">安全</a>
+                    <a href="doc.html" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">全部文档</a>
+                    <a href="course.html" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">课程</a>
+                    <a href="https://github.com/michaelwang123/mountainKing" target="_blank" rel="noopener noreferrer" class="text-gray-300 hover:text-emerald-400 transition-colors py-3 px-3 rounded-lg min-h-[44px] inline-flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-gray-950">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                        GitHub
+                    </a>
+                </nav>
+            </div>
+        </div>
     </nav>
 
     <div class="flex pt-16">
+        <!-- Sidebar overlay (mobile only) -->
+        <div id="sidebar-overlay" class="fixed inset-0 top-16 bg-black/50 z-30 hidden md:hidden" aria-hidden="true"></div>
+
         <!-- Sidebar -->
-        <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 bg-gray-900/50 border-r border-gray-800 overflow-y-auto p-4 transform -translate-x-full md:translate-x-0 transition-transform z-40">
+        <aside id="sidebar" class="fixed left-0 top-16 bottom-0 w-64 bg-gray-900/50 border-r border-gray-800 overflow-y-auto p-4 transform -translate-x-full md:translate-x-0 transition-transform z-40" aria-label="文档导航">
             <div class="mb-6">
                 <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">入门</h3>
                 <a href="doc.html?file=getting-started" class="sidebar-link" data-file="getting-started">快速开始</a>
@@ -74,7 +111,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 md:ml-64 min-h-screen">
+        <main id="main-content" class="flex-1 md:ml-64 min-h-screen">
             <div class="max-w-4xl mx-auto px-6 py-10">
                 <!-- Loading state -->
                 <div id="loading" class="flex items-center justify-center py-20">
@@ -138,17 +175,56 @@
     </div>
 
     <script>
-        // Configure marked
-        marked.setOptions({
-            highlight: function(code, lang) {
-                if (lang && hljs.getLanguage(lang)) {
-                    return hljs.highlight(code, { language: lang }).value;
-                }
-                return hljs.highlightAuto(code).value;
-            },
-            breaks: false,
-            gfm: true
-        });
+        // Pure function: convert internal .md links to doc.html?file= format
+        // Exported as window.convertMdLink for testability
+        function convertMdLink(href) {
+            // Only convert hrefs that end with .md and don't start with http
+            if (!href || !href.endsWith('.md') || href.startsWith('http')) {
+                return null;
+            }
+            // Extract filename: portion after the last '/' (or entire href if no '/')
+            const lastSlashIndex = href.lastIndexOf('/');
+            const filename = lastSlashIndex >= 0 ? href.substring(lastSlashIndex + 1) : href;
+            // Strip .md only from the end (anchored match)
+            const name = filename.replace(/\.md$/, '');
+            return `doc.html?file=${name}`;
+        }
+        window.convertMdLink = convertMdLink;
+
+        // Pure function: format page title with truncation to fit within 60 characters
+        // Exported as window.formatPageTitle for testability
+        function formatPageTitle(h1Text) {
+            const suffix = ' - MountainKing';
+            if (!h1Text || h1Text.trim() === '') {
+                return 'MountainKing';
+            }
+            const fullTitle = h1Text + suffix;
+            if (fullTitle.length <= 60) {
+                return fullTitle;
+            }
+            // Truncate h1 text and append "…" so total length <= 60
+            const maxH1Length = 60 - suffix.length - 1; // -1 for the "…" character
+            return h1Text.slice(0, maxH1Length) + '…' + suffix;
+        }
+        window.formatPageTitle = formatPageTitle;
+
+        // Configure marked (only if loaded successfully)
+        if (!window.__markedFailed) {
+            var markedOptions = {
+                breaks: false,
+                gfm: true
+            };
+            // Only add syntax highlighting if highlight.js loaded successfully
+            if (!window.__hljsFailed) {
+                markedOptions.highlight = function(code, lang) {
+                    if (lang && hljs.getLanguage(lang)) {
+                        return hljs.highlight(code, { language: lang }).value;
+                    }
+                    return hljs.highlightAuto(code).value;
+                };
+            }
+            marked.setOptions(markedOptions);
+        }
 
         // DOM elements
         const loading = document.getElementById('loading');
@@ -156,18 +232,83 @@
         const docIndex = document.getElementById('doc-index');
         const docError = document.getElementById('doc-error');
         const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
 
-        // Mobile sidebar toggle
-        sidebarToggle?.addEventListener('click', () => {
-            sidebar.classList.toggle('-translate-x-full');
+        // Mobile nav menu elements
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenuClose = document.getElementById('mobile-menu-close');
+        const mobileNavMenu = document.getElementById('mobile-nav-menu');
+        const mobileNavOverlay = document.getElementById('mobile-nav-overlay');
+        const mobileNavPanel = document.getElementById('mobile-nav-panel');
+
+        // Open mobile nav menu
+        function openNavMenu() {
+            mobileNavMenu.classList.remove('pointer-events-none');
+            mobileNavOverlay.classList.remove('opacity-0', 'pointer-events-none');
+            mobileNavOverlay.classList.add('opacity-100', 'pointer-events-auto');
+            mobileNavPanel.classList.remove('translate-x-full');
+            mobileNavPanel.classList.add('translate-x-0');
+            mobileMenuBtn.setAttribute('aria-expanded', 'true');
+        }
+
+        // Close mobile nav menu
+        function closeNavMenu() {
+            mobileNavOverlay.classList.remove('opacity-100', 'pointer-events-auto');
+            mobileNavOverlay.classList.add('opacity-0', 'pointer-events-none');
+            mobileNavPanel.classList.remove('translate-x-0');
+            mobileNavPanel.classList.add('translate-x-full');
+            mobileMenuBtn.setAttribute('aria-expanded', 'false');
+            setTimeout(function() {
+                if (mobileNavPanel.classList.contains('translate-x-full')) {
+                    mobileNavMenu.classList.add('pointer-events-none');
+                }
+            }, 300);
+            mobileMenuBtn.focus();
+        }
+
+        // Mobile nav menu toggle
+        mobileMenuBtn?.addEventListener('click', function() {
+            var expanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true';
+            if (expanded) {
+                closeNavMenu();
+            } else {
+                openNavMenu();
+            }
+        });
+
+        mobileMenuClose?.addEventListener('click', closeNavMenu);
+        mobileNavOverlay?.addEventListener('click', closeNavMenu);
+
+        // Close nav menu on link click
+        mobileNavPanel?.querySelectorAll('a').forEach(function(link) {
+            link.addEventListener('click', closeNavMenu);
+        });
+
+        // Document sidebar open/close (for document sidebar navigation on mobile)
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            if (sidebarOverlay) sidebarOverlay.classList.remove('hidden');
+            sidebar.setAttribute('role', 'dialog');
+            sidebar.setAttribute('aria-modal', 'true');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+            sidebar.removeAttribute('role');
+            sidebar.removeAttribute('aria-modal');
+        }
+
+        // Close sidebar when clicking overlay
+        sidebarOverlay?.addEventListener('click', () => {
+            closeSidebar();
         });
 
         // Close sidebar on link click (mobile)
         sidebar?.querySelectorAll('a').forEach(link => {
             link.addEventListener('click', () => {
                 if (window.innerWidth < 768) {
-                    sidebar.classList.add('-translate-x-full');
+                    closeSidebar();
                 }
             });
         });
@@ -211,16 +352,37 @@
                 if (!response.ok) throw new Error('Not found');
 
                 const markdown = await response.text();
+
+                // If marked.js failed to load, display raw markdown as preformatted text
+                if (window.__markedFailed) {
+                    docContent.innerHTML = '<pre style="font-family:monospace;white-space:pre-wrap;word-wrap:break-word;color:#9ca3af;line-height:1.6;">' +
+                        markdown.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+                        '</pre>';
+                    docContent.classList.remove('hidden');
+                    loading.classList.add('hidden');
+
+                    // Update page title from first heading in raw markdown
+                    const h1Match = markdown.match(/^#\s+(.+)$/m);
+                    if (h1Match) {
+                        document.title = `${h1Match[1]} - MountainKing`;
+                    }
+
+                    window.scrollTo(0, 0);
+                    return;
+                }
+
                 const html = marked.parse(markdown);
 
-                docContent.innerHTML = html;
+                // Sanitize rendered HTML to prevent XSS (strips <script>, javascript: URLs, event handlers)
+                const sanitizedHtml = (typeof DOMPurify !== 'undefined') ? DOMPurify.sanitize(html) : html;
+                docContent.innerHTML = sanitizedHtml;
                 docContent.classList.remove('hidden');
                 loading.classList.add('hidden');
 
                 // Update page title
                 const h1 = docContent.querySelector('h1');
                 if (h1) {
-                    document.title = `${h1.textContent} - MountainKing`;
+                    document.title = formatPageTitle(h1.textContent);
                 }
 
                 // Scroll to top
@@ -229,9 +391,11 @@
                 // Fix internal links to use doc.html?file= format
                 docContent.querySelectorAll('a').forEach(link => {
                     const href = link.getAttribute('href');
-                    if (href && href.endsWith('.md') && !href.startsWith('http')) {
-                        const name = href.replace(/^\.?\/?/, '').replace('.md', '');
-                        link.setAttribute('href', `doc.html?file=${name}`);
+                    if (href) {
+                        const converted = convertMdLink(href);
+                        if (converted) {
+                            link.setAttribute('href', converted);
+                        }
                     }
                 });
 
