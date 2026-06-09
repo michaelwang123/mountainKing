@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/go-chi/chi/v5"
+	mockadapter "github.com/michaelwang123/mountainKing/internal/adapter/mock"
 	"github.com/michaelwang123/mountainKing/internal/adapter/prometheus"
 	"github.com/michaelwang123/mountainKing/internal/adapter/starrocks"
 	"github.com/michaelwang123/mountainKing/internal/audit"
@@ -50,8 +52,18 @@ var (
 )
 
 func main() {
+	configPath := flag.String("config", "", "path to config file")
+	flag.Parse()
+
+	// Priority: CLI flag > GRAPHQL_CONFIG_PATH env var > default "config.yaml"
+	cfgFile := "config.yaml"
+	if *configPath != "" {
+		cfgFile = *configPath
+	} else if envPath := os.Getenv("GRAPHQL_CONFIG_PATH"); envPath != "" {
+		cfgFile = envPath
+	}
 	// 1. Load config (Viper YAML + env vars).
-	cfg, err := config.LoadConfig("config.yaml")
+	cfg, err := config.LoadConfig(cfgFile)
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
@@ -108,6 +120,9 @@ func main() {
 	if err := registry.Register("prometheus", prometheus.Factory(logger.Logger)); err != nil {
 		logger.Fatal("failed to register prometheus adapter", zap.Error(err))
 	}
+	if err := registry.Register("mock", mockadapter.Factory()); err != nil {
+		logger.Fatal("failed to register mock adapter", zap.Error(err))
+	}
 
 	// 6. Init DataSourceManager.
 	retryCfg := retry.Config{
@@ -117,6 +132,15 @@ func main() {
 	dsManager := datasource.NewDataSourceManager(registry, cfg.Datasources, retryCfg, logger.Logger)
 	if err := dsManager.Init(context.Background()); err != nil {
 		logger.Fatal("failed to init datasource manager", zap.Error(err))
+	}
+
+	// Development mode: warn if the expected mock datasource is not available.
+	// The starrocks GraphQL resolver routes to "analytics_db" by default.
+	if cfg.Server.Mode == "development" {
+		if status := dsManager.Status("analytics_db"); status == nil {
+			logger.Warn("development mode: no datasource named 'analytics_db' found; " +
+				"GraphQL starrocks queries will fail. Check config.dev.yaml datasources section.")
+		}
 	}
 
 	// 7. Init CacheLayer (memory or Redis backend).
@@ -232,53 +256,66 @@ func main() {
 	if cfg.SQLTemplates.Enabled {
 		srDS, dsErr := dsManager.Get(cfg.SQLTemplates.DatasourceName)
 		if dsErr != nil {
-			logger.Fatal("sql_templates enabled but configured datasource not available",
-				zap.String("datasource_name", cfg.SQLTemplates.DatasourceName),
-				zap.Error(dsErr))
-		}
-		srAdapter, ok := srDS.(*starrocks.Adapter)
-		if !ok {
-			logger.Fatal("sql_templates requires a StarRocks datasource",
-				zap.String("datasource_name", cfg.SQLTemplates.DatasourceName))
-		}
-
-		templateMetrics := template.NewTemplateMetrics(metricsCollector.Registry(), metricsCollector.CustomLabels())
-
-		templateEngine, err = template.NewTemplateEngine(template.TemplateEngineConfig{
-			Config:         cfg.SQLTemplates,
-			GraphQLCfg:     cfg.GraphQL,
-			DatasourceName: srAdapter.Name(),
-			Executor:       srAdapter,
-			CacheLayer:     cacheLayer,
-			Sanitizer:      sanitizer,
-			AuditLogger:    auditLogger,
-			Metrics:        templateMetrics,
-			Tracer:         tracingProvider.Tracer(),
-			Logger:         logger.Logger,
-		})
-		if err != nil {
-			logger.Fatal("failed to init template engine", zap.Error(err))
-		}
-		logger.Info("template engine initialized",
-			zap.String("datasource", srAdapter.Name()),
-			zap.Int("template_count", len(cfg.SQLTemplates.Templates)))
-
-		// Start TemplateWatcher for fsnotify-based hot reload.
-		watchDirs := []string{cfg.SQLTemplates.BaseDir}
-		sharedDir := cfg.SQLTemplates.SharedDir
-		if sharedDir == "" {
-			sharedDir = filepath.Join(cfg.SQLTemplates.BaseDir, "_shared")
-		}
-		if sharedDir != cfg.SQLTemplates.BaseDir {
-			watchDirs = append(watchDirs, sharedDir)
-		}
-		var twErr error
-		templateWatcher, twErr = template.NewTemplateWatcher(templateEngine, watchDirs, logger.Logger)
-		if twErr != nil {
-			logger.Warn("failed to create template watcher, fsnotify hot-reload disabled", zap.Error(twErr))
+			if cfg.Server.Mode == "development" {
+				logger.Warn("sql_templates: configured datasource unavailable, template engine disabled",
+					zap.String("datasource_name", cfg.SQLTemplates.DatasourceName),
+					zap.Error(dsErr))
+				// templateEngine remains nil — template queries will return "not available" error
+			} else {
+				logger.Fatal("sql_templates enabled but configured datasource not available",
+					zap.String("datasource_name", cfg.SQLTemplates.DatasourceName),
+					zap.Error(dsErr))
+			}
 		} else {
-			templateWatcher.Start()
-			logger.Info("template watcher started", zap.Strings("watch_dirs", watchDirs))
+			srAdapter, ok := srDS.(*starrocks.Adapter)
+			if !ok {
+				if cfg.Server.Mode == "development" {
+					logger.Warn("sql_templates requires a StarRocks datasource, but got type "+srDS.Type()+"; template engine disabled",
+						zap.String("datasource_name", cfg.SQLTemplates.DatasourceName))
+				} else {
+					logger.Fatal("sql_templates requires a StarRocks datasource",
+						zap.String("datasource_name", cfg.SQLTemplates.DatasourceName))
+				}
+			} else {
+				templateMetrics := template.NewTemplateMetrics(metricsCollector.Registry(), metricsCollector.CustomLabels())
+
+				templateEngine, err = template.NewTemplateEngine(template.TemplateEngineConfig{
+					Config:         cfg.SQLTemplates,
+					GraphQLCfg:     cfg.GraphQL,
+					DatasourceName: srAdapter.Name(),
+					Executor:       srAdapter,
+					CacheLayer:     cacheLayer,
+					Sanitizer:      sanitizer,
+					AuditLogger:    auditLogger,
+					Metrics:        templateMetrics,
+					Tracer:         tracingProvider.Tracer(),
+					Logger:         logger.Logger,
+				})
+				if err != nil {
+					logger.Fatal("failed to init template engine", zap.Error(err))
+				}
+				logger.Info("template engine initialized",
+					zap.String("datasource", srAdapter.Name()),
+					zap.Int("template_count", len(cfg.SQLTemplates.Templates)))
+
+				// Start TemplateWatcher for fsnotify-based hot reload.
+				watchDirs := []string{cfg.SQLTemplates.BaseDir}
+				sharedDir := cfg.SQLTemplates.SharedDir
+				if sharedDir == "" {
+					sharedDir = filepath.Join(cfg.SQLTemplates.BaseDir, "_shared")
+				}
+				if sharedDir != cfg.SQLTemplates.BaseDir {
+					watchDirs = append(watchDirs, sharedDir)
+				}
+				var twErr error
+				templateWatcher, twErr = template.NewTemplateWatcher(templateEngine, watchDirs, logger.Logger)
+				if twErr != nil {
+					logger.Warn("failed to create template watcher, fsnotify hot-reload disabled", zap.Error(twErr))
+				} else {
+					templateWatcher.Start()
+					logger.Info("template watcher started", zap.Strings("watch_dirs", watchDirs))
+				}
+			}
 		}
 	}
 
@@ -333,7 +370,11 @@ func main() {
 		router.Get("/graphql", srv.WithRequestTimeout(gqlHandler))
 	}
 	if cfg.Server.Mode == "development" {
-		router.Get("/playground", srv.PlaygroundHandler())
+		router.Get("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/playground", http.StatusFound)
+		})
+		// Use custom playground with pre-configured tabs instead of gqlgen built-in
+		router.Get("/playground", server.CustomPlaygroundHandler("/graphql", server.DefaultPlaygroundTabs()))
 	}
 
 	// 16. Start HTTP server directly with our middleware-configured router.
@@ -348,7 +389,9 @@ func main() {
 		WriteTimeout:      cfg.Server.WriteTimeout,
 		IdleTimeout:       cfg.Server.IdleTimeout,
 	}
-	logger.Info("HTTP server starting", zap.String("addr", addr), zap.String("mode", cfg.Server.Mode))
+
+	// Print startup banner before listening.
+	printBanner(cfg, logger, dsManager)
 
 	go func() {
 		if srvErr := httpSrv.ListenAndServe(); srvErr != nil && srvErr != http.ErrServerClosed {
@@ -400,56 +443,4 @@ func main() {
 	}
 
 	logger.Info("shutdown complete")
-}
-
-// needsRedis returns true if any feature requires a Redis connection.
-func needsRedis(cfg *config.Config) bool {
-	return cfg.RateLimit.Mode == "distributed" || (cfg.Cache.Enabled && cfg.Cache.Backend == "redis")
-}
-
-// resolveRedisAddr returns the Redis address from the first available config source.
-func resolveRedisAddr(cfg *config.Config) string {
-	if cfg.RateLimit.Redis.Addr != "" {
-		return cfg.RateLimit.Redis.Addr
-	}
-	if cfg.Cache.Redis.Addr != "" {
-		return cfg.Cache.Redis.Addr
-	}
-	return "localhost:6379"
-}
-
-// resolveRedisPassword returns the Redis password from the first available config source.
-func resolveRedisPassword(cfg *config.Config) string {
-	if cfg.RateLimit.Redis.Password != "" {
-		return cfg.RateLimit.Redis.Password
-	}
-	return cfg.Cache.Redis.Password
-}
-
-// resolveRedisDB returns the Redis DB from the first available config source.
-func resolveRedisDB(cfg *config.Config) int {
-	if cfg.RateLimit.Redis.Addr != "" {
-		return cfg.RateLimit.Redis.DB
-	}
-	if cfg.Cache.Redis.Addr != "" {
-		return cfg.Cache.Redis.DB
-	}
-	return 0
-}
-
-// newAuthFailureLimiterMiddleware wraps AuthFailureLimiter as chi middleware
-// that checks if the client IP is banned before proceeding.
-func newAuthFailureLimiterMiddleware(afl *middleware.AuthFailureLimiter) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := afl.ExtractClientIP(r)
-			if !afl.Check(ip) {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusTooManyRequests)
-				_, _ = w.Write([]byte(`{"error":{"code":"AUTH_BRUTE_FORCE_BLOCKED","message":"too many authentication failures","classification":"AUTH"}}`))
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
 }

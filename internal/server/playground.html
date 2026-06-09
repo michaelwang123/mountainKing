@@ -1,0 +1,126 @@
+{{/* 
+  playground.html — MountainKing GraphiQL IDE template.
+  
+  This file is embedded via go:embed in playground.go.
+  Template variables:
+    .Endpoint  — the GraphQL endpoint URL (e.g. "/graphql")
+    .TabsJSON  — JSON-encoded array of default tabs, each with
+                 a "query" field. Injected as raw JSON via template.JS
+                 to avoid escaping issues with multiline GraphQL queries.
+  
+  Uses GraphiQL 3.x (actively maintained replacement for the archived
+  graphql-playground-react). Loaded via unpkg CDN with pinned versions.
+*/}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MountainKing GraphQL IDE</title>
+
+  <!-- GraphiQL 3.x CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/graphiql@3.7.2/graphiql.min.css"
+    crossorigin="anonymous"
+  />
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    #graphiql {
+      height: 100%;
+    }
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 1.1rem;
+      gap: 0.8rem;
+    }
+    .loading-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .loading-subtitle {
+      font-size: 0.85rem;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div id="graphiql">
+    <div class="loading">
+      <div class="loading-title">MountainKing</div>
+      <div>Loading GraphiQL IDE…</div>
+      <div class="loading-subtitle">Connecting to {{.Endpoint}}</div>
+    </div>
+  </div>
+
+  <!-- React 18 (required by GraphiQL 3.x) -->
+  <script
+    src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"
+    crossorigin="anonymous"
+  ></script>
+  <script
+    src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"
+    crossorigin="anonymous"
+  ></script>
+
+  <!-- GraphiQL 3.x bundle -->
+  <script
+    src="https://unpkg.com/graphiql@3.7.2/graphiql.min.js"
+    crossorigin="anonymous"
+  ></script>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // Default tabs injected by the Go handler as a JSON array.
+      // Each object has: { query }
+      // GraphiQL derives tab names from the GraphQL operation name in the query.
+      var defaultTabs = {{.TabsJSON}};
+
+      var endpoint = '{{.Endpoint}}';
+
+      // Initialize GraphiQL once scripts are loaded.
+      window.addEventListener('load', function() {
+        var container = document.getElementById('graphiql');
+
+        if (typeof GraphiQL === 'undefined' || typeof React === 'undefined') {
+          container.innerHTML =
+            '<div class="loading">' +
+            '<div class="loading-title">Error</div>' +
+            '<div>Failed to load GraphiQL from CDN.</div>' +
+            '<div class="loading-subtitle">Check your network connection and try refreshing.</div>' +
+            '</div>';
+          return;
+        }
+
+        var fetcher = GraphiQL.createFetcher({ url: endpoint });
+
+        var props = { fetcher: fetcher };
+
+        // Set default tabs if provided.
+        if (defaultTabs && defaultTabs.length > 0) {
+          props.defaultTabs = defaultTabs;
+        }
+
+        var root = ReactDOM.createRoot(container);
+        root.render(React.createElement(GraphiQL, props));
+      });
+    })();
+  </script>
+</body>
+</html>
