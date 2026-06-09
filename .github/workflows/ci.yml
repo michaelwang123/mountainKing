@@ -9,7 +9,7 @@ on:
     branches: [main]
 
 env:
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.25.11"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -47,6 +47,27 @@ jobs:
         with:
           name: coverage-report
           path: coverage.out
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  docs-test:
+    name: Documentation Site Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs/tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
 
   build:
     name: Build & Push Image

@@ -11,6 +11,8 @@
 # Output of go coverage
 *.out
 *.prof
+coverage
+coverage_*
 
 # Go workspace
 go.work
@@ -44,7 +46,6 @@ debug
 __debug_bin*
 
 
-config.yaml
 
 # Local preview
 _preview/
