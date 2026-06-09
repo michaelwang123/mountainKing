@@ -2,7 +2,7 @@
 
 本文件记录项目的所有重要变更，格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范。
 
-## [Unreleased]
+## [0.1.0] - 2026-06-08
 
 ### Added
 - 基于 gqlgen + chi 的 GraphQL API 服务框架

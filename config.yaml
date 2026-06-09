@@ -1,0 +1,322 @@
+# GraphQL Multi-DataSource API - Configuration File
+# All values shown are defaults unless noted otherwise.
+# Environment variables with GRAPHQL_ prefix override these values
+# (e.g., GRAPHQL_SERVER_PORT overrides server.port).
+
+# Server configuration
+server:
+  port: 8080
+  mode: production                    # production | development
+  max_request_body_size: 1MB
+  request_timeout: 30s
+  read_header_timeout: 10s            # Slowloris protection: max time to read request headers
+  read_timeout: 30s                   # Max time to read entire request (headers + body)
+  write_timeout: 60s                  # Max time to write response (> request_timeout to allow response flush)
+  idle_timeout: 120s                  # Max time for keep-alive connections to stay idle
+  max_concurrent_requests: 0          # Global in-flight request limit; 0 = unlimited (use rate limiting + HPA)
+  max_batch_queries: 10               # Maximum queries in a single batch request
+  allow_get_queries: false            # GET queries disabled in production (CSRF protection)
+
+# GraphQL engine configuration
+graphql:
+  introspection_enabled: false        # Disable in production to prevent schema leakage
+  max_query_complexity: 100
+  max_query_depth: 10
+  max_result_rows: 10000              # Maximum rows returned per query
+
+# Data source configuration
+datasources:
+  - name: analytics_db
+    type: starrocks
+    enabled: true
+    connection:
+      host: "${SR_DB_HOST}"
+      port: 30004
+      username: "${SR_DB_USERNAME}"
+      password: "${SR_DB_PASSWORD}"
+      database: data_service
+    options:
+      pool_size: 20
+      connection_timeout: 5s
+      query_timeout: 30s
+      pool_acquire_timeout: 5s        # Connection pool acquire timeout
+      reconnect_interval: 5s          # Initial reconnect interval
+      max_reconnect_interval: 60s     # Maximum reconnect interval (exponential backoff cap)
+      allowed_tables:                  # Table/column whitelist (required for StarRocks)
+        # --- data_service.base_vss (vehicle signal snapshot, ~250 columns) ---
+        base_vss:
+          columns: [created_at, eerid, is_delayed, warehoused_at, src_payload_topic_at, src_payload_topic_offset, acc_lateral, acc_longitudinal, accelerator_pedal_position, acctrip_distance_total, acctrip_fuel_liquid_idle, acctrip_fuel_liquid_total, acctrip_parameters, acctrip_time_idle, acctrip_time_total, adas_distance_sensor_status, aeb_function_status, aeb_status, aeb_status1, ambient_ambient_air_temperature, ambient_barometric_pressure, angular_velocity_yaw, battery24_voltage, brake_pedal_position, brake_pedal_switch, cc_cc_set_speed, cc_cc_status, cc_state, coolant_coolant_temperature, current_location_heading, current_location_latitude, current_location_longitude, engine_engine_hours, engine_engine_load, engine_engine_speed, engine_engine_oil_level, engine_engine_oil_pressure, fuel_fuel_rate, fuel_relative_level, fuel_total_fuel_used, fuel_distance_to_empty, transmission_current_gear, vehicle_speed, vehicle_traveled_distance, vehicle_current_overall_weight, kl15_state]
+        # --- data_service.base_vss_instruction ---
+        base_vss_instruction:
+          columns: [created_at, signal_name, message_id, message_name, vss_member, signal_description, signal_unit, refresh_frequency, group_name, transmit_frequency, signal_min_value, signal_max_value, physical_min_value, physical_max_value, signal_offset, signal_factor, enumeration_values]
+        # --- data_service.base_vss_quality ---
+        base_vss_quality:
+          columns: [eerid, report_day, field_name, created_at, vss_id, sdc_group, dbc_signal_name, message_id, message_name, unit, total, column_type, n_distinct, n_missing, n_negative, n_infinite, n_zeros, n_mean, n_std, n_variance, n_min, n_max]
+        # --- data_service.base_vss_snapshot (same structure as base_vss) ---
+        base_vss_snapshot:
+          columns: [created_at, eerid, is_delayed, warehoused_at, src_payload_topic_at, src_payload_topic_offset, acc_lateral, acc_longitudinal, accelerator_pedal_position, current_location_heading, current_location_latitude, current_location_longitude, engine_engine_speed, engine_engine_hours, fuel_relative_level, fuel_fuel_rate, vehicle_speed, vehicle_traveled_distance, vehicle_current_overall_weight, transmission_current_gear, coolant_coolant_temperature, battery24_voltage]
+        # --- data_service.consent_event ---
+        consent_event:
+          columns: [sign_time, oneid, consent_key, eerid, type, sign_status, expire_time, create_time]
+        # --- data_service.ecu_diagnostics ---
+        ecu_diagnostics:
+          columns: [vin, created_at, updated_at, received_diagnostic_at, latest_dataset_id, ads_generation, ads_family, ads_protocol, ads_spare_part_no, ads_software_no, ads_software_version, ads_hardware_no, aps_generation, aps_family, aps_protocol, aps_spare_part_no, aps_software_no, aps_software_version, aps_hardware_no, avm_generation, avm_family, avm_protocol, avm_spare_part_no, avm_software_no, avm_software_version, avm_hardware_no, rtc_generation, rtc_family, rtc_protocol, rtc_spare_part_no, rtc_software_no, rtc_software_version, rtc_hardware_no, ccu_generation, ccu_family, ccu_protocol, ccu_spare_part_no, ccu_software_no, ccu_software_version, ccu_hardware_no, cid_generation, cid_family, cid_protocol, cid_spare_part_no, cid_software_no, cid_software_version, cid_hardware_no, cms_generation, cms_family, cms_protocol, cms_spare_part_no, cms_software_no, cms_software_version, cms_hardware_no, ems_generation, ems_family, ems_protocol, ems_spare_part_no, ems_software_no, ems_software_version, ems_hardware_no]
+        # --- data_service.hmi_events ---
+        hmi_events:
+          columns: [eerid, created_at, event_id, warehoused_at, received_at, account_id, app_name, adjusted_effect, app_version, os, os_version, vehicle_speed, trigger_source, engine_status]
+        # --- data_service.ma_events ---
+        ma_events:
+          columns: [eerid, start_at, page_id, warehoused_at, received_at, vin, oneid, end_at, previous_page_title, page_title, source_entrance, component_id, component_name, event_id, event_data, event_result, event_name_space, last_visited_content, properties, contexts]
+        # --- data_service.nc_notification ---
+        nc_notification:
+          columns: [event_time, channel, status, msg_id, event_id, push_id, resource_id, business_type, business_source, using_template, template_id, template_name, user_id, vin, eer_id, fail_stage, fail_reason, extra, event_timestamp, create_time]
+        # --- data_service.sa_status ---
+        sa_status:
+          columns: [id, time, external_equipment_reference, correlation_id, spec_version, type, source, csc_code, active, configuration_status, handle, time_created, create_time]
+        # --- data_service.sdc_config_request ---
+        sdc_config_request:
+          columns: [eer_id, kafka_timestamp, kafka_offset, create_time, kafka_key, kafka_topic, kafka_partition, message_id, correlation_id, type_code, traceparent, sdc_config_version, serial_number, sa_group, sa_group_count]
+        # --- data_service.sdc_config_response ---
+        sdc_config_response:
+          columns: [eer_id, kafka_timestamp, kafka_offset, create_time, kafka_key, kafka_topic, kafka_partition, gwr, message_id, correlation_id, type_code, epoch_timestamp, transfer_by, header_version, serial_number, config_timestamp, config_time, sdc_config_status, sdc_config_status_code]
+        # --- data_service.sdc_payload ---
+        sdc_payload:
+          columns: [eerid, topic_at, topic_offset, warehoused_at, payload_json]
+        # --- data_service.security_control ---
+        security_control:
+          columns: [update_time, eerid, resource_id, userid, category, system, system_resource, status, vehicle_resource_event_id, create_time]
+
+  - name: monitoring
+    type: prometheus
+    enabled: false
+    connection:
+      url: http://prometheus:9090
+    options:
+      query_timeout: 15s
+      max_data_points: 11000
+      reconnect_interval: 5s
+      max_reconnect_interval: 60s
+
+# Authentication configuration
+auth:
+  method: jwt                         # jwt | apikey
+  trusted_proxies:                    # Trusted proxy CIDRs for X-Forwarded-For extraction
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+  jwt:
+    algorithm: RS256                  # HS256 | RS256 | ES256 (RS256/ES256 recommended for production)
+    public_key_file: /etc/secrets/jwt-public.pem  # Required for RS256/ES256
+    # secret: "${GRAPHQL_JWT_SECRET}" # Required for HS256 (uncomment if using HS256)
+    issuer: my-auth-service
+  apikey:
+    keys:
+      - id: client-a
+        key: "${GRAPHQL_APIKEY_CLIENT_A}"
+        permissions:
+          datasources: [analytics_db, monitoring]
+          operations: [query]
+      - id: client-a-new              # API Key rotation: new key
+        key: "${GRAPHQL_APIKEY_CLIENT_A_NEW}"
+        permissions:
+          datasources: [analytics_db, monitoring]
+          operations: [query]
+      - id: client-a-old              # API Key rotation: old key with expiration
+        key: "${GRAPHQL_APIKEY_CLIENT_A_OLD}"
+        expires_at: "2026-06-01T00:00:00Z"
+        permissions:
+          datasources: [analytics_db]
+          operations: [query]
+
+# Rate limiting configuration
+rate_limit:
+  mode: local                         # local | distributed
+  requests_per_window: 100
+  window_size: 60s
+  redis:                              # Used when mode is "distributed"
+    addr: redis:6379
+    password: "${GRAPHQL_REDIS_PASSWORD}"
+
+# Cache configuration
+cache:
+  enabled: true
+  backend: memory                     # memory | redis
+  default_ttl: 60s
+  empty_result_ttl: 30s               # Short TTL for empty results (penetration protection)
+  ttl_jitter_percent: 10              # TTL jitter percentage (avalanche protection)
+  memory:
+    max_entries: 10000
+    max_memory_size: 256MB            # Dual limit with max_entries for LRU eviction
+  redis:
+    addr: redis:6379
+    password: "${GRAPHQL_REDIS_PASSWORD}"
+    db: 1
+  per_datasource:
+    analytics_db:
+      ttl: 300s
+    monitoring:
+      ttl: 30s
+
+# CORS configuration
+cors:
+  enabled: false
+  allowed_origins:
+    - "https://dashboard.example.com"
+  allowed_methods:
+    - GET
+    - POST
+    - OPTIONS
+  allowed_headers:
+    - Content-Type
+    - Authorization
+    - X-API-Key
+
+# Response compression
+compression:
+  enabled: true
+  min_size: 1KB
+
+# Logging configuration
+logging:
+  level: info                         # debug | info | warn | error
+  format: json
+  audit:
+    enabled: true
+    output: stdout                    # stdout | file
+    file_path: /var/log/api/audit.log
+
+# Sensitive data sanitization
+sanitization:
+  enabled: true
+  rules:
+    - pattern: "'[^']*'"             # SQL string literals
+      replacement: "'***'"
+    - pattern: "\\b\\d{4,}\\b"       # Numbers with 4+ digits
+      replacement: "***"
+
+# Prometheus metrics configuration
+metrics:
+  custom_labels:
+    env: production
+    cluster: my-cluster
+    instance: "${HOSTNAME}"
+
+# OpenTelemetry distributed tracing
+tracing:
+  enabled: true
+  sampling_rate: 0.1
+  otlp:
+    endpoint: tempo:4317
+    protocol: grpc                    # grpc | http
+
+# Error retry configuration
+retry:
+  max_retries: 3
+  retry_interval: 100ms
+  backoff: exponential
+
+# Circuit breaker configuration
+circuit_breaker:
+  failure_threshold: 5
+  open_duration: 30s
+  half_open_max_requests: 1
+  success_threshold: 2
+
+# Auth failure brute-force protection
+auth_failure:
+  enabled: false
+  threshold: 10
+  window: 5m
+  ban_duration: 15m
+
+# Graceful shutdown configuration
+shutdown:
+  max_wait_time: 30s
+
+# SQL Template Engine configuration
+# Enables complex SQL queries via pre-defined Go text/template files,
+# executed against a StarRocks datasource via the RawExecutor interface.
+sql_templates:
+  enabled: true                            # 启用模板引擎
+  datasource_name: analytics_db            # Associated StarRocks datasource name (required when enabled)
+  base_dir: ./templates                    # Template file base directory
+  # shared_dir: ./templates/_shared        # Shared template fragments directory (default: base_dir/_shared)
+  render_timeout: 5s                       # Template rendering timeout
+  max_rendered_sql_length: 65536           # Max rendered SQL length in bytes (64KB)
+  max_concurrent_queries: 10               # Semaphore limit to protect shared connection pool
+  templates:
+    - name: fleet_report
+      file: fleet/fleet_report.sql.tmpl
+      description: 车队综合报表
+      cache_enabled: true
+      cache_ttl: 300s
+      count_enabled: true
+      parameters:
+        - name: eerid
+          type: string
+          required: true
+          max_length: 64
+        - name: period
+          type: string
+          required: false
+          default: monthly
+          enum: [daily, weekly, monthly]
+        - name: vehicle_ids
+          type: "string[]"
+          required: false
+          max_items: 500
+
+    - name: driver_score
+      file: driver/driver_score.sql.tmpl
+      description: 驾驶员评分报表
+      cache_enabled: false
+      count_enabled: false
+      parameters:
+        - name: driver_id
+          type: int
+          required: true
+        - name: start_date
+          type: string
+          required: true
+          max_length: 10
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+        - name: end_date
+          type: string
+          required: true
+          max_length: 10
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+
+    - name: nc_notification_query
+      file: notification/nc_notification.sql.tmpl
+      description: 通知消息查询（支持按渠道、状态、业务类型、时间范围过滤）
+      cache_enabled: true
+      cache_ttl: 60s
+      count_enabled: true
+      parameters:
+        - name: channel
+          type: string
+          required: false
+          enum: [SMS, EMAIL, APP_PUSH, INBOX_MSG]
+        - name: status
+          type: string
+          required: false
+          enum: [ACCEPTED, SENT, DELIVERED, FAIL, READ]
+        - name: business_type
+          type: string
+          required: false
+          max_length: 64
+        - name: eer_id
+          type: string
+          required: false
+          max_length: 64
+        - name: vin
+          type: string
+          required: false
+          max_length: 32
+        - name: start_date
+          type: string
+          required: false
+          max_length: 30
+        - name: end_date
+          type: string
+          required: false
+          max_length: 30
