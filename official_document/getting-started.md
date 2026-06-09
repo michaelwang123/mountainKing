@@ -20,6 +20,10 @@ cd mountainKing
 go mod download
 ```
 
+## 快速体验（推荐）
+
+如果你想快速体验项目，运行 `make dev` 即可在 2 秒内启动服务（零配置、自带 Mock 数据），浏览器访问 `http://localhost:8080` 即可进入 Playground 执行查询。详见 [开发模式指南](development-mode.md)。
+
 ## 运行服务
 
 ```bash

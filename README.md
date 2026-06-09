@@ -39,23 +39,31 @@
 - （可选）Prometheus 实例
 - （可选）Redis — 用于分布式缓存和限流
 
-## 快速开始
-
-完整的入门指南（含首次查询示例、Docker 配置和开发模式说明），请查看 [快速入门指南](official_document/getting-started.md)。
+## 快速开始（开发模式）
 
 ```bash
-# 克隆项目
 git clone https://github.com/michaelwang123/mountainKing.git
 cd mountainKing
+make dev
+```
 
+浏览器打开 http://localhost:8080 — GraphQL Playground 自动加载，内含示例查询可直接执行。
+
+无需配置外部依赖。开发模式使用内存 Mock 数据源，开箱即用。
+
+> 完整的入门指南（含 Docker 配置和生产模式说明），请查看 [快速入门指南](official_document/getting-started.md)。
+
+### 生产模式启动
+
+```bash
 # 安装依赖
 go mod download
 
-# 运行服务
-go run cmd/server/main.go
+# 使用默认 config.yaml（需要配置 StarRocks/Prometheus 等外部数据源）
+go run ./cmd/server
 ```
 
-服务默认监听 `:8080`。设置 `GRAPHQL_SERVER_MODE=development` 可在 `/playground` 访问 GraphQL Playground。
+服务默认监听 `:8080`。生产模式需配置认证和数据源连接，详见 [配置参考](official_document/configuration.md)。
 
 ## 配置
 

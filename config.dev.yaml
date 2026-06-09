@@ -1,0 +1,64 @@
+server:
+  port: 8881
+  mode: development
+  request_timeout: 30s
+  read_header_timeout: 10s
+  read_timeout: 30s
+  write_timeout: 60s
+  idle_timeout: 120s
+  max_request_body_size: 1MB
+  max_batch_queries: 10
+
+graphql:
+  introspection_enabled: true
+  max_query_complexity: 200
+  max_query_depth: 20
+  max_result_rows: 10000
+
+datasources:
+  - name: analytics_db       # 必须命名为 analytics_db，匹配 findStarRocksDS() 硬编码
+    type: mock               # 使用 mock 适配器而非真实 StarRocks
+    enabled: true
+
+auth:
+  method: none
+
+rate_limit:
+  mode: local
+  requests_per_window: 1000
+  window_size: 60s
+
+cache:
+  enabled: true
+  backend: memory
+  default_ttl: 60s
+  memory:
+    max_entries: 1000
+    max_memory_size: 64MB
+
+logging:
+  level: debug
+  format: json
+
+sql_templates:
+  enabled: false
+
+compression:
+  enabled: false
+
+tracing:
+  enabled: false
+
+retry:
+  max_retries: 1
+  retry_interval: 100ms
+  backoff: exponential
+
+circuit_breaker:
+  failure_threshold: 5
+  open_duration: 30s
+  half_open_max_requests: 1
+  success_threshold: 2
+
+shutdown:
+  max_wait_time: 5s
