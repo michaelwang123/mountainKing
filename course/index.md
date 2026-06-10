@@ -35,6 +35,7 @@
 | 资源　　　　　　　　　　　　　　　　　　　　　| 说明　　　　　　　　　　　　 |
 | -----------------------------------------------| ------------------------------|
 | [GraphQL 查询手册](graphql-query-cookbook.md) | StarRocks 单表查询实战示例集 |
+| [GraphQL Mutation 操作手册](graphql-mutation-cookbook.md) | Mutation 写操作实战示例集 |
 | [官方文档](../official_document/README.md)　　| 完整的项目参考文档　　　　　 |
 | [CHANGELOG](../CHANGELOG.md)　　　　　　　　　| 项目变更记录　　　　　　　　 |
 

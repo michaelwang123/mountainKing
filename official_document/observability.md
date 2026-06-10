@@ -54,6 +54,52 @@
 | `graphql_template_cache_hits_total` | Counter | `template_name`, `result` | 模板缓存命中/未命中（hit/miss） |
 | `graphql_template_render_goroutine_leaks` | Gauge | — | 泄漏的渲染 goroutine 数量 |
 
+### Mutation 指标
+
+| 指标名 | 类型 | 标签 | 说明 |
+|--------|------|------|------|
+| `graphql_mutation_duration_seconds` | Histogram | `operation`, `datasource`, `table`, `status` | Mutation 操作执行延迟 |
+| `graphql_mutation_total` | Counter | `operation`, `datasource`, `table`, `status` | Mutation 操作总数 |
+
+**标签说明：**
+
+| 标签 | 可选值 | 说明 |
+|------|--------|------|
+| `operation` | `insert`, `insertBatch`, `update`, `delete` | Mutation 操作类型 |
+| `datasource` | 配置中的数据源名称 | 目标数据源 |
+| `table` | 目标表名 | 操作的目标表 |
+| `status` | `success`, `error` | 操作结果状态 |
+
+**Histogram 桶边界：** 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s
+
+（来源：`internal/observability/metrics.go` 中的 `mutationDurationBuckets`）
+
+**PromQL 示例查询：**
+
+P99 延迟：
+
+```promql
+histogram_quantile(0.99, rate(graphql_mutation_duration_seconds_bucket[5m]))
+```
+
+错误率：
+
+```promql
+rate(graphql_mutation_total{status="error"}[5m]) / rate(graphql_mutation_total[5m])
+```
+
+每秒操作数（OPS）：
+
+```promql
+sum(rate(graphql_mutation_total[1m])) by (operation)
+```
+
+按表维度统计 P95 延迟：
+
+```promql
+histogram_quantile(0.95, sum(rate(graphql_mutation_duration_seconds_bucket[5m])) by (le, table))
+```
+
 ### 自定义标签
 
 通过配置为所有指标附加自定义标签，便于在 Grafana 中多维度筛选：
@@ -88,6 +134,8 @@ tracing:
 
 ### Span 层级
 
+**查询操作 Span 层级：**
+
 ```
 Root Span: GraphQL query GetOrders
 ├── Resolver Span: Resolver starrocks
@@ -100,6 +148,14 @@ Root Span: GraphQL query GetOrders
 │   └── DataSource Span: Prometheus Query
 │       └── (HTTP API 调用)
 └── Cache Span: Redis GET (如使用 Redis 缓存)
+```
+
+**Mutation 操作 Span 层级：**
+
+```
+Root Span: GraphQL mutation InsertOrder
+└── Mutation Span: mutation.insert
+    └── (SQL 执行，属性包含 db.system, db.operation, db.table, db.affected_rows)
 ```
 
 ### Span 属性
@@ -119,6 +175,20 @@ Root Span: GraphQL query GetOrders
 - `db.system` — 数据源系统（starrocks/prometheus）
 - `db.statement` — 查询语句（经脱敏处理）
 - `db.datasource` — 数据源名称
+
+#### Mutation Span
+
+Mutation 操作使用独立的 Span 命名规范：`mutation.{operation}`
+
+示例 Span 名称：`mutation.insert`、`mutation.insertBatch`、`mutation.update`、`mutation.delete`
+
+属性：
+- `db.system` — 数据源系统（starrocks）
+- `db.operation` — 操作类型（insert/insertBatch/update/delete）
+- `db.table` — 目标表名
+- `db.affected_rows` — 受影响行数（成功时设置）
+
+Mutation Span 在操作失败时设置 Error 状态并记录错误事件。
 
 #### Template Query Span
 - `template.name` — 模板名称
@@ -198,6 +268,8 @@ logging:
 6. **模板查询**：`graphql_template_query_duration_seconds` P50/P95/P99 按 `template_name` 分组
 7. **模板缓存**：`graphql_template_cache_hits_total` 按 `result` (hit/miss) 分组计算命中率
 8. **模板并发**：`graphql_template_semaphore_wait_seconds` 监控信号量等待时间
+9. **Mutation 概览**：`graphql_mutation_total` 按 `operation` 和 `status` 分组，监控写操作吞吐量和错误率
+10. **Mutation 延迟**：`graphql_mutation_duration_seconds` 的 P50/P95/P99 按 `table` 分组
 
 ### HPA 扩缩容指标
 

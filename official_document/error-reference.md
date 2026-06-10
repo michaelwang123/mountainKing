@@ -78,6 +78,42 @@ HTTP 状态码：429
 - `X-RateLimit-Remaining` — 剩余可用请求数
 - `X-RateLimit-Reset` — 限流重置时间（Unix 时间戳）
 
+## MUTATION — Mutation 操作错误
+
+Mutation（CUD 写操作）相关错误。这些错误通过 GraphQL `errors[].extensions.code` 返回。
+
+| 错误码 | 说明 | 可能原因 | 解决方法 |
+|--------|------|----------|----------|
+| `MUTATION_FEATURE_DISABLED` | Mutation 功能未启用 | 配置文件中 `mutations.enabled` 设为 `false` 或未配置 | 在配置文件中设置 `mutations.enabled: true`（支持热更新，无需重启） |
+| `AUTH_INSUFFICIENT_PERMISSION` | 缺少 mutation 操作权限 | JWT 的 operations claim 不包含 `"mutation"`，或 API Key 的 operations 列表未配置 `mutation` | 在 JWT payload 的 operations 字段中添加 `"mutation"`；或在 API Key 配置中添加 `mutation` 到 operations 列表 |
+| `MUTATION_OPERATION_NOT_SUPPORTED` | 表不支持请求的操作类型 | `writable_tables` 中该表的 `allowed_operations` 列表未包含请求的操作（insert/update/delete） | 在数据源配置的 `writable_tables` 中为目标表添加所需操作到 `allowed_operations` |
+| `VALIDATION_BATCH_LIMIT_EXCEEDED` | 批量插入大小超限 | `insertBatchStarrocks` 的 rows 数量超过 `mutations.max_batch_size` 配置值（默认 500） | 减少单次批量插入的行数，或调整 `mutations.max_batch_size` 配置 |
+| `VALIDATION_PAYLOAD_TOO_LARGE` | 生成的 SQL 语句过长 | Mutation 构建的 SQL 语句长度超过 `mutations.max_sql_length` 配置值（默认 1048576 字节） | 减少单次操作的数据量，或调整 `mutations.max_sql_length` 配置 |
+| `MUTATION_RATELIMIT_EXCEEDED` | Mutation 专用限流触发 | 写操作频率超过 `mutations.rate_limit` 配置的 `requests_per_window`（默认 20 次/60s） | 降低 Mutation 请求频率，或调整 `mutations.rate_limit.requests_per_window` 和 `window_size` 配置 |
+| `MUTATION_LIMIT_EXCEEDED` | 影响行数超过阈值（警告） | Mutation 执行后实际影响的行数超过 `mutations.max_affected_rows`（默认 1000） | 此为警告信息，操作已执行成功。可通过添加更精确的 filter 条件缩小影响范围，或调整 `mutations.max_affected_rows` 配置 |
+
+> **注意**：`AUTH_INSUFFICIENT_PERMISSION` 同时适用于数据源访问权限和 Mutation 操作权限场景，详见 [AUTH 错误码](#auth--认证授权错误) 章节。`VALIDATION_BATCH_LIMIT_EXCEEDED` 和 `VALIDATION_PAYLOAD_TOO_LARGE` 也适用于非 Mutation 场景（批量查询数超限、请求体过大），此处为其在 Mutation 上下文中的触发条件。
+
+### Mutation 错误处理建议
+
+```
+if error.extensions.code == "MUTATION_FEATURE_DISABLED":
+    # 检查服务配置，确认 mutations.enabled: true
+    check_config("mutations.enabled")
+elif error.extensions.code == "AUTH_INSUFFICIENT_PERMISSION":
+    # 确认 JWT/API Key 包含 mutation 权限
+    ensure_operations_claim_includes("mutation")
+elif error.extensions.code == "MUTATION_OPERATION_NOT_SUPPORTED":
+    # 检查 writable_tables 配置中该表的 allowed_operations
+    check_writable_tables_config(table_name)
+elif error.extensions.code == "MUTATION_RATELIMIT_EXCEEDED":
+    # 等待限流窗口重置后重试
+    wait_and_retry(rate_limit_window)
+elif error.extensions.code == "VALIDATION_BATCH_LIMIT_EXCEEDED":
+    # 将批量数据拆分为更小的批次
+    split_batch(rows, max_batch_size)
+```
+
 ## INTERNAL — 内部错误
 
 HTTP 状态码：500

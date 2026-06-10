@@ -17,6 +17,7 @@
 |------|------|------|
 | `DateTime` | ISO 8601 日期时间格式 | `"2024-01-15T10:30:00Z"` |
 | `JSON` | 任意 JSON 值 | `{"key": "value"}` |
+| `AnyValue` | 任意 JSON 值（对象、数组、字符串、数字、布尔值、null） | `42`、`"hello"`、`[1,2,3]`、`{"key":"val"}` |
 
 ## 枚举类型
 
@@ -212,9 +213,11 @@ query {
 
 ## Mutation 操作
 
-本服务仅支持管理类 Mutation，不支持数据写入。
+本服务支持管理类 Mutation 和 CUD（Create/Update/Delete）数据写入 Mutation。所有 Mutation 操作需要认证主体具有 `mutation` 操作权限。
 
-### 清除缓存
+### 管理类 Mutation
+
+#### 清除缓存
 
 ```graphql
 mutation {
@@ -228,7 +231,7 @@ mutation {
 
 需要认证主体具有 `mutation` 操作权限。
 
-### 重新加载 SQL 模板
+#### 重新加载 SQL 模板
 
 ```graphql
 mutation {
@@ -244,6 +247,192 @@ mutation {
 ```
 
 需要认证主体具有 `mutation` 操作权限。支持 10s 冷却时间防止高频调用。模板文件变更也会通过 fsnotify 自动触发重新加载（500ms 防抖）。
+
+### CUD Mutation 操作
+
+CUD Mutation 提供对 StarRocks 数据源的写入能力，包括单行插入、批量插入、条件更新和条件删除。
+
+使用前提：
+- 配置 `mutations.enabled: true` 启用写操作功能
+- 在数据源配置中定义 `writable_tables` 白名单
+- 认证主体的 operations 中包含 `"mutation"` 权限
+
+#### 输入类型
+
+##### ColumnValueInput
+
+表示一个列及其对应值的键值对，用于 insert 和 update 操作。
+
+```graphql
+input ColumnValueInput {
+  column: String!
+  value: AnyValue!
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `column` | String! | 是 | 列名（必须在 writable_tables 白名单中） |
+| `value` | AnyValue! | 是 | 列值，支持任意 JSON 值直接传入 |
+
+##### MutationFilterInput
+
+表示一个过滤条件，用于 update 和 delete 操作的 WHERE 子句。
+
+```graphql
+input MutationFilterInput {
+  field: String!
+  operator: FilterOperator!
+  value: AnyValue
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `field` | String! | 是 | 过滤字段名 |
+| `operator` | FilterOperator! | 是 | 比较操作符（EQ、NEQ、GT、GTE、LT、LTE、LIKE、IN、NOT_IN、IS_NULL、IS_NOT_NULL） |
+| `value` | AnyValue | 否 | 比较值（IS_NULL/IS_NOT_NULL 时可省略） |
+
+#### 返回类型
+
+##### MutationResult
+
+所有 CUD 操作的统一返回类型。
+
+```graphql
+type MutationResult {
+  success: Boolean!
+  affectedRows: Int!
+  warning: String
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `success` | Boolean! | 操作是否成功 |
+| `affectedRows` | Int! | 受影响行数 |
+| `warning` | String | 警告信息（如受影响行数超过 max_affected_rows 阈值时返回） |
+
+#### insertStarrocks — 单行插入
+
+向指定表插入一行数据。
+
+```graphql
+mutation {
+  insertStarrocks(
+    table: "orders"
+    values: [
+      { column: "order_id", value: 1001 }
+      { column: "user_id", value: "U123" }
+      { column: "amount", value: 99.5 }
+      { column: "status", value: "pending" }
+      { column: "created_at", value: "2024-01-15T10:30:00Z" }
+    ]
+  ) {
+    success
+    affectedRows
+    warning
+  }
+}
+```
+
+参数说明：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `table` | String! | 是 | 目标表名（必须在 writable_tables 白名单中） |
+| `values` | [ColumnValueInput!]! | 是 | 列值对数组，每个元素指定列名和对应值 |
+
+> **注意**：CUD 操作的目标数据源由 `mutations.datasource_name` 全局配置指定，无需在每次请求中传入。
+
+#### insertBatchStarrocks — 批量插入
+
+向指定表批量插入多行数据。
+
+```graphql
+mutation {
+  insertBatchStarrocks(
+    table: "events"
+    columns: ["event_id", "event_type", "payload", "timestamp"]
+    rows: [
+      [1001, "click", {"page": "/home"}, "2024-01-15T10:00:00Z"]
+      [1002, "view", {"page": "/products"}, "2024-01-15T10:01:00Z"]
+      [1003, "purchase", {"item_id": "SKU001", "qty": 2}, "2024-01-15T10:02:00Z"]
+    ]
+  ) {
+    success
+    affectedRows
+    warning
+  }
+}
+```
+
+参数说明：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `table` | String! | 是 | 目标表名（必须在 writable_tables 白名单中） |
+| `columns` | [String!]! | 是 | 列名数组，定义插入顺序 |
+| `rows` | [[AnyValue!]!]! | 是 | 行数据二维数组，每行值的顺序与 columns 对应。单次请求不超过 max_batch_size（默认 500）行 |
+
+#### updateStarrocks — 条件更新
+
+根据过滤条件更新指定表中的数据。
+
+```graphql
+mutation {
+  updateStarrocks(
+    table: "orders"
+    set: [
+      { column: "status", value: "completed" }
+      { column: "amount", value: 150.0 }
+    ]
+    filter: [
+      { field: "order_id", operator: EQ, value: 1001 }
+      { field: "status", operator: NEQ, value: "cancelled" }
+    ]
+  ) {
+    success
+    affectedRows
+    warning
+  }
+}
+```
+
+参数说明：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `table` | String! | 是 | 目标表名（必须在 writable_tables 白名单中且允许 update 操作） |
+| `set` | [ColumnValueInput!]! | 是 | 要更新的列值对数组 |
+| `filter` | [MutationFilterInput!]! | 是 | 过滤条件数组（多个条件之间为 AND 关系） |
+
+#### deleteStarrocks — 条件删除
+
+根据过滤条件删除指定表中的数据。
+
+```graphql
+mutation {
+  deleteStarrocks(
+    table: "orders"
+    filter: [
+      { field: "status", operator: EQ, value: "cancelled" }
+      { field: "created_at", operator: LT, value: "2023-01-01T00:00:00Z" }
+    ]
+  ) {
+    success
+    affectedRows
+    warning
+  }
+}
+```
+
+参数说明：
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `table` | String! | 是 | 目标表名（必须在 writable_tables 白名单中且允许 delete 操作） |
+| `filter` | [MutationFilterInput!]! | 是 | 过滤条件数组（多个条件之间为 AND 关系） |
 
 ## 批量查询
 

@@ -195,7 +195,6 @@ Mutation 的值字段（`ColumnValueInput.value`、`MutationFilterInput.value`�
 # 旧方式（不再支持）
 mutation {
   insertStarrocks(
-    datasource: "analytics_db"
     table: "orders"
     values: [
       {column: "amount", value: {"v": 42}}
@@ -207,7 +206,6 @@ mutation {
 # 新方式（直接传值）
 mutation {
   insertStarrocks(
-    datasource: "analytics_db"
     table: "orders"
     values: [
       {column: "amount", value: 42}
@@ -223,9 +221,8 @@ mutation {
 # 旧方式（不再支持）
 mutation {
   updateStarrocks(
-    datasource: "analytics_db"
     table: "orders"
-    values: [{column: "status", value: {"v": "shipped"}}]
+    set: [{column: "status", value: {"v": "shipped"}}]
     filter: [{field: "order_id", operator: IN, value: {"v": [1, 2, 3]}}]
   ) { affectedRows }
 }
@@ -233,10 +230,63 @@ mutation {
 # 新方式（直接传值）
 mutation {
   updateStarrocks(
-    datasource: "analytics_db"
     table: "orders"
-    values: [{column: "status", value: "shipped"}]
+    set: [{column: "status", value: "shipped"}]
     filter: [{field: "order_id", operator: IN, value: [1, 2, 3]}]
+  ) { affectedRows }
+}
+```
+
+**DELETE 操作（带 filter）：**
+
+```graphql
+# 旧方式（不再支持）
+mutation {
+  deleteStarrocks(
+    table: "orders"
+    filter: [
+      {field: "status", operator: EQ, value: {"v": "cancelled"}}
+      {field: "created_at", operator: LT, value: {"v": "2024-01-01"}}
+    ]
+  ) { affectedRows }
+}
+
+# 新方式（直接传值）
+mutation {
+  deleteStarrocks(
+    table: "orders"
+    filter: [
+      {field: "status", operator: EQ, value: "cancelled"}
+      {field: "created_at", operator: LT, value: "2024-01-01"}
+    ]
+  ) { affectedRows }
+}
+```
+
+**insertBatchStarrocks 批量插入操作：**
+
+```graphql
+# 旧方式（不再支持）
+mutation {
+  insertBatchStarrocks(
+    table: "events"
+    columns: ["event_type", "payload", "timestamp"]
+    rows: [
+      [{"v": "click"}, {"v": {"page": "/home"}}, {"v": "2024-06-01T10:00:00Z"}]
+      [{"v": "view"}, {"v": {"page": "/about"}}, {"v": "2024-06-01T10:05:00Z"}]
+    ]
+  ) { affectedRows }
+}
+
+# 新方式（直接传值）
+mutation {
+  insertBatchStarrocks(
+    table: "events"
+    columns: ["event_type", "payload", "timestamp"]
+    rows: [
+      ["click", {"page": "/home"}, "2024-06-01T10:00:00Z"]
+      ["view", {"page": "/about"}, "2024-06-01T10:05:00Z"]
+    ]
   ) { affectedRows }
 }
 ```
