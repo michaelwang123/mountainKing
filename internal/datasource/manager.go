@@ -240,6 +240,23 @@ func (m *DataSourceManager) CloseAll(ctx context.Context) error {
 	return nil
 }
 
+// GetWritable returns a WritableDataSource by name.
+// Returns DATASOURCE_UNAVAILABLE if the datasource is not found or not writable.
+func (m *DataSourceManager) GetWritable(name string) (WritableDataSource, error) {
+	ds, err := m.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	wds, ok := ds.(WritableDataSource)
+	if !ok {
+		return nil, apierrors.DatasourceError(
+			apierrors.ErrDatasourceUnavailable,
+			fmt.Sprintf("datasource %q does not support write operations", name),
+		)
+	}
+	return wds, nil
+}
+
 // Status returns the current status of a data source by name.
 // Returns nil if the data source is not found.
 func (m *DataSourceManager) Status(name string) *DataSourceStatus {

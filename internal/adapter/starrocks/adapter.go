@@ -22,18 +22,22 @@ import (
 // Adapter implements the datasource.DataSource interface for StarRocks.
 // It connects via the MySQL protocol using database/sql.
 type Adapter struct {
-	name         string
-	config       datasource.DataSourceConfig
-	db           *sql.DB
-	queryBuilder *SQLQueryBuilder
-	typeMapper   *TypeMapper
-	logger       *zap.Logger
-	mu           sync.RWMutex
-	available    bool
+	name           string
+	config         datasource.DataSourceConfig
+	db             *sql.DB
+	queryBuilder   *SQLQueryBuilder
+	typeMapper     *TypeMapper
+	logger         *zap.Logger
+	mu             sync.RWMutex
+	available      bool
+	circuitBreaker *datasource.CircuitBreaker
 }
 
 // Verify interface compliance at compile time.
 var _ datasource.DataSource = (*Adapter)(nil)
+
+// Verify WritableDataSource interface compliance at compile time.
+var _ datasource.WritableDataSource = (*Adapter)(nil)
 
 // NewAdapter creates a new StarRocks adapter from config.
 // It parses allowed_tables from config.Options to build the query builder.
@@ -57,6 +61,14 @@ func Factory(logger *zap.Logger) datasource.AdapterFactory {
 	return func(name string, config datasource.DataSourceConfig) (datasource.DataSource, error) {
 		return NewAdapter(name, config, logger)
 	}
+}
+
+// SetCircuitBreaker sets the shared circuit breaker for this adapter.
+// This allows both read and write operations to share the same breaker.
+func (a *Adapter) SetCircuitBreaker(cb *datasource.CircuitBreaker) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.circuitBreaker = cb
 }
 
 // Name returns the data source name.
@@ -225,6 +237,59 @@ func (a *Adapter) ExecuteRaw(ctx context.Context, query string, args ...any) (*d
 	}
 
 	return &datasource.QueryResult{Data: data}, nil
+}
+
+// ExecuteWrite executes a write SQL statement and returns affected rows.
+// It uses the existing connection pool and respects the shared circuit breaker.
+// Write failures count toward the same circuit breaker as read queries.
+// Writes are NOT retried (non-idempotent) — circuit breaker is the only protection layer.
+func (a *Adapter) ExecuteWrite(ctx context.Context, sql string, params []any) (int64, error) {
+	a.mu.RLock()
+	db := a.db
+	cb := a.circuitBreaker
+	a.mu.RUnlock()
+
+	if db == nil {
+		return 0, apierrors.DatasourceError(
+			apierrors.ErrDatasourceUnavailable,
+			fmt.Sprintf("starrocks adapter %q is not connected", a.name),
+		)
+	}
+
+	// Check circuit breaker state — if open, fail fast.
+	if cb != nil && !cb.AllowRequest() {
+		return 0, apierrors.DatasourceError(
+			apierrors.ErrDatasourceCircuitOpen,
+			fmt.Sprintf("starrocks adapter %q circuit breaker is open", a.name),
+		)
+	}
+
+	result, err := db.ExecContext(ctx, sql, params...)
+	if err != nil {
+		// Record failure on the shared circuit breaker.
+		if cb != nil {
+			cb.RecordFailure()
+		}
+		return 0, apierrors.DatasourceError(
+			apierrors.ErrDatasourceQueryError,
+			fmt.Sprintf("starrocks write failed: %v", err),
+		)
+	}
+
+	// Record success on the shared circuit breaker.
+	if cb != nil {
+		cb.RecordSuccess()
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, apierrors.DatasourceError(
+			apierrors.ErrDatasourceQueryError,
+			fmt.Sprintf("starrocks affected rows retrieval failed: %v", err),
+		)
+	}
+
+	return affected, nil
 }
 
 // HealthCheck pings the database to verify the connection is alive.

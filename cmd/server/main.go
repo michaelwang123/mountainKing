@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -214,7 +215,6 @@ func main() {
 		logger.Fatal("failed to init audit logger", zap.Error(err))
 	}
 	defer func() { _ = auditLogger.Close() }()
-	_ = auditLogger
 
 	// 12. Init Sanitizer.
 	sanitizer, err := sanitize.NewSanitizer(cfg.Sanitization)
@@ -250,6 +250,97 @@ func main() {
 	}
 
 	// 14. Create GraphQL schema + resolvers.
+	// --- Mutation initialization ---
+	// Validate mutation config at startup (fail-fast on misconfiguration).
+	if err := config.ValidateMutationsConfig(cfg); err != nil {
+		logger.Fatal("invalid mutation configuration", zap.Error(err))
+	}
+
+	// Create the atomic MutationsConfig pointer (needed even when disabled for hot-reload toggle).
+	var mutationConfigPtr atomic.Pointer[config.MutationsConfig]
+	mutationsCfg := cfg.Mutations
+	mutationConfigPtr.Store(&mutationsCfg)
+
+	var mutationSQLBuilder *starrocks.MutationSQLBuilder
+	var mutationValidator *starrocks.MutationValidator
+	var writableTableValidator *starrocks.WritableTableValidator
+	var mutationRateLimiter ratelimit.RateLimiter
+
+	if cfg.Mutations.Enabled {
+		// Find the datasource config for the mutation datasource.
+		var mutationDSConfig config.DataSourceConfig
+		for _, ds := range cfg.Datasources {
+			if ds.Name == cfg.Mutations.DatasourceName {
+				mutationDSConfig = ds
+				break
+			}
+		}
+
+		// Convert config.DataSourceConfig → datasource.DataSourceConfig for parser functions.
+		dsCfg := datasource.DataSourceConfig{
+			Name:       mutationDSConfig.Name,
+			Type:       mutationDSConfig.Type,
+			Enabled:    mutationDSConfig.Enabled,
+			Connection: mutationDSConfig.Connection,
+			Options:    mutationDSConfig.Options,
+		}
+
+		// Parse writable tables from datasource options.
+		writableTables, wtErr := starrocks.ParseWritableTables(dsCfg)
+		if wtErr != nil {
+			logger.Fatal("failed to parse writable tables", zap.Error(wtErr))
+		}
+
+		// Parse allowed tables from datasource options.
+		allowedTables, atErr := starrocks.ParseAllowedTables(dsCfg)
+		if atErr != nil {
+			logger.Fatal("failed to parse allowed tables for mutation datasource", zap.Error(atErr))
+		}
+
+		// Validate writable tables are a subset of allowed tables.
+		if subErr := starrocks.ValidateWritableSubset(writableTables, allowedTables); subErr != nil {
+			logger.Fatal("writable tables validation failed", zap.Error(subErr))
+		}
+
+		// Create mutation components.
+		writableTableValidator = starrocks.NewWritableTableValidator(writableTables, allowedTables)
+		mutationSQLBuilder = &starrocks.MutationSQLBuilder{}
+		mutationValidator = starrocks.NewMutationValidator(cfg.Mutations.MaxBatchSize, cfg.Mutations.MaxSQLLength)
+
+		// Create mutation-specific rate limiter (local mode, matching global pattern).
+		mutationRateLimiter = ratelimit.NewKeyedRateLimiter(
+			cfg.Mutations.RateLimit.RequestsPerWindow,
+			cfg.Mutations.RateLimit.WindowSize,
+			100000,
+		)
+
+		logger.Info("mutation support initialized",
+			zap.String("datasource", cfg.Mutations.DatasourceName),
+			zap.Int("max_batch_size", cfg.Mutations.MaxBatchSize),
+			zap.Int("max_affected_rows", cfg.Mutations.MaxAffectedRows),
+		)
+	} else {
+		logger.Info("mutations are disabled")
+	}
+
+	// Register hot-reload callback for mutations.enabled to atomically swap config.
+	// This allows toggling mutations on/off without restart.
+	hotReloader := config.NewHotReloader(cfgFile, logger.Logger)
+	hotReloader.OnChange("mutations.enabled", func(key string, value any) {
+		// Re-read the full mutations config on any hot-reload change.
+		// In practice, the HotReloader re-reads the entire config file,
+		// so we construct a new MutationsConfig from the updated values.
+		enabled, _ := value.(bool)
+		current := mutationConfigPtr.Load()
+		newCfg := *current
+		newCfg.Enabled = enabled
+		mutationConfigPtr.Store(&newCfg)
+		logger.Info("mutations.enabled hot-reloaded", zap.Bool("enabled", enabled))
+	})
+	if hrErr := hotReloader.Start(); hrErr != nil {
+		logger.Warn("failed to start config hot-reloader, live config changes disabled", zap.Error(hrErr))
+	}
+
 	// Create TemplateEngine if sql_templates is enabled.
 	var templateEngine *template.TemplateEngine
 	var templateWatcher *template.TemplateWatcher
@@ -320,9 +411,17 @@ func main() {
 	}
 
 	res := &resolver.Resolver{
-		DSManager:      dsManager,
-		GraphQLConfig:  cfg.GraphQL,
-		TemplateEngine: templateEngine,
+		DSManager:              dsManager,
+		GraphQLConfig:          cfg.GraphQL,
+		TemplateEngine:         templateEngine,
+		MutationSQLBuilder:     mutationSQLBuilder,
+		MutationValidator:      mutationValidator,
+		WritableTableValidator: writableTableValidator,
+		MutationConfig:         &mutationConfigPtr,
+		MutationRateLimiter:    mutationRateLimiter,
+		AuditLogger:            auditLogger,
+		MetricsCollector:       metricsCollector,
+		Logger:                 logger.Logger,
 	}
 	if cacheLayer != nil {
 		res.CacheClearer = cacheLayer
@@ -420,6 +519,9 @@ func main() {
 	if tpErr := tracingProvider.Shutdown(context.Background()); tpErr != nil {
 		logger.Error("tracing provider shutdown error", zap.Error(tpErr))
 	}
+
+	// Stop config hot-reloader.
+	hotReloader.Stop()
 
 	// Close TemplateWatcher before TemplateEngine.
 	if templateWatcher != nil {

@@ -9,7 +9,8 @@
 3. [模板迁移](#模板迁移)
 4. [配置迁移](#配置迁移)
 5. [认证迁移](#认证迁移)
-6. [常见问题与注意事项](#常见问题与注意事项)
+6. [Mutation 值字段迁移：AnyValue 标量类型](#mutation-值字段迁移anyvalue-标量类型)
+7. [常见问题与注意事项](#常见问题与注意事项)
 
 ---
 
@@ -168,6 +169,93 @@ GRAPHQL_AUTH_METHOD=none  # 开发模式跳过认证
 | — | 开发模式免认证 | `auth.method: none` 或 `GRAPHQL_AUTH_METHOD=none` |
 
 开发阶段建议使用 `auth.method: none` 跳过认证，生产环境使用 JWT (RS256) 或 API Key。
+
+---
+
+## Mutation 值字段迁移：AnyValue 标量类型
+
+### 概述
+
+Mutation 的值字段（`ColumnValueInput.value`、`MutationFilterInput.value`、`insertBatchStarrocks.rows`）现使用新的 `AnyValue` 标量类型替代原来的 `JSON` 标量类型。这是一个**破坏性变更**：客户端必须直接传递值，而非将值包裹在对象中。
+
+### 变更说明
+
+| 维度 | 旧行为 | 新行为 |
+|------|--------|--------|
+| 标量类型 | `JSON`（`map[string]any`） | `AnyValue`（`any`） |
+| 传值方式 | `value: {"v": 42}` → 解析器提取出 `42` | `value: 42` → 解析器直接传递 `42` |
+| 数组传值 | `value: {"v": [1,2,3]}` → 解析器提取出 `[1,2,3]` | `value: [1,2,3]` → 解析器直接传递 `[1,2,3]` |
+| 字符串传值 | `value: {"v": "hello"}` → 解析器提取出 `"hello"` | `value: "hello"` → 解析器直接传递 `"hello"` |
+
+### 客户端迁移示例
+
+**INSERT 操作：**
+
+```graphql
+# 旧方式（不再支持）
+mutation {
+  insertStarrocks(
+    datasource: "analytics_db"
+    table: "orders"
+    values: [
+      {column: "amount", value: {"v": 42}}
+      {column: "status", value: {"v": "pending"}}
+    ]
+  ) { affectedRows }
+}
+
+# 新方式（直接传值）
+mutation {
+  insertStarrocks(
+    datasource: "analytics_db"
+    table: "orders"
+    values: [
+      {column: "amount", value: 42}
+      {column: "status", value: "pending"}
+    ]
+  ) { affectedRows }
+}
+```
+
+**UPDATE 操作（带 filter）：**
+
+```graphql
+# 旧方式（不再支持）
+mutation {
+  updateStarrocks(
+    datasource: "analytics_db"
+    table: "orders"
+    values: [{column: "status", value: {"v": "shipped"}}]
+    filter: [{field: "order_id", operator: IN, value: {"v": [1, 2, 3]}}]
+  ) { affectedRows }
+}
+
+# 新方式（直接传值）
+mutation {
+  updateStarrocks(
+    datasource: "analytics_db"
+    table: "orders"
+    values: [{column: "status", value: "shipped"}]
+    filter: [{field: "order_id", operator: IN, value: [1, 2, 3]}]
+  ) { affectedRows }
+}
+```
+
+### 重要注意事项
+
+1. **旧格式不再提取值**：如果客户端仍发送 `value: {"v": 42}`，系统会将 `{"v": 42}` 整体作为 map 值传递给 SQL 构建器（而非提取出 `42`）。这通常会导致 SQL 错误，从而提示客户端需要更新传值方式。
+
+2. **`AnyValue` 接受任何 JSON 值类型**：
+   - 数字：`value: 42`、`value: 3.14`
+   - 字符串：`value: "hello"`
+   - 布尔值：`value: true`
+   - 数组：`value: [1, 2, 3]`
+   - 对象：`value: {"key": "val"}`（仅当列确实需要 JSON 对象时使用）
+   - Null：`value: null`
+
+3. **查询结果类型不受影响**：`StarRocksRow.Data` 等查询结果字段仍使用 `JSON` 标量类型（`map[string]any`），不受此变更影响。
+
+4. **嵌套深度限制**：`AnyValue` 标量限制最大嵌套深度为 64 层。超过此深度的输入将返回错误。
 
 ---
 

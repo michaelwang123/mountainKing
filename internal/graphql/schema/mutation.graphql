@@ -1,14 +1,73 @@
-# ===== Mutation 根类型 =====
+"""
+AnyValue represents any valid JSON value: objects, arrays, strings, numbers, booleans, or null.
+Pass values directly: value: 42, value: "hello", value: [1,2,3], value: {"key": "val"}
+"""
+scalar AnyValue
+
+# ===== Mutation Input Types =====
+
+"""Column-value pair for INSERT and UPDATE operations."""
+input ColumnValueInput {
+  """Column name (must match writable_tables whitelist)."""
+  column: String!
+  """
+  Column value passed directly as any JSON value.
+  Examples: value: 42, value: "hello", value: true, value: null, value: [1,2,3]
+  """
+  value: AnyValue!
+}
+
+"""Filter condition for UPDATE and DELETE operations.
+For IN/NOT_IN operators, value must be an array (e.g., value: [1, 2, 3]).
+For IS_NULL/IS_NOT_NULL operators, value is ignored (can be null)."""
+input MutationFilterInput {
+  """Column name to filter on (validated against allowed_tables whitelist)."""
+  field: String!
+  """Comparison operator."""
+  operator: FilterOperator!
+  """
+  Filter value passed directly as any JSON value. Null for IS_NULL/IS_NOT_NULL operators.
+  Examples: value: 100, value: "active", value: [1, 2, 3]
+  """
+  value: AnyValue
+}
+
+# ===== Mutation Result Type =====
+
+"""Result of a mutation operation."""
+type MutationResult {
+  """Whether the mutation executed successfully."""
+  success: Boolean!
+  """Number of rows affected by the mutation."""
+  affectedRows: Int!
+  """Optional warning message (e.g., affected rows exceeded threshold)."""
+  warning: String
+}
+
+# ===== Mutation Root Type =====
 
 """
-本服务仅支持管理类 Mutation 操作，不支持数据写入。
-所有数据获取均通过 Query 完成。
-Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
+Mutation operations for data modification.
+All data mutations require the principal to have "mutation" in their operations scope.
+Mutations are globally gated by the mutations.enabled configuration flag.
 """
 type Mutation {
   """
-  清除缓存。指定 datasource 清除特定数据源缓存，不指定则清除全部缓存。
-  需要认证主体具有 "mutation" 操作权限，否则返回 AUTH_INSUFFICIENT_PERMISSION 错误。
+  Clear cache. Specify datasource to clear a specific datasource cache,
+  or omit to clear all caches.
+  Requires the principal to have "mutation" operation permission.
   """
   clearCache(datasource: String): Boolean!
+
+  """Insert a single row into a StarRocks table."""
+  insertStarrocks(table: String!, values: [ColumnValueInput!]!): MutationResult!
+
+  """Update rows in a StarRocks table matching filter conditions."""
+  updateStarrocks(table: String!, set: [ColumnValueInput!]!, filter: [MutationFilterInput!]!): MutationResult!
+
+  """Delete rows from a StarRocks table matching filter conditions."""
+  deleteStarrocks(table: String!, filter: [MutationFilterInput!]!): MutationResult!
+
+  """Batch insert multiple rows into a StarRocks table. Each row is an array of values corresponding to the columns array."""
+  insertBatchStarrocks(table: String!, columns: [String!]!, rows: [[AnyValue!]!]!): MutationResult!
 }

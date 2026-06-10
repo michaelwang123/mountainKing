@@ -368,6 +368,50 @@ func getIntOption(opts map[string]any, key string) (int, bool) {
 	}
 }
 
+// ValidateMutationsConfig validates mutation-related configuration constraints.
+// Called during server startup, before DataSourceManager.Init().
+// If mutations are disabled, no validation is needed and nil is returned.
+func ValidateMutationsConfig(cfg *Config) error {
+	if !cfg.Mutations.Enabled {
+		return nil // no validation needed when disabled
+	}
+
+	if cfg.Mutations.DatasourceName == "" {
+		return fmt.Errorf("mutations.datasource_name is required when mutations.enabled=true")
+	}
+
+	// Verify datasource_name references an existing enabled datasource
+	var found bool
+	var dsType string
+	for _, ds := range cfg.Datasources {
+		if ds.Name == cfg.Mutations.DatasourceName {
+			if !ds.Enabled {
+				return fmt.Errorf("mutations.datasource_name %q references a disabled datasource", cfg.Mutations.DatasourceName)
+			}
+			found = true
+			dsType = ds.Type
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("mutations.datasource_name %q does not reference an existing datasource", cfg.Mutations.DatasourceName)
+	}
+
+	// Verify datasource type is starrocks
+	if dsType != "starrocks" {
+		return fmt.Errorf("mutations.datasource_name %q must reference a starrocks type datasource, got %q",
+			cfg.Mutations.DatasourceName, dsType)
+	}
+
+	// Verify max_batch_size <= max_affected_rows
+	if cfg.Mutations.MaxBatchSize > cfg.Mutations.MaxAffectedRows {
+		return fmt.Errorf("mutations.max_batch_size (%d) must be <= mutations.max_affected_rows (%d)",
+			cfg.Mutations.MaxBatchSize, cfg.Mutations.MaxAffectedRows)
+	}
+
+	return nil
+}
+
 // sizePattern matches size strings like "256MB", "1GB", "512KB".
 var sizePattern = regexp.MustCompile(`(?i)^(\d+(?:\.\d+)?)\s*(KB|MB|GB)$`)
 

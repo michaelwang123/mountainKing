@@ -164,9 +164,37 @@ func (j *JWTAuthenticator) Authenticate(r *http.Request) (*AuthIdentity, error) 
 
 	sub, _ := claims.GetSubject()
 
+	// Parse "operations" claim. Default to ["query"] if absent.
+	operations := []string{"query"}
+	if ops, ok := claims["operations"]; ok {
+		if opsSlice, ok := ops.([]interface{}); ok {
+			operations = make([]string, 0, len(opsSlice))
+			for _, o := range opsSlice {
+				if s, ok := o.(string); ok {
+					operations = append(operations, s)
+				}
+			}
+		}
+	}
+
+	// Parse "datasources" claim. Default to nil (unrestricted) if absent.
+	var datasources []string
+	if ds, ok := claims["datasources"]; ok {
+		if dsSlice, ok := ds.([]interface{}); ok {
+			datasources = make([]string, 0, len(dsSlice))
+			for _, d := range dsSlice {
+				if s, ok := d.(string); ok {
+					datasources = append(datasources, s)
+				}
+			}
+		}
+	}
+
 	return &AuthIdentity{
-		Subject: sub,
-		Method:  "jwt",
+		Subject:     sub,
+		Method:      "jwt",
+		Operations:  operations,
+		Datasources: datasources,
 	}, nil
 }
 

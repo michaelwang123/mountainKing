@@ -13,10 +13,16 @@ package resolver
 
 import (
 	"context"
+	"sync/atomic"
 
+	"github.com/michaelwang123/mountainKing/internal/adapter/starrocks"
+	"github.com/michaelwang123/mountainKing/internal/audit"
 	"github.com/michaelwang123/mountainKing/internal/config"
 	"github.com/michaelwang123/mountainKing/internal/datasource"
+	"github.com/michaelwang123/mountainKing/internal/observability"
+	"github.com/michaelwang123/mountainKing/internal/ratelimit"
 	"github.com/michaelwang123/mountainKing/internal/template"
+	"go.uber.org/zap"
 )
 
 // CacheClearer is the interface needed by the mutation resolver for cache
@@ -43,4 +49,24 @@ type Resolver struct {
 	// TemplateEngine provides SQL template query capability.
 	// nil means the feature is disabled (sql_templates.enabled=false).
 	TemplateEngine *template.TemplateEngine
+
+	// --- Mutation fields ---
+
+	// MutationSQLBuilder constructs parameterized SQL for write operations.
+	MutationSQLBuilder *starrocks.MutationSQLBuilder
+	// MutationValidator validates mutation inputs before SQL construction.
+	MutationValidator *starrocks.MutationValidator
+	// WritableTableValidator enforces table/column whitelist and operation restrictions.
+	WritableTableValidator *starrocks.WritableTableValidator
+	// MutationConfig holds the current mutation configuration, atomically swapped on hot-reload.
+	MutationConfig *atomic.Pointer[config.MutationsConfig]
+	// MutationRateLimiter is the mutation-specific rate limiter instance (resolver level).
+	MutationRateLimiter ratelimit.RateLimiter
+	// AuditLogger writes audit entries for mutation operations.
+	AuditLogger *audit.AuditLogger
+	// MetricsCollector registers and exposes mutation metrics.
+	MetricsCollector *observability.MetricsCollector
+	// Logger provides structured logging for non-critical warnings (e.g., cache clear failures).
+	// May be nil if not wired; cache clear warnings will be silently dropped in that case.
+	Logger *zap.Logger
 }

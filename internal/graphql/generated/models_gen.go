@@ -11,10 +11,42 @@ import (
 	"github.com/michaelwang123/mountainKing/internal/graphql/scalar"
 )
 
-// 本服务仅支持管理类 Mutation 操作，不支持数据写入。
-// 所有数据获取均通过 Query 完成。
-// Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
+// Column-value pair for INSERT and UPDATE operations.
+type ColumnValueInput struct {
+	// Column name (must match writable_tables whitelist).
+	Column string `json:"column"`
+	// Column value passed directly as any JSON value.
+	// Examples: value: 42, value: "hello", value: true, value: null, value: [1,2,3]
+	Value any `json:"value"`
+}
+
+// Mutation operations for data modification.
+// All data mutations require the principal to have "mutation" in their operations scope.
+// Mutations are globally gated by the mutations.enabled configuration flag.
 type Mutation struct {
+}
+
+// Filter condition for UPDATE and DELETE operations.
+// For IN/NOT_IN operators, value must be an array (e.g., value: [1, 2, 3]).
+// For IS_NULL/IS_NOT_NULL operators, value is ignored (can be null).
+type MutationFilterInput struct {
+	// Column name to filter on (validated against allowed_tables whitelist).
+	Field string `json:"field"`
+	// Comparison operator.
+	Operator FilterOperator `json:"operator"`
+	// Filter value passed directly as any JSON value. Null for IS_NULL/IS_NOT_NULL operators.
+	// Examples: value: 100, value: "active", value: [1, 2, 3]
+	Value any `json:"value,omitempty"`
+}
+
+// Result of a mutation operation.
+type MutationResult struct {
+	// Whether the mutation executed successfully.
+	Success bool `json:"success"`
+	// Number of rows affected by the mutation.
+	AffectedRows int `json:"affectedRows"`
+	// Optional warning message (e.g., affected rows exceeded threshold).
+	Warning *string `json:"warning,omitempty"`
 }
 
 // 分页信息，遵循 Relay Connection 规范

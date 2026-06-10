@@ -37,6 +37,7 @@ type Config struct {
 	AuthFailure    AuthFailureConfig    `mapstructure:"auth_failure"`
 	Shutdown       ShutdownConfig       `mapstructure:"shutdown"`
 	SQLTemplates   SQLTemplatesConfig   `mapstructure:"sql_templates"`
+	Mutations      MutationsConfig      `mapstructure:"mutations"`
 }
 
 // ServerConfig holds HTTP server settings including port, mode, body size limits,
@@ -254,6 +255,23 @@ type ShutdownConfig struct {
 	MaxWaitTime time.Duration `mapstructure:"max_wait_time"`
 }
 
+// MutationsConfig holds global mutation settings.
+// When enabled, mutations allow INSERT, UPDATE, DELETE operations on StarRocks datasources.
+type MutationsConfig struct {
+	Enabled         bool              `mapstructure:"enabled"`
+	DatasourceName  string            `mapstructure:"datasource_name"`
+	MaxAffectedRows int               `mapstructure:"max_affected_rows"`
+	MaxBatchSize    int               `mapstructure:"max_batch_size"`
+	MaxSQLLength    int               `mapstructure:"max_sql_length"`
+	RateLimit       MutationRateLimit `mapstructure:"rate_limit"`
+}
+
+// MutationRateLimit holds mutation-specific rate limiting config.
+type MutationRateLimit struct {
+	RequestsPerWindow int           `mapstructure:"requests_per_window"`
+	WindowSize        time.Duration `mapstructure:"window_size"`
+}
+
 // SQLTemplatesConfig holds SQL template engine configuration.
 type SQLTemplatesConfig struct {
 	Enabled              bool             `mapstructure:"enabled"`
@@ -460,4 +478,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("sql_templates.render_timeout", 5*time.Second)
 	v.SetDefault("sql_templates.max_rendered_sql_length", 65536)
 	v.SetDefault("sql_templates.max_concurrent_queries", 10)
+
+	// Mutations defaults
+	v.SetDefault("mutations.enabled", false)
+	v.SetDefault("mutations.datasource_name", "")
+	v.SetDefault("mutations.max_affected_rows", 1000)
+	v.SetDefault("mutations.max_batch_size", 500)
+	v.SetDefault("mutations.max_sql_length", 1048576) // 1MB
+	v.SetDefault("mutations.rate_limit.requests_per_window", 20)
+	v.SetDefault("mutations.rate_limit.window_size", 60*time.Second)
 }

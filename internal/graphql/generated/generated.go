@@ -36,8 +36,18 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		ClearCache      func(childComplexity int, datasource *string) int
-		ReloadTemplates func(childComplexity int) int
+		ClearCache           func(childComplexity int, datasource *string) int
+		DeleteStarrocks      func(childComplexity int, table string, filter []*MutationFilterInput) int
+		InsertBatchStarrocks func(childComplexity int, table string, columns []string, rows [][]any) int
+		InsertStarrocks      func(childComplexity int, table string, values []*ColumnValueInput) int
+		ReloadTemplates      func(childComplexity int) int
+		UpdateStarrocks      func(childComplexity int, table string, set []*ColumnValueInput, filter []*MutationFilterInput) int
+	}
+
+	MutationResult struct {
+		AffectedRows func(childComplexity int) int
+		Success      func(childComplexity int) int
+		Warning      func(childComplexity int) int
 	}
 
 	PageInfo struct {
@@ -135,6 +145,10 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	ClearCache(ctx context.Context, datasource *string) (bool, error)
+	InsertStarrocks(ctx context.Context, table string, values []*ColumnValueInput) (*MutationResult, error)
+	UpdateStarrocks(ctx context.Context, table string, set []*ColumnValueInput, filter []*MutationFilterInput) (*MutationResult, error)
+	DeleteStarrocks(ctx context.Context, table string, filter []*MutationFilterInput) (*MutationResult, error)
+	InsertBatchStarrocks(ctx context.Context, table string, columns []string, rows [][]any) (*MutationResult, error)
 	ReloadTemplates(ctx context.Context) (*ReloadTemplatesResult, error)
 }
 type QueryResolver interface {
@@ -170,12 +184,75 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.ComplexityRoot.Mutation.ClearCache(childComplexity, args["datasource"].(*string)), true
+	case "Mutation.deleteStarrocks":
+		if e.ComplexityRoot.Mutation.DeleteStarrocks == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteStarrocks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.DeleteStarrocks(childComplexity, args["table"].(string), args["filter"].([]*MutationFilterInput)), true
+	case "Mutation.insertBatchStarrocks":
+		if e.ComplexityRoot.Mutation.InsertBatchStarrocks == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_insertBatchStarrocks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.InsertBatchStarrocks(childComplexity, args["table"].(string), args["columns"].([]string), args["rows"].([][]any)), true
+	case "Mutation.insertStarrocks":
+		if e.ComplexityRoot.Mutation.InsertStarrocks == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_insertStarrocks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.InsertStarrocks(childComplexity, args["table"].(string), args["values"].([]*ColumnValueInput)), true
 	case "Mutation.reloadTemplates":
 		if e.ComplexityRoot.Mutation.ReloadTemplates == nil {
 			break
 		}
 
 		return e.ComplexityRoot.Mutation.ReloadTemplates(childComplexity), true
+	case "Mutation.updateStarrocks":
+		if e.ComplexityRoot.Mutation.UpdateStarrocks == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateStarrocks_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.ComplexityRoot.Mutation.UpdateStarrocks(childComplexity, args["table"].(string), args["set"].([]*ColumnValueInput), args["filter"].([]*MutationFilterInput)), true
+
+	case "MutationResult.affectedRows":
+		if e.ComplexityRoot.MutationResult.AffectedRows == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MutationResult.AffectedRows(childComplexity), true
+	case "MutationResult.success":
+		if e.ComplexityRoot.MutationResult.Success == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MutationResult.Success(childComplexity), true
+	case "MutationResult.warning":
+		if e.ComplexityRoot.MutationResult.Warning == nil {
+			break
+		}
+
+		return e.ComplexityRoot.MutationResult.Warning(childComplexity), true
 
 	case "PageInfo.endCursor":
 		if e.ComplexityRoot.PageInfo.EndCursor == nil {
@@ -490,6 +567,8 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := newExecutionContext(opCtx, e, make(chan graphql.DeferredResult))
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputColumnValueInput,
+		ec.unmarshalInputMutationFilterInput,
 		ec.unmarshalInputPrometheusLabelFilter,
 		ec.unmarshalInputStarRocksFilter,
 		ec.unmarshalInputStarRocksOrderBy,
@@ -655,19 +734,78 @@ type Query {
   ): PrometheusRangeResult!
 }
 `, BuiltIn: false},
-	{Name: "../schema/mutation.graphql", Input: `# ===== Mutation 根类型 =====
+	{Name: "../schema/mutation.graphql", Input: `"""
+AnyValue represents any valid JSON value: objects, arrays, strings, numbers, booleans, or null.
+Pass values directly: value: 42, value: "hello", value: [1,2,3], value: {"key": "val"}
+"""
+scalar AnyValue
+
+# ===== Mutation Input Types =====
+
+"""Column-value pair for INSERT and UPDATE operations."""
+input ColumnValueInput {
+  """Column name (must match writable_tables whitelist)."""
+  column: String!
+  """
+  Column value passed directly as any JSON value.
+  Examples: value: 42, value: "hello", value: true, value: null, value: [1,2,3]
+  """
+  value: AnyValue!
+}
+
+"""Filter condition for UPDATE and DELETE operations.
+For IN/NOT_IN operators, value must be an array (e.g., value: [1, 2, 3]).
+For IS_NULL/IS_NOT_NULL operators, value is ignored (can be null)."""
+input MutationFilterInput {
+  """Column name to filter on (validated against allowed_tables whitelist)."""
+  field: String!
+  """Comparison operator."""
+  operator: FilterOperator!
+  """
+  Filter value passed directly as any JSON value. Null for IS_NULL/IS_NOT_NULL operators.
+  Examples: value: 100, value: "active", value: [1, 2, 3]
+  """
+  value: AnyValue
+}
+
+# ===== Mutation Result Type =====
+
+"""Result of a mutation operation."""
+type MutationResult {
+  """Whether the mutation executed successfully."""
+  success: Boolean!
+  """Number of rows affected by the mutation."""
+  affectedRows: Int!
+  """Optional warning message (e.g., affected rows exceeded threshold)."""
+  warning: String
+}
+
+# ===== Mutation Root Type =====
 
 """
-本服务仅支持管理类 Mutation 操作，不支持数据写入。
-所有数据获取均通过 Query 完成。
-Mutation 操作需要认证主体具有 "mutation" 操作权限（AuthIdentity.Operations 包含 "mutation"）。
+Mutation operations for data modification.
+All data mutations require the principal to have "mutation" in their operations scope.
+Mutations are globally gated by the mutations.enabled configuration flag.
 """
 type Mutation {
   """
-  清除缓存。指定 datasource 清除特定数据源缓存，不指定则清除全部缓存。
-  需要认证主体具有 "mutation" 操作权限，否则返回 AUTH_INSUFFICIENT_PERMISSION 错误。
+  Clear cache. Specify datasource to clear a specific datasource cache,
+  or omit to clear all caches.
+  Requires the principal to have "mutation" operation permission.
   """
   clearCache(datasource: String): Boolean!
+
+  """Insert a single row into a StarRocks table."""
+  insertStarrocks(table: String!, values: [ColumnValueInput!]!): MutationResult!
+
+  """Update rows in a StarRocks table matching filter conditions."""
+  updateStarrocks(table: String!, set: [ColumnValueInput!]!, filter: [MutationFilterInput!]!): MutationResult!
+
+  """Delete rows from a StarRocks table matching filter conditions."""
+  deleteStarrocks(table: String!, filter: [MutationFilterInput!]!): MutationResult!
+
+  """Batch insert multiple rows into a StarRocks table. Each row is an array of values corresponding to the columns array."""
+  insertBatchStarrocks(table: String!, columns: [String!]!, rows: [[AnyValue!]!]!): MutationResult!
 }
 `, BuiltIn: false},
 	{Name: "../schema/prometheus.graphql", Input: `# ===== Prometheus 数据源类型 =====
@@ -824,6 +962,80 @@ func (ec *executionContext) field_Mutation_clearCache_args(ctx context.Context, 
 		return nil, err
 	}
 	args["datasource"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteStarrocks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "table", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["table"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalNMutationFilterInput2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationFilterInputᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_insertBatchStarrocks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "table", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["table"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "columns", ec.unmarshalNString2ᚕstringᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["columns"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "rows", ec.unmarshalNAnyValue2ᚕᚕinterfaceᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["rows"] = arg2
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_insertStarrocks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "table", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["table"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "values", ec.unmarshalNColumnValueInput2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐColumnValueInputᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["values"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateStarrocks_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "table", ec.unmarshalNString2string)
+	if err != nil {
+		return nil, err
+	}
+	args["table"] = arg0
+	arg1, err := graphql.ProcessArgField(ctx, rawArgs, "set", ec.unmarshalNColumnValueInput2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐColumnValueInputᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["set"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "filter", ec.unmarshalNMutationFilterInput2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationFilterInputᚄ)
+	if err != nil {
+		return nil, err
+	}
+	args["filter"] = arg2
 	return args, nil
 }
 
@@ -1081,6 +1293,202 @@ func (ec *executionContext) fieldContext_Mutation_clearCache(ctx context.Context
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_insertStarrocks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_insertStarrocks,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().InsertStarrocks(ctx, fc.Args["table"].(string), fc.Args["values"].([]*ColumnValueInput))
+		},
+		nil,
+		ec.marshalNMutationResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_insertStarrocks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_MutationResult_success(ctx, field)
+			case "affectedRows":
+				return ec.fieldContext_MutationResult_affectedRows(ctx, field)
+			case "warning":
+				return ec.fieldContext_MutationResult_warning(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MutationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_insertStarrocks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateStarrocks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_updateStarrocks,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().UpdateStarrocks(ctx, fc.Args["table"].(string), fc.Args["set"].([]*ColumnValueInput), fc.Args["filter"].([]*MutationFilterInput))
+		},
+		nil,
+		ec.marshalNMutationResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateStarrocks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_MutationResult_success(ctx, field)
+			case "affectedRows":
+				return ec.fieldContext_MutationResult_affectedRows(ctx, field)
+			case "warning":
+				return ec.fieldContext_MutationResult_warning(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MutationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateStarrocks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteStarrocks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_deleteStarrocks,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().DeleteStarrocks(ctx, fc.Args["table"].(string), fc.Args["filter"].([]*MutationFilterInput))
+		},
+		nil,
+		ec.marshalNMutationResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteStarrocks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_MutationResult_success(ctx, field)
+			case "affectedRows":
+				return ec.fieldContext_MutationResult_affectedRows(ctx, field)
+			case "warning":
+				return ec.fieldContext_MutationResult_warning(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MutationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteStarrocks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_insertBatchStarrocks(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_Mutation_insertBatchStarrocks,
+		func(ctx context.Context) (any, error) {
+			fc := graphql.GetFieldContext(ctx)
+			return ec.Resolvers.Mutation().InsertBatchStarrocks(ctx, fc.Args["table"].(string), fc.Args["columns"].([]string), fc.Args["rows"].([][]any))
+		},
+		nil,
+		ec.marshalNMutationResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationResult,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_Mutation_insertBatchStarrocks(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "success":
+				return ec.fieldContext_MutationResult_success(ctx, field)
+			case "affectedRows":
+				return ec.fieldContext_MutationResult_affectedRows(ctx, field)
+			case "warning":
+				return ec.fieldContext_MutationResult_warning(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MutationResult", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_insertBatchStarrocks_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_reloadTemplates(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -1113,6 +1521,93 @@ func (ec *executionContext) fieldContext_Mutation_reloadTemplates(_ context.Cont
 				return ec.fieldContext_ReloadTemplatesResult_duration(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ReloadTemplatesResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MutationResult_success(ctx context.Context, field graphql.CollectedField, obj *MutationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MutationResult_success,
+		func(ctx context.Context) (any, error) {
+			return obj.Success, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MutationResult_success(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MutationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MutationResult_affectedRows(ctx context.Context, field graphql.CollectedField, obj *MutationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MutationResult_affectedRows,
+		func(ctx context.Context) (any, error) {
+			return obj.AffectedRows, nil
+		},
+		nil,
+		ec.marshalNInt2int,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_MutationResult_affectedRows(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MutationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MutationResult_warning(ctx context.Context, field graphql.CollectedField, obj *MutationResult) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_MutationResult_warning,
+		func(ctx context.Context) (any, error) {
+			return obj.Warning, nil
+		},
+		nil,
+		ec.marshalOString2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_MutationResult_warning(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MutationResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -4134,6 +4629,87 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputColumnValueInput(ctx context.Context, obj any) (ColumnValueInput, error) {
+	var it ColumnValueInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"column", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "column":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("column"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Column = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalNAnyValue2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
+		}
+	}
+	return it, nil
+}
+
+func (ec *executionContext) unmarshalInputMutationFilterInput(ctx context.Context, obj any) (MutationFilterInput, error) {
+	var it MutationFilterInput
+	if obj == nil {
+		return it, nil
+	}
+
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"field", "operator", "value"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "field":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("field"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Field = data
+		case "operator":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("operator"))
+			data, err := ec.unmarshalNFilterOperator2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐFilterOperator(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Operator = data
+		case "value":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("value"))
+			data, err := ec.unmarshalOAnyValue2interface(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Value = data
+		}
+	}
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputPrometheusLabelFilter(ctx context.Context, obj any) (PrometheusLabelFilter, error) {
 	var it PrometheusLabelFilter
 	if obj == nil {
@@ -4330,6 +4906,34 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "insertStarrocks":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_insertStarrocks(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateStarrocks":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateStarrocks(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteStarrocks":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteStarrocks(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "insertBatchStarrocks":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_insertBatchStarrocks(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "reloadTemplates":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_reloadTemplates(ctx, field)
@@ -4337,6 +4941,52 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.Deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.ProcessDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var mutationResultImplementors = []string{"MutationResult"}
+
+func (ec *executionContext) _MutationResult(ctx context.Context, sel ast.SelectionSet, obj *MutationResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, mutationResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MutationResult")
+		case "success":
+			out.Values[i] = ec._MutationResult_success(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "affectedRows":
+			out.Values[i] = ec._MutationResult_affectedRows(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "warning":
+			out.Values[i] = ec._MutationResult_warning(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5545,6 +6195,88 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAnyValue2interface(ctx context.Context, v any) (any, error) {
+	res, err := scalar.UnmarshalAnyValue(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNAnyValue2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	_ = sel
+	res := scalar.MarshalAnyValue(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
+}
+
+func (ec *executionContext) unmarshalNAnyValue2ᚕinterfaceᚄ(ctx context.Context, v any) ([]any, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]any, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAnyValue2interface(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNAnyValue2ᚕinterfaceᚄ(ctx context.Context, sel ast.SelectionSet, v []any) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNAnyValue2interface(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) unmarshalNAnyValue2ᚕᚕinterfaceᚄ(ctx context.Context, v any) ([][]any, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([][]any, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNAnyValue2ᚕinterfaceᚄ(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNAnyValue2ᚕᚕinterfaceᚄ(ctx context.Context, sel ast.SelectionSet, v [][]any) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNAnyValue2ᚕinterfaceᚄ(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5559,6 +6291,26 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNColumnValueInput2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐColumnValueInputᚄ(ctx context.Context, v any) ([]*ColumnValueInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*ColumnValueInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNColumnValueInput2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐColumnValueInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNColumnValueInput2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐColumnValueInput(ctx context.Context, v any) (*ColumnValueInput, error) {
+	res, err := ec.unmarshalInputColumnValueInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNDateTime2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋscalarᚐDateTime(ctx context.Context, v any) (scalar.DateTime, error) {
@@ -5679,6 +6431,40 @@ func (ec *executionContext) unmarshalNLabelMatchType2githubᚗcomᚋmichaelwang1
 
 func (ec *executionContext) marshalNLabelMatchType2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐLabelMatchType(ctx context.Context, sel ast.SelectionSet, v LabelMatchType) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) unmarshalNMutationFilterInput2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationFilterInputᚄ(ctx context.Context, v any) ([]*MutationFilterInput, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]*MutationFilterInput, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNMutationFilterInput2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationFilterInput(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) unmarshalNMutationFilterInput2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationFilterInput(ctx context.Context, v any) (*MutationFilterInput, error) {
+	res, err := ec.unmarshalInputMutationFilterInput(ctx, v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNMutationResult2githubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationResult(ctx context.Context, sel ast.SelectionSet, v MutationResult) graphql.Marshaler {
+	return ec._MutationResult(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMutationResult2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐMutationResult(ctx context.Context, sel ast.SelectionSet, v *MutationResult) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MutationResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNPageInfo2ᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v *PageInfo) graphql.Marshaler {
@@ -5944,6 +6730,36 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
 func (ec *executionContext) marshalNTemplateInfo2ᚕᚖgithubᚗcomᚋmichaelwang123ᚋmountainKingᚋinternalᚋgraphqlᚋgeneratedᚐTemplateInfoᚄ(ctx context.Context, sel ast.SelectionSet, v []*TemplateInfo) graphql.Marshaler {
 	ret := graphql.MarshalSliceConcurrently(ctx, len(v), 0, false, func(ctx context.Context, i int) graphql.Marshaler {
 		fc := graphql.GetFieldContext(ctx)
@@ -6179,6 +6995,24 @@ func (ec *executionContext) marshalN__TypeKind2string(ctx context.Context, sel a
 			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
 		}
 	}
+	return res
+}
+
+func (ec *executionContext) unmarshalOAnyValue2interface(ctx context.Context, v any) (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := scalar.UnmarshalAnyValue(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOAnyValue2interface(ctx context.Context, sel ast.SelectionSet, v any) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := scalar.MarshalAnyValue(v)
 	return res
 }
 

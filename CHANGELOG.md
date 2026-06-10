@@ -2,6 +2,27 @@
 
 本文件记录项目的所有重要变更，格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 规范。
 
+## [Unreleased]
+
+### Added
+- 新增 `AnyValue` GraphQL 标量类型，支持任意 JSON 值（对象、数组、字符串、数字、布尔值、null）
+- `AnyValue` 类型支持最大 64 层嵌套深度校验，防止恶意深层嵌套载荷
+
+### Changed
+- **Breaking Change**: Mutation 值字段现使用 `AnyValue` 标量类型替代 `JSON` 标量类型：
+  - `ColumnValueInput.value`: `JSON!` → `AnyValue!`
+  - `MutationFilterInput.value`: `JSON` → `AnyValue`
+  - `insertBatchStarrocks` 的 `rows` 参数: `[[JSON!]!]!` → `[[AnyValue!]!]!`
+- 客户端应直接传递值（如 `value: 42`），而非包裹为对象（如 `value: {"v": 42}`）
+- 如果客户端仍发送 `value: {"v": 42}`，该值将被视为 map（`map[string]any{"v": 42}`）而非提取内部值
+
+### Removed
+- 移除 `extractScalarFromJSONValue` 解析器变通函数
+- 移除 `extractArrayFromJSONValue` 解析器变通函数
+
+### Unchanged
+- 查询结果类型（如 `StarRocksRow.Data`）仍使用 `JSON` 标量类型，不受影响
+
 ## [0.1.0] - 2026-06-08
 
 ### Added

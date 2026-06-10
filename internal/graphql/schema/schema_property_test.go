@@ -78,7 +78,7 @@ func TestProperty9_IntrospectionSupport(t *testing.T) {
 		// At the schema level, we verify the schema is valid for introspection by
 		// checking that essential types are present.
 		// Pick a random introspection-related keyword to verify schema completeness.
-		introspectionPrereqs := []string{"type Query", "scalar DateTime", "scalar JSON"}
+		introspectionPrereqs := []string{"type Query", "scalar DateTime", "scalar JSON", "scalar AnyValue"}
 		idx := rapid.IntRange(0, len(introspectionPrereqs)-1).Draw(t, "prereqIdx")
 		prereq := introspectionPrereqs[idx]
 		if !strings.Contains(content, prereq) {
@@ -100,11 +100,14 @@ func TestProperty9_IntrospectionSupport(t *testing.T) {
 }
 
 // TestProperty10_UnsupportedOperationTypesRejected validates that the schema
-// does NOT define a Subscription root type and that the Mutation type only
-// contains management operations (no data write mutations).
+// does NOT define a Subscription root type and that the Mutation type contains
+// only allowed operations (management + CRUD mutations).
 //
 // Feature: graphql-multi-datasource-api, Property 10: 不支持的操作类型被拒绝
 // **Validates: Requirements 2.11, 2.12**
+//
+// Updated: Now allows CRUD mutations (insertStarrocks, updateStarrocks,
+// deleteStarrocks, insertBatchStarrocks) per graphql-mutations-crud spec.
 func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 	content, _ := readAllSchemaFiles(t)
 
@@ -124,16 +127,31 @@ func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 			}
 		}
 
-		// Property 2: Schema MUST define "type Mutation" with only management operations.
-		// Per Requirements 2.9, 2.10, only clearCache is allowed.
-		if !strings.Contains(content, "type Mutation") {
+		// Property 2: Schema MUST define "type Mutation" with allowed operations.
+		// Use "type Mutation " (with trailing space) to avoid matching "type MutationResult".
+		if !strings.Contains(content, "type Mutation {") && !strings.Contains(content, "type Mutation\n") {
 			t.Fatal("schema must define 'type Mutation' for management operations (Requirements 2.9)")
 		}
 
-		// Extract the Mutation type block and verify it only contains clearCache.
-		mutIdx := strings.Index(content, "type Mutation")
+		// Extract the Mutation root type block (not MutationResult or other types).
+		mutIdx := -1
+		searchFrom := 0
+		for {
+			idx := strings.Index(content[searchFrom:], "type Mutation")
+			if idx == -1 {
+				break
+			}
+			absIdx := searchFrom + idx
+			// Check that the character after "type Mutation" is a space or '{' (not a letter).
+			afterIdx := absIdx + len("type Mutation")
+			if afterIdx < len(content) && (content[afterIdx] == ' ' || content[afterIdx] == '{' || content[afterIdx] == '\n') {
+				mutIdx = absIdx
+				break
+			}
+			searchFrom = absIdx + 1
+		}
 		if mutIdx == -1 {
-			t.Fatal("could not find 'type Mutation' in schema")
+			t.Fatal("could not find 'type Mutation' root type in schema")
 		}
 
 		// Find the opening brace.
@@ -166,14 +184,29 @@ func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 		// Extract field definitions (lines that look like field declarations).
 		mutationLines := strings.Split(mutationBody, "\n")
 		var fieldNames []string
+		inDocString := false
 		for _, ml := range mutationLines {
 			trimmed := strings.TrimSpace(ml)
-			// Skip empty lines, comments, and doc strings.
-			if trimmed == "" || strings.HasPrefix(trimmed, "#") ||
-				strings.HasPrefix(trimmed, "\"\"\"") || strings.HasPrefix(trimmed, "\"") {
+			// Handle multi-line doc strings (""" ... """).
+			if !inDocString && strings.HasPrefix(trimmed, "\"\"\"") {
+				// Check if it's a single-line doc string (opens and closes on same line).
+				if strings.Count(trimmed, "\"\"\"") >= 2 {
+					continue
+				}
+				inDocString = true
 				continue
 			}
-			// A field definition starts with a letter (not a keyword).
+			if inDocString {
+				if strings.Contains(trimmed, "\"\"\"") {
+					inDocString = false
+				}
+				continue
+			}
+			// Skip empty lines, comments, and single-line strings.
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "\"") {
+				continue
+			}
+			// A field definition starts with a lowercase letter.
 			if len(trimmed) > 0 && trimmed[0] >= 'a' && trimmed[0] <= 'z' {
 				// Extract field name (up to first '(' or ':').
 				name := trimmed
@@ -184,11 +217,19 @@ func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 			}
 		}
 
-		// Property: Mutation type should only contain management operations.
-		// Currently only clearCache is defined.
+		// Allowed mutation fields: management ops + CRUD mutations (per graphql-mutations-crud spec).
+		allowedFields := map[string]bool{
+			"clearCache":           true,
+			"insertStarrocks":      true,
+			"updateStarrocks":      true,
+			"deleteStarrocks":      true,
+			"insertBatchStarrocks": true,
+		}
+
+		// Property: Mutation type should only contain allowed operations.
 		for _, fn := range fieldNames {
-			if fn != "clearCache" {
-				t.Fatalf("Mutation type contains unexpected field %q — only management operations are allowed (Requirements 2.9, 2.10)", fn)
+			if !allowedFields[fn] {
+				t.Fatalf("Mutation type contains unexpected field %q — only allowed operations are: %v", fn, allowedFields)
 			}
 		}
 
@@ -196,14 +237,26 @@ func TestProperty10_UnsupportedOperationTypesRejected(t *testing.T) {
 			t.Fatal("Mutation type has no fields — expected at least clearCache (Requirements 2.9)")
 		}
 
-		// Property 3: Randomly verify that data-write mutation keywords are absent.
-		forbiddenOps := []string{"insert", "update", "delete", "create", "drop", "alter"}
+		// Property: clearCache must always be present (management operation).
+		hasClearCache := false
+		for _, fn := range fieldNames {
+			if fn == "clearCache" {
+				hasClearCache = true
+				break
+			}
+		}
+		if !hasClearCache {
+			t.Fatal("Mutation type must include clearCache management operation")
+		}
+
+		// Property 3: Randomly verify that DDL operations are absent (create, drop, alter).
+		forbiddenOps := []string{"create", "drop", "alter"}
 		opIdx := rapid.IntRange(0, len(forbiddenOps)-1).Draw(t, "forbiddenOpIdx")
 		forbiddenOp := forbiddenOps[opIdx]
 
 		for _, fn := range fieldNames {
 			if strings.Contains(strings.ToLower(fn), forbiddenOp) {
-				t.Fatalf("Mutation contains data-write operation %q (contains %q) — only management operations allowed",
+				t.Fatalf("Mutation contains DDL operation %q (contains %q) — DDL operations are not allowed",
 					fn, forbiddenOp)
 			}
 		}
