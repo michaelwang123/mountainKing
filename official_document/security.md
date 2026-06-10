@@ -72,6 +72,48 @@ htpasswd -nbBC 10 "" "raw-api-key" | cut -d: -f2
 
 权限不足返回 HTTP 403 和 `AUTH_INSUFFICIENT_PERMISSION` 错误码。
 
+### Mutation 授权
+
+写操作（insertStarrocks、insertBatchStarrocks、updateStarrocks、deleteStarrocks）需要认证主体的 `operations` 列表中包含 `"mutation"` 权限。
+
+#### JWT operations claim
+
+JWT Token 的 payload 中通过 `operations` claim 声明允许的操作类型：
+
+```json
+{
+  "sub": "service-account-1",
+  "iss": "my-auth-service",
+  "exp": 1735689600,
+  "operations": ["query", "mutation"]
+}
+```
+
+**默认行为**：当 JWT payload 中缺少 `operations` claim 时，默认值为 `["query"]`。这意味着未显式声明 mutation 权限的 Token 仅能执行查询操作，所有写操作将被拒绝并返回 `AUTH_INSUFFICIENT_PERMISSION` 错误。
+
+#### API Key permissions 配置
+
+API Key 通过 `permissions.operations` 字段配置允许的操作类型：
+
+```yaml
+auth:
+  method: apikey
+  apikey:
+    keys:
+      - id: writer-service
+        key: "${GRAPHQL_APIKEY_WRITER}"
+        permissions:
+          datasources: [analytics_db]
+          operations: [query, mutation]  # 允许读写操作
+      - id: reader-service
+        key: "${GRAPHQL_APIKEY_READER}"
+        permissions:
+          datasources: [analytics_db]
+          operations: [query]  # 仅允许查询
+```
+
+仅配置了 `operations: [query]` 的 API Key 执行 Mutation 时将收到 HTTP 403 响应。
+
 ## 请求限流
 
 采用令牌桶算法，支持两种模式：
@@ -101,6 +143,25 @@ htpasswd -nbBC 10 "" "raw-api-key" | cut -d: -f2
 
 批量查询按实际查询数（而非 HTTP 请求数）计数。
 
+### Mutation 限流
+
+Mutation 写操作拥有独立于全局查询限流的专用限流策略。即使全局查询限流未触发，Mutation 限流也可能单独触发，反之亦然。
+
+配置项位于 `mutations.rate_limit`：
+
+```yaml
+mutations:
+  rate_limit:
+    requests_per_window: 20   # 每个时间窗口允许的 Mutation 请求数
+    window_size: 60s          # 时间窗口大小
+```
+
+Mutation 限流的设计考虑：
+- 写操作对数据库影响更大，因此默认配额低于查询限流
+- 限流 Key 复用全局限流的优先级规则（API Key ID → JWT sub → 客户端 IP）
+- 超限返回 HTTP 429 和 `MUTATION_RATELIMIT_EXCEEDED` 错误码
+- 限流响应头同样包含 `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`X-RateLimit-Reset`
+
 ## 暴力破解防护
 
 独立于正常限流，专门针对认证失败场景：
@@ -115,6 +176,30 @@ htpasswd -nbBC 10 "" "raw-api-key" | cut -d: -f2
 - 表名和字段名通过白名单校验（`allowed_tables` 配置必填）
 - 标识符使用反引号包裹
 - 标识符格式校验：仅允许 `[a-zA-Z0-9_]`
+
+#### Mutation 参数化查询
+
+Mutation 写操作（INSERT、UPDATE、DELETE）遵循与读查询相同的参数化查询模式防止 SQL 注入：
+
+- 所有用户提供的值通过 `?` 占位符绑定，不拼接到 SQL 字符串中
+- 表名和列名通过 `writable_tables` 白名单校验，仅允许配置中声明的表和列
+- WHERE 条件中的过滤值同样使用参数化绑定
+- INSERT 的列值、UPDATE 的 SET 值、DELETE 的 WHERE 条件值均为参数化传递
+
+示例（内部生成的参数化 SQL）：
+
+```sql
+-- insertStarrocks 生成
+INSERT INTO `orders` (`user_id`, `amount`, `status`) VALUES (?, ?, ?)
+
+-- updateStarrocks 生成
+UPDATE `orders` SET `status` = ? WHERE `order_id` = ?
+
+-- deleteStarrocks 生成
+DELETE FROM `orders` WHERE `order_id` = ? AND `status` = ?
+```
+
+即使攻击者在 AnyValue 输入中传入恶意字符串（如 `"'; DROP TABLE orders; --"`），参数化绑定确保该值仅作为数据处理，不会被解释为 SQL 语句。
 
 ### PromQL 注入防护（Prometheus）
 
@@ -180,6 +265,33 @@ sanitization:
 - 操作类型
 - 目标数据源
 - 请求结果（成功/失败）
+
+### Mutation 审计字段
+
+Mutation 写操作在标准审计字段基础上额外记录以下专用字段：
+
+| 字段 | 说明 | 示例值 |
+|------|------|--------|
+| operation_type | Mutation 操作类型 | `insert`、`update`、`delete`、`insertBatch` |
+| target_table | 目标表名 | `orders` |
+| affected_rows | 影响行数 | `1`、`500` |
+| outcome | 操作结果 | `success`、`failure` |
+
+审计日志示例（JSON 格式）：
+
+```json
+{
+  "timestamp": "2025-01-15T10:30:00Z",
+  "principal": "service-account-1",
+  "datasource": "analytics_db",
+  "operation_type": "insert",
+  "target_table": "orders",
+  "affected_rows": 1,
+  "outcome": "success"
+}
+```
+
+失败场景同样记录审计日志，`outcome` 为 `failure`，`affected_rows` 为 `0`，便于安全分析和异常检测。
 
 ## TLS/HTTPS
 

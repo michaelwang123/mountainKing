@@ -14,6 +14,7 @@
 - 日志级别 (`logging.level`)
 - 限流参数 (`rate_limit.requests_per_window`, `rate_limit.window_size`)
 - 缓存 TTL (`cache.default_ttl`, `cache.per_datasource.*.ttl`)
+- Mutation 开关及限流 (`mutations.enabled`, `mutations.max_affected_rows`, `mutations.rate_limit.requests_per_window`)
 
 其他配置项（如数据源连接、端口）的变更需要重启服务。
 
@@ -41,6 +42,36 @@
 | `max_query_depth`　　　 | int　| `10`　　| 查询嵌套深度上限　　　　　　　　　　　　　　　　　 |
 | `max_result_rows`　　　 | int　| `10000` | 单次查询最大返回行数，超限截断并在 warnings 中提示 |
 | `apq_enabled`　　　　　 | bool | `false` | 是否启用 Automatic Persisted Queries　　　　　　　 |
+
+### mutations — Mutation 写操作配置
+
+| 配置项　　　　　　　　　　　　　　　 | 类型　　 | 默认值　　　 | 说明　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| --------------------------------------| ----------| --------------| --------------------------------------------------------------------|
+| `enabled`　　　　　　　　　　　　　　| bool　　 | `false`　　　| 全局启用/禁用 Mutation 写操作支持　　　　　　　　　　　　　　　　　|
+| `datasource_name`　　　　　　　　　　| string　 | `""`　　　　 | 关联的 StarRocks 数据源名称，CUD 操作将在该数据源上执行　　　　　　|
+| `max_affected_rows`　　　　　　　　　| int　　　| `1000`　　　 | 单次操作影响行数警告阈值，超过时返回 warning 但仍执行成功　　　　　|
+| `max_batch_size`　　　　　　　　　　 | int　　　| `500`　　　　| insertBatchStarrocks 单次请求最大行数，超过返回验证错误　　　　　　 |
+| `max_sql_length`　　　　　　　　　　 | int　　　| `1048576`　　| 生成 SQL 语句最大长度（字节），默认 1MB，超过返回验证错误　　　　　|
+| `rate_limit.requests_per_window`　　 | int　　　| `20`　　　　 | Mutation 专用限流：每个时间窗口内允许的最大写操作请求数　　　　　　 |
+| `rate_limit.window_size`　　　　　　 | duration | `60s`　　　　| Mutation 专用限流：时间窗口大小　　　　　　　　　　　　　　　　　　 |
+
+> **注意**：Mutation 限流独立于全局 `rate_limit` 配置，两者互不影响。全局限流控制所有 GraphQL 请求，而 `mutations.rate_limit` 仅控制写操作请求频率。
+
+> **热更新**：`mutations.enabled` 支持运行时热更新，无需重启服务即可启用或禁用 Mutation 功能。
+
+#### 配置示例
+
+```yaml
+mutations:
+  enabled: true                          # 启用 Mutation 写操作
+  datasource_name: analytics_db          # 关联数据源名称（需与 datasources[].name 匹配）
+  max_affected_rows: 1000                # 影响行数警告阈值
+  max_batch_size: 500                    # 批量插入最大行数
+  max_sql_length: 1048576                # SQL 最大长度（1MB）
+  rate_limit:
+    requests_per_window: 20              # 每 60 秒最多 20 次写操作
+    window_size: 60s                     # 时间窗口大小
+```
 
 ### datasources — 数据源配置
 
@@ -70,10 +101,27 @@ options:
   pool_acquire_timeout: 5s         # 连接池获取超时
   reconnect_interval: 5s           # 初始重连间隔
   max_reconnect_interval: 60s      # 最大重连间隔
-  allowed_tables:                  # 表名/字段名白名单（必填）
+  allowed_tables:                  # 表名/字段名白名单（查询用，必填）
     orders:
       columns: [order_id, user_id, amount, status, created_at]
+  writable_tables:                 # Mutation 写操作表白名单（启用 mutations 时需配置）
+    orders:
+      columns: [order_id, user_id, amount, status, created_at]
+      allowed_operations: [insert, update, delete]
+    events:
+      columns: [event_id, event_type, payload, timestamp]
+      allowed_operations: [insert]
 ```
+
+`writable_tables` 配置说明：
+
+| 配置项　　　　　　　 | 类型　　 | 说明　　　　　　　　　　　　　　　　　　　　　　　　　　　　|
+| ----------------------| ----------| ------------------------------------------------------------|
+| `{table_name}`　　　 | map　　　| 表名作为 key，包含该表的写操作权限配置　　　　　　　　　　　|
+| `columns`　　　　　　| []string | 允许写入的列名列表，Mutation 操作只能操作列表中的列　　　　 |
+| `allowed_operations` | []string | 允许的写操作类型：`insert`、`update`、`delete` 的任意组合　 |
+
+> **安全提示**：`writable_tables` 与 `allowed_tables` 独立配置。`allowed_tables` 控制查询可访问的表和列，`writable_tables` 控制写操作可操作的表、列和操作类型。未在 `writable_tables` 中配置的表将拒绝所有写操作。
 
 #### Prometheus 连接参数
 

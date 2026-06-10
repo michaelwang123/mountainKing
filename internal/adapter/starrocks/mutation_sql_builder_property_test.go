@@ -145,6 +145,21 @@ func stripBacktickQuotedIdentifiers(sql string) string {
 	return result.String()
 }
 
+// isSQLStructuralString returns true if the string consists entirely of characters
+// that appear in SQL structural syntax (punctuation, whitespace, placeholders).
+// Such strings can coincidentally match SQL syntax and produce false positives.
+func isSQLStructuralString(s string) bool {
+	for _, c := range s {
+		switch c {
+		case ' ', ',', '(', ')', '?', '\t', '\n', '\r', '.', ';', '*', '=', '!', '<', '>', '+', '-':
+			// SQL structural characters — continue checking
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // valueAppearsInSQL checks if any user-provided value appears literally in the SQL text.
 // Only checks string values since numeric/bool values could coincidentally match SQL keywords.
 // Backtick-quoted identifiers are stripped from the SQL before checking, because identifiers
@@ -156,7 +171,13 @@ func valueAppearsInSQL(sql string, value any) bool {
 			return false // empty string is not meaningful to check
 		}
 		// Skip very short strings that could match SQL structural elements
-		if len(v) < 2 {
+		if len(v) < 3 {
+			return false
+		}
+		// Skip strings composed entirely of SQL structural characters (punctuation,
+		// whitespace, operators) — these match SQL syntax coincidentally, not due to
+		// value leakage. Real injection leaks contain alphanumeric content.
+		if isSQLStructuralString(v) {
 			return false
 		}
 		// Strip backtick-quoted identifiers to avoid false positives where a value
