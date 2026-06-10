@@ -38,6 +38,10 @@ type MetricsCollector struct {
 	CacheHitsTotal   *prometheus.CounterVec // graphql_cache_hits_total
 	CacheMissesTotal *prometheus.CounterVec // graphql_cache_misses_total
 
+	// Mutation metrics
+	MutationDuration *prometheus.HistogramVec // graphql_mutation_duration_seconds
+	MutationsTotal   *prometheus.CounterVec   // graphql_mutation_total
+
 	registry     *prometheus.Registry
 	customLabels prometheus.Labels
 }
@@ -49,6 +53,10 @@ var requestDurationBuckets = []float64{0.01, 0.025, 0.05, 0.1, 0.2, 0.5, 1, 2.5,
 // dsQueryDurationBuckets defines finer-grained histogram buckets for datasource
 // query duration, useful for pinpointing datasource-level latency bottlenecks.
 var dsQueryDurationBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
+
+// mutationDurationBuckets defines histogram buckets for mutation execution duration,
+// aligned with database write latency expectations.
+var mutationDurationBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}
 
 // NewMetricsCollector creates a MetricsCollector with all Prometheus metrics
 // registered. Custom labels from cfg.CustomLabels are attached as constant
@@ -133,6 +141,19 @@ func NewMetricsCollector(cfg *MetricsConfig) *MetricsCollector {
 		ConstLabels: cl,
 	}, []string{"datasource", "cache_backend"})
 
+	mc.MutationDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "graphql_mutation_duration_seconds",
+		Help:        "Histogram of mutation execution duration in seconds.",
+		Buckets:     mutationDurationBuckets,
+		ConstLabels: cl,
+	}, []string{"operation", "datasource", "table", "status"})
+
+	mc.MutationsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:        "graphql_mutation_total",
+		Help:        "Total number of mutation operations.",
+		ConstLabels: cl,
+	}, []string{"operation", "datasource", "table", "status"})
+
 	reg.MustRegister(
 		mc.RequestDuration,
 		mc.RequestsTotal,
@@ -144,6 +165,8 @@ func NewMetricsCollector(cfg *MetricsConfig) *MetricsCollector {
 		mc.ErrorsTotal,
 		mc.CacheHitsTotal,
 		mc.CacheMissesTotal,
+		mc.MutationDuration,
+		mc.MutationsTotal,
 	)
 
 	return mc

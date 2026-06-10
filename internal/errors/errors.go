@@ -83,4 +83,15 @@ const (
 
 	// ErrServiceUnavailable indicates the server is at capacity and cannot accept new requests.
 	ErrServiceUnavailable = "SERVICE_UNAVAILABLE"
+
+	// MUTATION - Mutation operation errors.
+
+	// ErrMutationFeatureDisabled indicates the mutations feature is globally disabled via configuration.
+	ErrMutationFeatureDisabled = "MUTATION_FEATURE_DISABLED"
+	// ErrMutationOperationNotSupported indicates the requested operation is not in the table's allowed_operations list.
+	ErrMutationOperationNotSupported = "MUTATION_OPERATION_NOT_SUPPORTED"
+	// ErrMutationLimitExceeded indicates the mutation affected more rows than the configured max_affected_rows threshold.
+	ErrMutationLimitExceeded = "MUTATION_LIMIT_EXCEEDED"
+	// ErrMutationRateLimitExceeded indicates the client has exceeded the mutation-specific rate limit.
+	ErrMutationRateLimitExceeded = "MUTATION_RATELIMIT_EXCEEDED"
 )

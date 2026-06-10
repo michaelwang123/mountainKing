@@ -142,6 +142,14 @@ type QueryRequest struct {
 	Options map[string]any
 }
 
+// WritableDataSource extends DataSource with write capability.
+// Adapters that support mutations implement this interface.
+type WritableDataSource interface {
+	DataSource
+	// ExecuteWrite executes a parameterized write SQL and returns affected rows.
+	ExecuteWrite(ctx context.Context, sql string, params []any) (int64, error)
+}
+
 // QueryResult holds the unified result returned by a data source query.
 type QueryResult struct {
 	// Data contains the result rows, each represented as a field-name to value map.

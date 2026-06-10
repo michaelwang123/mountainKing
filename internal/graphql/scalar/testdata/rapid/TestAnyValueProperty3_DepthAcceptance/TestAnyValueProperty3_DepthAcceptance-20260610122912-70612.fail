@@ -1,0 +1,9 @@
+# 2026/06/10 12:29:12.844565 [TestAnyValueProperty3_DepthAcceptance] [rapid] draw depth: 64
+# 2026/06/10 12:29:12.844565 [TestAnyValueProperty3_DepthAcceptance] [rapid] draw useMap: false
+# 2026/06/10 12:29:12.844565 [TestAnyValueProperty3_DepthAcceptance] UnmarshalAnyValue should accept depth 64, got error: AnyValue exceeds maximum nesting depth of 64
+# 
+v0.4.8#1843604236907068022
+0x0
+0xe3e05a098777c
+0x3f
+0x0

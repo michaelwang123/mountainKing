@@ -9,14 +9,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/michaelwang123/mountainKing/internal/datasource"
+	apierrors "github.com/michaelwang123/mountainKing/internal/errors"
 	"github.com/michaelwang123/mountainKing/internal/graphql/generated"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 // ClearCache is the resolver for the clearCache field.
-// It clears result cache entries only (cache: prefix), not APQ cache (apq: prefix).
-// Authorization for the "mutation" operation is enforced by the auth middleware (task 14).
 func (r *mutationResolver) ClearCache(ctx context.Context, datasource *string) (bool, error) {
-	// If cache is disabled (CacheClearer is nil), treat as no-op success.
 	if r.CacheClearer == nil {
 		return true, nil
 	}
@@ -32,6 +32,174 @@ func (r *mutationResolver) ClearCache(ctx context.Context, datasource *string) (
 		return false, fmt.Errorf("failed to clear all cache: %w", err)
 	}
 	return true, nil
+}
+
+// InsertStarrocks is the resolver for the insertStarrocks field.
+func (r *mutationResolver) InsertStarrocks(ctx context.Context, table string, values []*generated.ColumnValueInput) (*generated.MutationResult, error) {
+	// Extract columns and values from ColumnValueInput.
+	columns := make([]string, len(values))
+	vals := make([]any, len(values))
+	for i, cv := range values {
+		columns[i] = cv.Column
+		vals[i] = cv.Value
+	}
+
+	return r.executeMutation(ctx, mutationExecPlan{
+		operation: "insert",
+		table:     table,
+		validate: func() error {
+			if err := r.MutationValidator.ValidateInsertInput(table, columns, vals); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateTable(table); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateOperation(table, "insert"); err != nil {
+				return err
+			}
+			return r.WritableTableValidator.ValidateWriteColumns(table, columns)
+		},
+		buildAndExecute: func(ctx context.Context, wds datasource.WritableDataSource) (int64, int, error) {
+			result := r.MutationSQLBuilder.BuildInsert(table, columns, vals)
+			if err := r.MutationValidator.ValidateSQLLength(result.SQL); err != nil {
+				return 0, len(result.SQL), err
+			}
+			affected, err := wds.ExecuteWrite(ctx, result.SQL, result.Params)
+			return affected, len(result.SQL), err
+		},
+	})
+}
+
+// UpdateStarrocks is the resolver for the updateStarrocks field.
+func (r *mutationResolver) UpdateStarrocks(ctx context.Context, table string, set []*generated.ColumnValueInput, filter []*generated.MutationFilterInput) (*generated.MutationResult, error) {
+	// Extract SET columns/values.
+	setCols := make([]string, len(set))
+	setVals := make([]any, len(set))
+	for i, cv := range set {
+		setCols[i] = cv.Column
+		setVals[i] = cv.Value
+	}
+
+	// Convert filters (audit on failure for compliance traceability).
+	filters, err := convertMutationFilters(filter)
+	if err != nil {
+		cfg := r.MutationConfig.Load()
+		r.logMutationAudit(ctx, "update", table, cfg.DatasourceName, false, "validation_failed", 0)
+		return nil, err
+	}
+
+	return r.executeMutation(ctx, mutationExecPlan{
+		operation: "update",
+		table:     table,
+		validate: func() error {
+			if err := r.MutationValidator.ValidateUpdateInput(table, setCols, filters); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateTable(table); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateOperation(table, "update"); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateWriteColumns(table, setCols); err != nil {
+				return err
+			}
+			filterFields := make([]string, len(filters))
+			for i, f := range filters {
+				filterFields[i] = f.Field
+			}
+			return r.WritableTableValidator.ValidateFilterColumns(table, filterFields)
+		},
+		buildAndExecute: func(ctx context.Context, wds datasource.WritableDataSource) (int64, int, error) {
+			result := r.MutationSQLBuilder.BuildUpdate(table, setCols, setVals, filters)
+			if err := r.MutationValidator.ValidateSQLLength(result.SQL); err != nil {
+				return 0, len(result.SQL), err
+			}
+			affected, err := wds.ExecuteWrite(ctx, result.SQL, result.Params)
+			return affected, len(result.SQL), err
+		},
+	})
+}
+
+// DeleteStarrocks is the resolver for the deleteStarrocks field.
+func (r *mutationResolver) DeleteStarrocks(ctx context.Context, table string, filter []*generated.MutationFilterInput) (*generated.MutationResult, error) {
+	// Convert filters (audit on failure for compliance traceability).
+	filters, err := convertMutationFilters(filter)
+	if err != nil {
+		cfg := r.MutationConfig.Load()
+		r.logMutationAudit(ctx, "delete", table, cfg.DatasourceName, false, "validation_failed", 0)
+		return nil, err
+	}
+
+	return r.executeMutation(ctx, mutationExecPlan{
+		operation: "delete",
+		table:     table,
+		validate: func() error {
+			if err := r.MutationValidator.ValidateDeleteInput(table, filters); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateTable(table); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateOperation(table, "delete"); err != nil {
+				return err
+			}
+			filterFields := make([]string, len(filters))
+			for i, f := range filters {
+				filterFields[i] = f.Field
+			}
+			return r.WritableTableValidator.ValidateFilterColumns(table, filterFields)
+		},
+		buildAndExecute: func(ctx context.Context, wds datasource.WritableDataSource) (int64, int, error) {
+			result := r.MutationSQLBuilder.BuildDelete(table, filters)
+			if err := r.MutationValidator.ValidateSQLLength(result.SQL); err != nil {
+				return 0, len(result.SQL), err
+			}
+			affected, err := wds.ExecuteWrite(ctx, result.SQL, result.Params)
+			return affected, len(result.SQL), err
+		},
+	})
+}
+
+// InsertBatchStarrocks is the resolver for the insertBatchStarrocks field.
+func (r *mutationResolver) InsertBatchStarrocks(ctx context.Context, table string, columns []string, rows [][]any) (*generated.MutationResult, error) {
+	// Load config once and pass through to avoid double-read.
+	cfg := r.MutationConfig.Load()
+
+	// Early batch size check from config (before expensive conversion).
+	if cfg.Enabled && len(rows) > cfg.MaxBatchSize {
+		r.logMutationAudit(ctx, "insertBatch", table, cfg.DatasourceName, false, "validation_failed", 0)
+		return nil, &gqlerror.Error{
+			Message:    fmt.Sprintf("batch size %d exceeds maximum allowed %d", len(rows), cfg.MaxBatchSize),
+			Extensions: map[string]any{"code": apierrors.ErrValidationBatchLimitExceeded},
+		}
+	}
+
+	return r.executeMutation(ctx, mutationExecPlan{
+		operation: "insertBatch",
+		table:     table,
+		cfg:       cfg, // Pass pre-loaded cfg to avoid double atomic read.
+		validate: func() error {
+			if err := r.MutationValidator.ValidateBatchInsertInput(table, columns, rows); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateTable(table); err != nil {
+				return err
+			}
+			if err := r.WritableTableValidator.ValidateOperation(table, "insert"); err != nil {
+				return err
+			}
+			return r.WritableTableValidator.ValidateWriteColumns(table, columns)
+		},
+		buildAndExecute: func(ctx context.Context, wds datasource.WritableDataSource) (int64, int, error) {
+			result := r.MutationSQLBuilder.BuildBatchInsert(table, columns, rows)
+			if err := r.MutationValidator.ValidateSQLLength(result.SQL); err != nil {
+				return 0, len(result.SQL), err
+			}
+			affected, err := wds.ExecuteWrite(ctx, result.SQL, result.Params)
+			return affected, len(result.SQL), err
+		},
+	})
 }
 
 // Mutation returns generated.MutationResolver implementation.

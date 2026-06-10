@@ -21,6 +21,9 @@ autobind:
   - github.com/michaelwang123/mountainKing/internal/graphql/scalar
 
 models:
+  AnyValue:
+    model:
+      - github.com/michaelwang123/mountainKing/internal/graphql/scalar.AnyValue
   DateTime:
     model:
       - github.com/michaelwang123/mountainKing/internal/graphql/scalar.DateTime

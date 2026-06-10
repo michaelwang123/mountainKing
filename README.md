@@ -1,4 +1,6 @@
-# GraphQL 多数据源 API 服务
+# MountainKing
+
+> **零代码暴露安全的 GraphQL API** — 数据分析师和 BI 工程师只需编写 SQL 模板 + YAML 配置，即可将 StarRocks、Prometheus 等异构数据源统一为生产级 GraphQL 接口，无需掌握 GraphQL 开发知识。
 
 [![CI](https://github.com/michaelwang123/mountainKing/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelwang123/mountainKing/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/michaelwang123/mountainKing/branch/main/graph/badge.svg)](https://codecov.io/gh/michaelwang123/mountainKing)

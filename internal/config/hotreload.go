@@ -29,6 +29,12 @@ var hotReloadableKeys = map[string]bool{
 	"rate_limit.window_size":         true,
 	"cache.default_ttl":              true,
 	"cache.per_datasource":           true,
+
+	// Mutation config keys (hot-reloadable to allow toggling without restart)
+	"mutations.enabled":                        true,
+	"mutations.max_affected_rows":              true,
+	"mutations.rate_limit.requests_per_window": true,
+	"mutations.rate_limit.window_size":         true,
 }
 
 // HotReloader watches a configuration file for changes and triggers callbacks
