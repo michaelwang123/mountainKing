@@ -54,7 +54,14 @@ var (
 
 func main() {
 	configPath := flag.String("config", "", "path to config file")
+	healthCheck := flag.Bool("health", false, "run health check and exit (for container HEALTHCHECK)")
 	flag.Parse()
+
+	// Health check mode: probe localhost and exit with 0/1.
+	if *healthCheck {
+		runHealthProbe()
+		return
+	}
 
 	// Priority: CLI flag > GRAPHQL_CONFIG_PATH env var > default "config.yaml"
 	cfgFile := "config.yaml"

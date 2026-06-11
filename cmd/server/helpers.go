@@ -5,7 +5,10 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/michaelwang123/mountainKing/internal/config"
 	"github.com/michaelwang123/mountainKing/internal/middleware"
@@ -61,4 +64,29 @@ func newAuthFailureLimiterMiddleware(afl *middleware.AuthFailureLimiter) func(ht
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// runHealthProbe performs a local HTTP health check against the running server.
+// Used by Docker HEALTHCHECK to probe the container without external tools.
+// Reads port from GRAPHQL_SERVER_PORT env var (default 8080).
+func runHealthProbe() {
+	port := os.Getenv("GRAPHQL_SERVER_PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://localhost:%s/health", port))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "health check failed: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintf(os.Stderr, "health check returned status %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
+
+	os.Exit(0)
 }

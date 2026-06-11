@@ -235,17 +235,116 @@ go test -bench=. -benchmem ./internal/server/
 
 属性测试使用 [rapid](https://pkg.go.dev/pgregory.net/rapid) 框架，每个属性 100+ 次迭代。
 
-## Docker
+## Docker 快速开始
+
+### 拉取镜像
 
 ```bash
-# 构建
+docker pull ghcr.io/michaelwang123/mountainking
+```
+
+指定版本拉取：
+
+```bash
+# 固定精确版本
+docker pull ghcr.io/michaelwang123/mountainking:v1.2.3
+# 跟踪 minor 版本
+docker pull ghcr.io/michaelwang123/mountainking:v1.2
+# 开发版（main 分支最新）
+docker pull ghcr.io/michaelwang123/mountainking:dev
+```
+
+### 运行容器
+
+```bash
+docker run -d --name mountainking \
+  -p 8080:8080 \
+  -v $(pwd)/config.yaml:/config.yaml \
+  ghcr.io/michaelwang123/mountainking
+```
+
+容器默认监听端口 `8080`，需要挂载 `config.yaml` 到容器内 `/config.yaml` 路径。
+
+### 环境变量覆盖
+
+容器支持通过 `GRAPHQL_` 前缀的环境变量覆盖配置文件中的值（12-Factor 风格）：
+
+| 环境变量 | 说明 | 示例值 |
+|----------|------|--------|
+| `GRAPHQL_SERVER_MODE` | 服务器模式 | `development` / `production` |
+| `GRAPHQL_SERVER_PORT` | 覆盖默认端口 | `9090` |
+| `GRAPHQL_STARROCKS_PASSWORD` | StarRocks 数据库密码 | `my-secret` |
+| `GRAPHQL_LOG_LEVEL` | 日志级别 | `debug` / `info` / `warn` / `error` |
+
+示例：
+
+```bash
+docker run -d --name mountainking \
+  -p 9090:9090 \
+  -v $(pwd)/config.yaml:/config.yaml \
+  -e GRAPHQL_SERVER_MODE=development \
+  -e GRAPHQL_SERVER_PORT=9090 \
+  -e GRAPHQL_LOG_LEVEL=debug \
+  ghcr.io/michaelwang123/mountainking
+```
+
+### Docker Compose 示例
+
+以下示例运行 MountainKing 服务及其依赖的 Redis 和 Prometheus：
+
+```yaml
+services:
+  mountainking:
+    image: ghcr.io/michaelwang123/mountainking
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/config.yaml
+    environment:
+      - GRAPHQL_SERVER_MODE=production
+      - GRAPHQL_LOG_LEVEL=info
+    depends_on:
+      redis:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+    restart: unless-stopped
+    # 容器内置 HEALTHCHECK（使用 /graphql-api -health 探测 /health 端点）
+    # Docker Compose 可自动检测 Dockerfile 中的 HEALTHCHECK 指令
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+```
+
+运行：
+
+```bash
+docker compose up -d
+```
+
+### 本地构建镜像
+
+```bash
 docker build -f deploy/Dockerfile \
   --build-arg VERSION=$(git describe --tags) \
   --build-arg BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
   -t graphql-api:latest .
-
-# 运行
-docker run -p 8080:8080 -v $(pwd)/config.yaml:/config.yaml graphql-api:latest
 ```
 
 ## Kubernetes

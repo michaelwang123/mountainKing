@@ -1,0 +1,49 @@
+# Version control
+.git/
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+.kiro/
+
+# Build artifacts
+bin/
+dist/
+*.exe
+*.dll
+*.so
+
+# Documentation
+docs/
+course/
+official_document/
+*.md
+
+# Tests
+tests/
+
+# Environment files
+.env
+.env.*
+config.dev.yaml
+
+# Coverage and audit
+coverage_audit
+coverage.out
+
+# Monitoring dashboards
+deploy/grafana/
+
+# CI/CD and project meta
+.github/
+.golangci.yml
+
+# Deployment manifests (not needed in image)
+deploy/k8s/
+deploy/docker-compose*.yaml
+deploy/prometheus*.yml

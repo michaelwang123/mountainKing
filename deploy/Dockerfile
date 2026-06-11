@@ -16,8 +16,10 @@ COPY . .
 
 ARG VERSION=dev
 ARG BUILD_TIME=unknown
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-s -w -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" \
     -o /bin/graphql-api ./cmd/server
 
@@ -26,9 +28,13 @@ FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /bin/graphql-api /graphql-api
 COPY --from=builder /src/config.yaml /config.yaml
+COPY --from=builder /src/templates /templates
 
 USER 65534
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=5s \
+  CMD ["/graphql-api", "-health"]
 
 ENTRYPOINT ["/graphql-api"]
