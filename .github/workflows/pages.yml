@@ -59,6 +59,8 @@ jobs:
 
           # Generate version.json from latest git tag
           VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          # Strip leading 'v' prefix if present (tags are like v0.1.0)
+          VERSION="${VERSION#v}"
           echo "{\"version\": \"${VERSION}\"}" > _site/version.json
 
           echo "✅ Site built successfully"
