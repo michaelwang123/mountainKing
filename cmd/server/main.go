@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/go-chi/chi/v5"
+	clickhouseadapter "github.com/michaelwang123/mountainKing/internal/adapter/clickhouse"
 	mockadapter "github.com/michaelwang123/mountainKing/internal/adapter/mock"
 	"github.com/michaelwang123/mountainKing/internal/adapter/prometheus"
 	"github.com/michaelwang123/mountainKing/internal/adapter/starrocks"
@@ -130,6 +131,9 @@ func main() {
 	}
 	if err := registry.Register("mock", mockadapter.Factory()); err != nil {
 		logger.Fatal("failed to register mock adapter", zap.Error(err))
+	}
+	if err := registry.Register("clickhouse", clickhouseadapter.Factory(logger.Logger)); err != nil {
+		logger.Fatal("failed to register clickhouse adapter", zap.Error(err))
 	}
 
 	// 6. Init DataSourceManager.

@@ -4,9 +4,10 @@
 
 本服务采用适配器模式接入数据源。所有适配器实现统一的 `DataSource` 接口，通过 `AdapterRegistry` 注册，由 `DataSourceManager` 统一管理生命周期。
 
-当前内置两个适配器：
+当前内置三个适配器：
 - **StarRocks** — OLAP 分析型数据库（通过 MySQL 协议）
 - **Prometheus** — 时序数据库（通过 HTTP API）
+- **ClickHouse** — OLAP 分析型数据库（通过原生 TCP 协议）
 
 此外，StarRocks 适配器还实现了 `RawExecutor` 接口，供 SQL 模板引擎直接执行渲染后的 SQL 语句（绕过白名单和查询构建器）。
 
@@ -99,6 +100,196 @@ StarRocks 适配器要求配置 `allowed_tables` 白名单（必填）。查询�
 ### 数据点限制
 
 当返回数据量超过 `max_data_points` 配置时，返回错误提示，建议缩小时间范围或增大 step 值。
+
+## ClickHouse Adapter
+
+### Overview
+
+The ClickHouse adapter connects to ClickHouse OLAP analytical databases via the native TCP protocol (port 9000). It uses the official `clickhouse-go/v2` driver (v2.46.0) through Go's `database/sql` interface, providing connection pooling, LZ4/ZSTD compression, and TLS support.
+
+ClickHouse is architecturally similar to StarRocks — both are columnar OLAP engines with compatible SQL syntax. The adapter reuses the same patterns (whitelist validation, parameterized queries, circuit breaker integration) while handling ClickHouse-specific behaviors.
+
+### Connection Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `connection.host` | string | localhost | ClickHouse server address (required) |
+| `connection.port` | int | 9000 | Native TCP port (auto-switches to 9440 when secure=true) |
+| `connection.username` | string | default | Username |
+| `connection.password` | string | (empty) | Password |
+| `connection.database` | string | default | Database name |
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `pool_size` | int | 10 | Maximum open connections (MaxOpenConns) |
+| `max_idle_conns` | int | 5 | Maximum idle connections (MaxIdleConns) |
+| `connection_timeout` | duration | 5s | Connection dial timeout |
+| `read_timeout` | duration | 30s | Read timeout (set higher for long-running OLAP queries) |
+| `conn_max_lifetime` | duration | 1h | Maximum connection lifetime |
+| `secure` | bool | false | Enable TLS encryption |
+| `compress` | string | lz4 | Compression algorithm: lz4, zstd, or none |
+
+### TLS Port Linkage
+
+When `secure: true` is set and the port is not explicitly configured (or is set to the default 9000), the adapter automatically switches to port 9440 (ClickHouse native TLS port):
+
+```
+secure=true  + port not set  → connects to port 9440
+secure=true  + port=9000     → connects to port 9440 (auto-switch)
+secure=true  + port=9440     → connects to port 9440 (explicit)
+secure=true  + port=19000    → connects to port 19000 (custom, no auto-switch)
+secure=false + port not set  → connects to port 9000 (default)
+```
+
+### Whitelist Configuration
+
+The ClickHouse adapter requires an `allowed_tables` whitelist in the options section. Format is identical to StarRocks:
+
+```yaml
+options:
+  allowed_tables:
+    events:
+      columns: [event_id, user_id, event_type, created_at, payload]
+    metrics:
+      columns: [timestamp, metric_name, value, tags]
+```
+
+Validation rules:
+- Table name must be in the whitelist
+- Column names must be in the corresponding table's `columns` list
+- Identifier format: `^[a-zA-Z_][a-zA-Z0-9_]*$` (must start with a letter or underscore)
+
+### Type Mapping
+
+| ClickHouse Type | GraphQL Type | Notes |
+|----------------|-------------|-------|
+| Int8, Int16, Int32, UInt8, UInt16, UInt32 | Int | Fits in 32-bit signed range |
+| Int64, UInt64, Int128, Int256, UInt128, UInt256 | String | Exceeds GraphQL Int 32-bit range |
+| Float32, Float64, BFloat16 | Float | |
+| String, FixedString | String | |
+| Bool, Boolean | Boolean | |
+| Decimal, Decimal32, Decimal64, Decimal128, Decimal256 | String | Preserves precision |
+| Date, Date32, DateTime, DateTime64 | DateTime | Custom scalar |
+| Time, Time64 | String | Time-of-day only (HH:MM:SS) |
+| UUID | String | |
+| IPv4, IPv6 | String | |
+| Enum8, Enum16 | String | |
+| Array, Tuple, Map, Nested, JSON, Variant, Dynamic | JSON | Custom scalar |
+| Point, Ring, Polygon, MultiPolygon | JSON | Geo types |
+| LowCardinality(T) | (maps T recursively) | Wrapper stripped |
+| Nullable(T) | (maps T recursively) | Wrapper stripped |
+| SimpleAggregateFunction(func, T) | (maps T recursively) | Maps inner type |
+| AggregateFunction(...) | String | |
+| Unknown type | String | Logs a warning |
+
+Recursive type parsing is limited to 10 levels to prevent stack overflow from malformed type strings.
+
+### Differences from StarRocks
+
+| Aspect | StarRocks | ClickHouse |
+|--------|-----------|------------|
+| Protocol | MySQL protocol (port 9030) | Native TCP (port 9000/9440) |
+| Driver | go-sql-driver/mysql | clickhouse-go/v2 v2.46.0 |
+| Compression | None | LZ4 enabled by default |
+| DELETE behavior | Synchronous, returns affected rows | Lightweight DELETE — `RowsAffected()` always returns 0 |
+| Int64 mapping | Int (fits MySQL protocol) | String (exceeds GraphQL 32-bit Int) |
+| INSERT performance | No special consideration | Batch insert recommended (1000+ rows per batch) |
+| Identifier validation | `^[a-zA-Z0-9_]+$` | `^[a-zA-Z_][a-zA-Z0-9_]*$` (no leading digits) |
+| TLS | N/A | Port auto-switches 9000→9440 when secure=true |
+
+**Important behavioral notes:**
+
+1. **DELETE RowsAffected=0** — ClickHouse lightweight DELETE (standard since v22.8) marks rows for deletion without immediately removing them physically. Background merges clean up marked rows later. Therefore, `RowsAffected()` always returns 0 for DELETE operations. This is by design, not a bug. INSERT operations return the actual row count normally.
+
+2. **Int64→String** — ClickHouse integer types that exceed the GraphQL Int 32-bit signed range (Int64, UInt64, Int128, Int256, UInt128, UInt256) are mapped to GraphQL String to preserve precision. StarRocks maps BIGINT to Int because MySQL protocol returns these within a narrower range.
+
+3. **Batch insert recommendation** — ClickHouse performs poorly with single-row INSERT statements. For write-heavy workloads, use the `insertBatch` mutation and insert 1000+ rows per batch for optimal performance.
+
+### Usage Examples
+
+**Configuration:**
+
+```yaml
+datasources:
+  - name: analytics_ck
+    type: clickhouse
+    enabled: true
+    connection:
+      host: "${CK_HOST}"
+      port: 9000
+      username: "${CK_USERNAME}"
+      password: "${CK_PASSWORD}"
+      database: default
+    options:
+      pool_size: 20
+      max_idle_conns: 10
+      connection_timeout: 5s
+      read_timeout: 30s
+      conn_max_lifetime: 1h
+      secure: false
+      compress: lz4
+      allowed_tables:
+        events:
+          columns: [event_id, user_id, event_type, created_at, payload]
+        metrics:
+          columns: [timestamp, metric_name, value, tags]
+```
+
+**GraphQL query:**
+
+```graphql
+query {
+  analytics_ck(
+    table: "events"
+    filters: [
+      { field: "event_type", operator: EQ, value: "purchase" }
+      { field: "created_at", operator: GTE, value: "2024-01-01" }
+    ]
+    orderBy: [{ field: "created_at", direction: DESC }]
+    first: 50
+  ) {
+    data {
+      event_id
+      user_id
+      event_type
+      created_at
+      payload
+    }
+    totalCount
+  }
+}
+```
+
+**Mutation (INSERT):**
+
+```graphql
+mutation {
+  insert_analytics_ck(
+    table: "events"
+    objects: [
+      { event_id: "evt_001", user_id: "u123", event_type: "click", created_at: "2024-06-15T10:30:00Z" }
+      { event_id: "evt_002", user_id: "u456", event_type: "purchase", created_at: "2024-06-15T10:31:00Z" }
+    ]
+  ) {
+    affected_rows
+  }
+}
+```
+
+**Mutation (DELETE):**
+
+```graphql
+mutation {
+  delete_analytics_ck(
+    table: "events"
+    where: { event_type: { _eq: "test" } }
+  ) {
+    affected_rows   # Always returns 0 for ClickHouse (lightweight delete behavior)
+  }
+}
+```
 
 ## 扩展新数据源
 

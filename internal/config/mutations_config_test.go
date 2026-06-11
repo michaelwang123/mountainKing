@@ -93,15 +93,26 @@ func TestValidateMutationsConfig_DisabledDatasource(t *testing.T) {
 	}
 }
 
-func TestValidateMutationsConfig_NonStarrocksType(t *testing.T) {
+func TestValidateMutationsConfig_NonWritableType(t *testing.T) {
 	cfg := validMutationsBaseConfig()
 	cfg.Datasources[0].Type = "prometheus"
 	err := ValidateMutationsConfig(cfg)
 	if err == nil {
-		t.Fatal("expected error for non-starrocks type")
+		t.Fatal("expected error for non-writable type")
 	}
-	if !strings.Contains(err.Error(), "must reference a starrocks type datasource") {
-		t.Fatalf("expected starrocks type error, got: %v", err)
+	if !strings.Contains(err.Error(), "must reference a starrocks or clickhouse type datasource") {
+		t.Fatalf("expected writable type error, got: %v", err)
+	}
+}
+
+func TestValidateMutationsConfig_ClickhouseTypeValid(t *testing.T) {
+	cfg := validMutationsBaseConfig()
+	cfg.Datasources[0].Type = "clickhouse"
+	// Remove starrocks-specific whitelist requirement (clickhouse uses its own validation)
+	cfg.Datasources[0].Options = map[string]any{}
+	err := ValidateMutationsConfig(cfg)
+	if err != nil {
+		t.Fatalf("clickhouse type should be accepted for mutations, got: %v", err)
 	}
 }
 

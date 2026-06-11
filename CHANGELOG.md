@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Added
+- ClickHouse datasource adapter with full read/write support via native TCP protocol
+- ClickHouse type mapper supporting all ClickHouse 26.5 types (including BFloat16, Time, JSON, Variant, Dynamic)
+- ClickHouse query builder with parameterized SQL and whitelist enforcement
+- Property-based tests for ClickHouse adapter (parameterization safety, type mapping completeness, recursion depth safety)
+- ClickHouse mutation support via WritableDataSource interface
 - 新增 Docker 镜像自动发布到 GitHub Container Registry (GHCR)
   - 多架构支持（linux/amd64 + linux/arm64）
   - 语义化版本标签（v1.2.3, v1.2, v1, latest）

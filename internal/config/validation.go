@@ -397,9 +397,9 @@ func ValidateMutationsConfig(cfg *Config) error {
 		return fmt.Errorf("mutations.datasource_name %q does not reference an existing datasource", cfg.Mutations.DatasourceName)
 	}
 
-	// Verify datasource type is starrocks
-	if dsType != "starrocks" {
-		return fmt.Errorf("mutations.datasource_name %q must reference a starrocks type datasource, got %q",
+	// Verify datasource type is a writable type (starrocks or clickhouse)
+	if dsType != "starrocks" && dsType != "clickhouse" {
+		return fmt.Errorf("mutations.datasource_name %q must reference a starrocks or clickhouse type datasource, got %q",
 			cfg.Mutations.DatasourceName, dsType)
 	}
 

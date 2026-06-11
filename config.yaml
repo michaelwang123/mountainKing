@@ -97,6 +97,30 @@ datasources:
       reconnect_interval: 5s
       max_reconnect_interval: 60s
 
+  # --- ClickHouse Datasource (Commented Out) ---
+  # - name: analytics_ck
+  #   type: clickhouse
+  #   enabled: true
+  #   connection:
+  #     host: "${CK_HOST}"          # ClickHouse server address (required)
+  #     port: 9000                   # Native TCP port (default: 9000, TLS: 9440)
+  #     username: "${CK_USERNAME}"   # Username (default: "default")
+  #     password: "${CK_PASSWORD}"   # Password (default: empty)
+  #     database: default            # Database name (default: "default")
+  #   options:
+  #     pool_size: 20                # MaxOpenConns (default: 10)
+  #     max_idle_conns: 10           # MaxIdleConns (default: 5)
+  #     connection_timeout: 5s       # dial_timeout (default: 5s)
+  #     read_timeout: 30s            # Read timeout for OLAP queries (default: 30s)
+  #     conn_max_lifetime: 1h        # Connection max lifetime (default: 1h)
+  #     secure: false                # Enable TLS (port auto-switches to 9440)
+  #     compress: lz4                # Compression: lz4/zstd/none (default: lz4)
+  #     allowed_tables:
+  #       events:
+  #         columns: [event_id, user_id, event_type, created_at, payload]
+  #       metrics:
+  #         columns: [timestamp, metric_name, value, tags]
+
 # Authentication configuration
 auth:
   method: jwt                         # jwt | apikey

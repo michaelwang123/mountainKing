@@ -1,17 +1,17 @@
 # MountainKing
 
-> **零代码暴露安全的 GraphQL API** — 数据分析师和 BI 工程师只需编写 SQL 模板 + YAML 配置，即可将 StarRocks、Prometheus 等异构数据源统一为生产级 GraphQL 接口，无需掌握 GraphQL 开发知识。
+> **零代码暴露安全的 GraphQL API** — 数据分析师和 BI 工程师只需编写 SQL 模板 + YAML 配置，即可将 StarRocks、Prometheus、ClickHouse 等异构数据源统一为生产级 GraphQL 接口，无需掌握 GraphQL 开发知识。
 
 [![CI](https://github.com/michaelwang123/mountainKing/actions/workflows/ci.yml/badge.svg)](https://github.com/michaelwang123/mountainKing/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/michaelwang123/mountainKing/branch/main/graph/badge.svg)](https://codecov.io/gh/michaelwang123/mountainKing)
 
 [English](README_EN.md) | 中文 | [📖 在线文档](https://michaelwang123.github.io/mountainKing/)
 
-基于 Go 语言的生产级 GraphQL API 服务器，提供跨多数据源的统一查询接口 — 当前支持 StarRocks（OLAP 分析型数据库）和 Prometheus（时序指标）。基于 gqlgen、chi 和完整的中间件栈构建，具备企业级安全性、可观测性和弹性能力。
+基于 Go 语言的生产级 GraphQL API 服务器，提供跨多数据源的统一查询接口 — 当前支持 StarRocks（OLAP 分析型数据库）、Prometheus（时序指标）和 ClickHouse（列式 OLAP 数据库，原生 TCP 协议）。基于 gqlgen、chi 和完整的中间件栈构建，具备企业级安全性、可观测性和弹性能力。
 
 ## 功能特性
 
-- 统一 GraphQL API，同时查询 StarRocks 和 Prometheus
+- 三数据源适配器（StarRocks + Prometheus + ClickHouse）— 统一 GraphQL API，同时查询多种异构数据源
 - SQL 模板查询引擎 — 通过预定义的 Go `text/template` SQL 模板执行复杂的多表 JOIN、CTE 和窗口函数查询，具备完整的 SQL 注入防护
 - Relay 游标分页和传统 offset/limit 分页
 - Prometheus 即时查询和范围查询
@@ -39,6 +39,7 @@
 - Go 1.25+
 - （可选）StarRocks 实例
 - （可选）Prometheus 实例
+- （可选）ClickHouse 实例
 - （可选）Redis — 用于分布式缓存和限流
 
 ## 快速开始（开发模式）
@@ -85,7 +86,7 @@ export GRAPHQL_GRAPHQL_INTROSPECTION_ENABLED=true
 |--------|------|
 | `server` | 端口、模式、超时、批量限制 |
 | `graphql` | Schema 自省、复杂度/深度限制、最大结果行数 |
-| `datasources` | StarRocks/Prometheus 连接配置和白名单 |
+| `datasources` | StarRocks/Prometheus/ClickHouse 连接配置和白名单 |
 | `auth` | JWT（HS256/RS256/ES256）或 API Key 认证 |
 | `rate_limit` | 本地或分布式（Redis）限流 |
 | `cache` | 内存/Redis 后端、TTL、抖动、按数据源 TTL |
@@ -155,6 +156,7 @@ reloadTemplates: ReloadTemplatesResult!
 cmd/server/              入口（main.go）
 internal/
   adapter/
+    clickhouse/          ClickHouse 适配器、查询构建器、类型映射、白名单
     prometheus/          Prometheus 适配器、查询构建器、类型映射、校验器
     starrocks/           StarRocks 适配器、查询构建器、类型映射、白名单
   audit/                 审计日志
@@ -201,7 +203,7 @@ templates/               SQL 模板文件目录（通过 sql_templates.base_dir 
 | [配置参考](official_document/configuration.md) | 所有配置项、环境变量覆盖、热更新 |
 | [GraphQL API 参考](official_document/graphql-api.md) | Schema、查询、Mutation、分页、错误码 |
 | [安全指南](official_document/security.md) | 认证、授权、限流、输入校验 |
-| [数据源适配器](official_document/datasource-adapters.md) | StarRocks/Prometheus 详解和扩展指南 |
+| [数据源适配器](official_document/datasource-adapters.md) | StarRocks/Prometheus/ClickHouse 详解和扩展指南 |
 | [可观测性](official_document/observability.md) | Prometheus 指标、OpenTelemetry 追踪、结构化日志 |
 | [部署指南](official_document/deployment.md) | Docker、Kubernetes、CI/CD、生产检查清单 |
 | [性能调优](official_document/performance.md) | 缓存、连接池、熔断器、基准测试 |

@@ -1,0 +1,139 @@
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw tableIdx: 0
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw numFields: 2
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw fieldPerm: []int{1, 0}
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw numFilters: 3
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw filterFieldIdx: 2
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw filterValue: "A%@¡ॉ̎~!!A"
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw opIdx: 2
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw filterFieldIdx: 2
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw filterValue: "="
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw opIdx: 3
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw filterFieldIdx: 3
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw filterValue: "C$̆A*"
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw opIdx: 2
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw numOrder: 1
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw orderFieldIdx: 2
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw sortDir: false
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] [rapid] draw hasPagination: false
+# 2026/06/11 15:31:45.458466 [TestPropertyParameterizationSafety] SQL contains user value literal "=": SELECT `user_id`, `event_id` FROM `events` WHERE `event_type` > ? AND `event_type` >= ? AND `created_at` > ? ORDER BY `event_type` DESC
+# 
+v0.4.8#6272759018662150773
+0x1796b0cea68935
+0x1605e7d4fbf8bf
+0x0
+0xa94f02385acc4
+0x1192fcfbf49df5
+0x1
+0x990c05ec1097b
+0x16db2692c1038c
+0x17d13e7ce71964
+0x1
+0x1c4f739df602d5
+0x1190b62dd6590b
+0x6f81d5e76a4d
+0x0
+0x1fbc0856b165ba
+0xc39e0261380eb
+0x1f32d7cbd56707
+0xffffffffffffffff
+0x5e9d76803e8f5
+0x1e591cbf1e7769
+0x2
+0x14080905a8ae2e
+0x14
+0x4dff9c3aac70c
+0x0
+0x88448a286ab28
+0x3b
+0x3a
+0x6
+0xab5b9feb6a40d
+0x8
+0x1d8b2b081e0adf
+0x9
+0xb793be2cc0702
+0x5
+0xfc2ffd36a20db
+0x1c
+0xc05ff6539f020
+0x17
+0x10f05b5e2343f4
+0x23
+0xfde6b799c03a7
+0x5
+0x178d7a6e08f814
+0x21
+0xd7619b2a969e4
+0xe
+0x165ed55288829b
+0x12
+0x9df5115130a6f
+0x3
+0x1d2056ef1ce2d8
+0x34
+0xe
+0x8f74326a40098
+0x4
+0x1ef9c21e106e6f
+0xb
+0x88497f843de0e
+0x4
+0xf29336fa98be8
+0x0
+0x37e7ebb9adaf8
+0x0
+0x2486fde066fd3
+0x1c136e3336570f
+0x1a8b38e93e05a3
+0x7
+0x7
+0x2
+0x84eb085a7cc82
+0x1895598db4304b
+0x2
+0x8773eeb40653a
+0x34
+0xc
+0xca8c3bfcc92a2
+0xf
+0x53e10c46004c3
+0x1c967a2f8e296
+0x160d7d9fb20a2a
+0x7
+0x3
+0x1e9a1a2b2dca2c
+0x16702fa14fbd5b
+0x3
+0x195995b471f9f3
+0x14
+0x70538dd21b93c
+0x2
+0xa544cdc557520
+0x2
+0xa1c58724b957b
+0x7
+0xf929bd5770885
+0x2c
+0x21
+0xca3fe37df72ae
+0x6
+0x1fe07e8c9afe63
+0x4
+0x7ebd2065ad52
+0x0
+0x11b84dee1122a2
+0x0
+0x1a6c4a98fabb58
+0xb
+0x2ea056d4522d6
+0x16f9587c8bd463
+0x16a2b0712f0014
+0x2
+0x2b38cd0eb044c
+0x61ea0388929a
+0x1
+0x1b9faf868b41e6
+0x10581d77f78e7b
+0x2
+0x0
+0x0

@@ -80,7 +80,7 @@ mutations:
 | 配置项　　　 | 类型　 | 说明　　　　　　　　　　　　　　　　　　　|
 | --------------| --------| -------------------------------------------|
 | `name`　　　 | string | 数据源唯一名称　　　　　　　　　　　　　　|
-| `type`　　　 | string | 数据源类型（`starrocks` 或 `prometheus`） |
+| `type`　　　 | string | 数据源类型（`starrocks`、`prometheus` 或 `clickhouse`） |
 | `enabled`　　| bool　 | 是否启用　　　　　　　　　　　　　　　　　|
 | `connection` | map　　| 连接参数（因类型而异）　　　　　　　　　　|
 | `options`　　| map　　| 适配器特有选项　　　　　　　　　　　　　　|
@@ -134,6 +134,39 @@ options:
   reconnect_interval: 5s
   max_reconnect_interval: 60s
 ```
+
+#### ClickHouse 连接参数
+
+```yaml
+- name: analytics_ck
+  type: clickhouse
+  enabled: true
+  connection:
+    host: "${CK_HOST}"
+    port: 9000
+    username: "${CK_USERNAME}"
+    password: "${CK_PASSWORD}"
+    database: default
+  options:
+    pool_size: 20
+    max_idle_conns: 10
+    connection_timeout: 5s
+    read_timeout: 30s
+    conn_max_lifetime: 1h
+    secure: false
+    compress: lz4
+    allowed_tables:
+      events:
+        columns: [event_id, user_id, event_type, created_at, payload]
+```
+
+ClickHouse 特有选项说明：
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `secure` | bool | `false` | 是否启用 TLS 加密连接。设为 `true` 时，若未显式指定端口，将自动切换到 9440（ClickHouse 原生 TLS 端口） |
+| `compress` | string | `lz4` | 数据传输压缩算法，可选值：`lz4`（推荐，低 CPU 开销）、`zstd`（更高压缩比）、`none`（禁用压缩）。ClickHouse 大结果集场景建议启用压缩以减少网络传输 |
+| `read_timeout` | duration | `30s` | 查询读取超时。ClickHouse 作为 OLAP 引擎，复杂分析查询可能耗时较长，建议根据业务查询复杂度适当调整此值 |
 
 ### auth — 认证配置
 
