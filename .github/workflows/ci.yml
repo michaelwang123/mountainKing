@@ -11,7 +11,6 @@ on:
 env:
   GO_VERSION: "1.25.11"
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   security:
@@ -91,7 +90,7 @@ jobs:
           context: .
           file: deploy/Dockerfile
           push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ci-${{ github.sha }}
+          tags: ghcr.io/michaelwang123/mountainking:ci-${{ github.sha }}
           build-args: |
             VERSION=${{ github.ref_name }}-${{ github.sha }}
             BUILD_TIME=${{ github.event.head_commit.timestamp }}
