@@ -1,6 +1,6 @@
 # MountainKing 技术路线图
 
-> 最后更新：2026-06-10 | 当前版本：v0.1.0
+> 最后更新：2026-06-11 | 当前版本：v0.1.0
 
 ---
 
@@ -11,12 +11,15 @@
 - ✅ 双数据源适配器（StarRocks OLAP + Prometheus 时序）
 - ✅ SQL 模板查询引擎（热加载、安全函数、分页、缓存）
 - ✅ CRUD Mutations（INSERT/UPDATE/DELETE/BatchInsert）
+- ✅ AnyValue 标量类型（任意 JSON 值直传，替代 JSON 包裹模式）
 - ✅ 完整安全栈（JWT/APIKey、RBAC、CSRF、暴力破解防护）
 - ✅ 完整可观测性（Prometheus 指标、OpenTelemetry 追踪、结构化日志）
 - ✅ 弹性设计（熔断器、重试、限流、优雅关闭）
 - ✅ 96+ 属性测试 + Fuzz 测试
-- ✅ Docker/K8s 部署就绪
+- ✅ Docker 镜像自动发布（GHCR 多架构 + 语义化版本标签 + 健康验证）
+- ✅ K8s 部署就绪（Deployment/Service/ConfigMap/HPA）
 - ✅ 5 分钟开发体验（make dev + Mock 数据源 + GraphiQL）
+- ✅ GitHub Pages 文档站点
 - ✅ 12 章系统课程 + 完整官方文档
 
 ---
@@ -29,6 +32,7 @@
 - **投入**：小（复用 StarRocks 查询构建器模式，只需替换 SQL 方言差异）
 - **产出**：用户群至少翻倍
 - **关键点**：ClickHouse 使用 HTTP 接口或原生 TCP 协议，需选择驱动
+- **状态**：🔄 进行中（spec 已创建）
 
 ### 2. `mountainking init` 配置向导 CLI
 
@@ -37,12 +41,12 @@
 - **产出**：首次使用转化率显著提升
 - **关键点**：使用 cobra/bubbletea 实现交互式命令行
 
-### 3. Docker 镜像自动发布到 GHCR
+### ~~3. Docker 镜像自动发布到 GHCR~~ ✅ 已完成
 
-- **理由**：`release.yml` 已有 Docker 构建逻辑，验证并完善即可
-- **投入**：极小（验证现有流程 + 补充 .dockerignore）
-- **产出**：`docker pull ghcr.io/michaelwang123/mountainking:latest` 即用
-- **关键点**：多架构（linux/amd64 + linux/arm64）、语义化版本标签
+- 多架构支持（linux/amd64 + linux/arm64）
+- 语义化版本标签（v1.2.3, v1.2, v1, latest）
+- dev/nightly 工作流（main 分支自动构建 dev/sha-* 标签）
+- 发布后自动健康检查验证
 
 ---
 
@@ -187,17 +191,17 @@
 | 项目 | 优先级 | 状态 |
 |------|--------|------|
 | Branch protection rules | Medium | 待手动设置 |
-| .dockerignore 优化 | Low | 待实现 |
+| .dockerignore 优化 | Low | ✅ 已完成 |
 | Playwright E2E 测试 | Low | 待需要时添加 |
 | Lighthouse CI | Low | 待需要时添加 |
-| Docker 镜像发布验证 | Low | 进行中 → spec |
+| Docker 镜像发布验证 | Low | ✅ 已完成 |
 | Checkpoint tasks 标记 | Low | 仅标记问题 |
 
 ---
 
 ## 推荐实施顺序
 
-**快速扩大用户（2 周）**：Docker 镜像发布 → ClickHouse 适配器 → init CLI
+**快速扩大用户（2 周）**：~~Docker 镜像发布~~ ✅ → ClickHouse 适配器 → init CLI
 
 **企业级产品化（1 月）**：多租户 → OAuth2/OIDC → Helm Chart
 
