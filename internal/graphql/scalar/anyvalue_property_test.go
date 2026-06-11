@@ -7,8 +7,8 @@ package scalar
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"pgregory.net/rapid"
@@ -64,8 +64,6 @@ func genAnyValueShallow() *rapid.Generator[any] {
 }
 
 // genAnyValueRecursive generates any valid JSON value (recursive, depth-limited).
-// At each level, it randomly picks from: null, bool, string, float64, object, array.
-// When maxDepth reaches 0, only leaf types are generated.
 func genAnyValueRecursive(maxDepth int) *rapid.Generator[any] {
 	return rapid.Custom[any](func(t *rapid.T) any {
 		if maxDepth <= 0 {
@@ -73,27 +71,27 @@ func genAnyValueRecursive(maxDepth int) *rapid.Generator[any] {
 		}
 		kind := rapid.IntRange(0, 5).Draw(t, "kind")
 		switch kind {
-		case 0: // null
+		case 0:
 			return nil
-		case 1: // bool
+		case 1:
 			return rapid.Bool().Draw(t, "bool")
-		case 2: // string
+		case 2:
 			return rapid.String().Draw(t, "string")
-		case 3: // float64 number
+		case 3:
 			return rapid.Float64Range(-1e15, 1e15).Draw(t, "number")
-		case 4: // object (map[string]any)
+		case 4:
 			size := rapid.IntRange(0, 3).Draw(t, "mapSize")
 			m := make(map[string]any, size)
 			for i := 0; i < size; i++ {
 				key := rapid.StringMatching(`[a-z]{1,8}`).Draw(t, "key")
-				m[key] = genAnyValueRecursive(maxDepth - 1).Draw(t, "mapValue")
+				m[key] = genAnyValueRecursive(maxDepth-1).Draw(t, "mapValue")
 			}
 			return m
-		case 5: // array ([]any)
+		case 5:
 			size := rapid.IntRange(0, 3).Draw(t, "arrSize")
 			arr := make([]any, size)
 			for i := 0; i < size; i++ {
-				arr[i] = genAnyValueRecursive(maxDepth - 1).Draw(t, "arrElem")
+				arr[i] = genAnyValueRecursive(maxDepth-1).Draw(t, "arrElem")
 			}
 			return arr
 		default:
@@ -103,9 +101,7 @@ func genAnyValueRecursive(maxDepth int) *rapid.Generator[any] {
 }
 
 // buildNestedStructure creates a nested structure of exactly the given depth
-// (number of container levels). The innermost container is empty (no children),
-// ensuring that the deepest validation occurs at depth-1 which is always < 64
-// when depth <= 64.
+// (number of container levels). The innermost container is empty.
 func buildNestedStructure(depth int, startWithMap bool) any {
 	var result any
 	if startWithMap {
@@ -125,6 +121,15 @@ func buildNestedStructure(depth int, startWithMap bool) any {
 		}
 	}
 	return result
+}
+
+// genOverDepthStructure builds a nested map structure exceeding MaxAnyValueDepth.
+func genOverDepthStructure(depth int) any {
+	var current any = map[string]any{}
+	for i := 1; i < depth; i++ {
+		current = map[string]any{"deep": current}
+	}
+	return current
 }
 
 // normalizeForComparison normalizes a value to account for JSON round-trip
@@ -162,42 +167,33 @@ func normalizeForComparison(v any) any {
 // =============================================================================
 // Feature: scalar-anyvalue-type, Property 1: Round-trip preservation
 // **Validates: Requirements 2.7, 8.1, 8.2, 8.3**
-//
-// For any valid AnyValue (objects, arrays, strings, numbers, booleans, null,
-// including nested structures of arbitrary depth <= 64), marshaling via
-// MarshalAnyValue then unmarshaling via UnmarshalAnyValue SHALL produce a
-// value semantically equivalent to the original.
 // =============================================================================
 
 func TestAnyValueProperty1_RoundTripPreservation(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		original := genAnyValueRecursive(4).Draw(rt, "anyValue")
 
-		// Marshal: AnyValue -> JSON bytes
 		marshaler := MarshalAnyValue(original)
 		var buf bytes.Buffer
 		marshaler.MarshalGQL(&buf)
 		jsonBytes := buf.Bytes()
 
-		// Unmarshal: JSON bytes -> Go value
 		var roundTripped any
 		err := json.Unmarshal(jsonBytes, &roundTripped)
 		if err != nil {
 			rt.Fatalf("json.Unmarshal failed on marshaled output %q: %v", string(jsonBytes), err)
 		}
 
-		// Validate via UnmarshalAnyValue
 		result, err := UnmarshalAnyValue(roundTripped)
 		if err != nil {
 			rt.Fatalf("UnmarshalAnyValue failed on round-tripped value: %v", err)
 		}
 
-		// Compare normalized values (JSON round-trip turns int->float64, NaN->null)
 		expected := normalizeForComparison(original)
 		got := normalizeForComparison(result)
 
 		if !reflect.DeepEqual(expected, got) {
-			rt.Fatalf("round-trip mismatch:\n  original (normalized): %#v\n  got (normalized):      %#v\n  json bytes:            %s",
+			rt.Fatalf("round-trip mismatch:\n  original: %#v\n  got:      %#v\n  json:     %s",
 				expected, got, string(jsonBytes))
 		}
 	})
@@ -206,10 +202,6 @@ func TestAnyValueProperty1_RoundTripPreservation(t *testing.T) {
 // =============================================================================
 // Feature: scalar-anyvalue-type, Property 2: Type preservation
 // **Validates: Requirements 1.1-1.7, 3.1-3.6**
-//
-// For any valid JSON value passed to UnmarshalAnyValue, the returned Go value
-// SHALL have the canonical type: map[string]any for objects, []any for arrays,
-// string for strings, float64 for numbers, bool for booleans, and nil for null.
 // =============================================================================
 
 func TestAnyValueProperty2_TypePreservation(t *testing.T) {
@@ -281,8 +273,6 @@ func TestAnyValueProperty2_TypePreservation_Int64(t *testing.T) {
 // =============================================================================
 // Feature: scalar-anyvalue-type, Property 3: Depth acceptance
 // **Validates: Requirements 1.9**
-//
-// Nested structures with depth <= 64 container levels succeed without error.
 // =============================================================================
 
 func TestAnyValueProperty3_DepthAcceptance(t *testing.T) {
@@ -300,12 +290,60 @@ func TestAnyValueProperty3_DepthAcceptance(t *testing.T) {
 }
 
 // =============================================================================
+// Feature: scalar-anyvalue-type, Property 4: Depth rejection
+// **Validates: Requirements 1.10**
+// =============================================================================
+
+func TestAnyValueProperty4_DepthRejection(t *testing.T) {
+	rapid.Check(t, func(rt *rapid.T) {
+		depth := rapid.IntRange(65, 128).Draw(rt, "depth")
+
+		value := genOverDepthStructure(depth)
+
+		_, err := UnmarshalAnyValue(value)
+		if err == nil {
+			rt.Fatalf("expected error for %d container levels, got nil", depth)
+		}
+		if !strings.Contains(err.Error(), "maximum nesting depth") {
+			rt.Fatalf("expected error containing 'maximum nesting depth', got: %v", err)
+		}
+	})
+}
+
+// =============================================================================
+// Feature: scalar-anyvalue-type, Property 5: Unsupported type rejection
+// **Validates: Requirements 1.8**
+// =============================================================================
+
+func TestAnyValueProperty5_UnsupportedTypeRejection(t *testing.T) {
+	unsupportedValues := []any{
+		struct{}{},
+		complex(1, 2),
+		[]int{1, 2, 3},
+		map[int]any{1: "one"},
+		uint(42),
+		uint64(999),
+		float32(1.5),
+	}
+
+	gen := rapid.SampledFrom(unsupportedValues)
+
+	rapid.Check(t, func(rt *rapid.T) {
+		unsupported := gen.Draw(rt, "unsupportedValue")
+
+		_, err := UnmarshalAnyValue(unsupported)
+		if err == nil {
+			rt.Fatalf("expected error for unsupported type %T, got nil", unsupported)
+		}
+		if !strings.Contains(err.Error(), "unsupported AnyValue type") {
+			rt.Fatalf("expected error containing 'unsupported AnyValue type', got: %v", err)
+		}
+	})
+}
+
+// =============================================================================
 // Feature: scalar-anyvalue-type, Property 6: String passthrough (no JSON parsing)
 // **Validates: Requirements 3.7**
-//
-// For any Go string value (including strings that happen to be valid JSON like
-// "42", "true", "[1,2,3]"), UnmarshalAnyValue SHALL return that exact string
-// value unchanged, without attempting JSON decoding.
 // =============================================================================
 
 func TestAnyValueProperty6_StringPassthrough(t *testing.T) {
@@ -340,63 +378,3 @@ func TestAnyValueProperty6_StringPassthrough(t *testing.T) {
 		}
 	})
 }
-
-// =============================================================================
-// Feature: scalar-anyvalue-type, Property 4: Depth rejection
-// **Validates: Requirements 1.10**
-//
-// For any nested structure with depth > 64 container levels,
-// UnmarshalAnyValue SHALL return ErrAnyValueDepthExceeded.
-// =============================================================================
-
-func TestAnyValueProperty4_DepthRejection(t *testing.T) {
-	rapid.Check(t, func(rt *rapid.T) {
-		depth := rapid.IntRange(65, 128).Draw(rt, "depth")
-
-		// Build nested containers exceeding MaxAnyValueDepth
-		var current any = map[string]any{}
-		for i := 1; i < depth; i++ {
-			current = map[string]any{"deep": current}
-		}
-
-		_, err := UnmarshalAnyValue(current)
-		if err == nil {
-			rt.Fatalf("expected error for %d container levels, got nil", depth)
-		}
-		if !errors.Is(err, ErrAnyValueDepthExceeded) {
-			rt.Fatalf("expected ErrAnyValueDepthExceeded, got: %v", err)
-		}
-	})
-}
-
-// =============================================================================
-// Feature: scalar-anyvalue-type, Property 5: Unsupported type rejection
-// **Validates: Requirements 1.8**
-//
-// For any Go value whose type is not in the supported set,
-// UnmarshalAnyValue SHALL return a non-nil error containing the type name.
-// =============================================================================
-
-func TestAnyValueProperty5_UnsupportedTypeRejection(t *testing.T) {
-	unsupportedValues := []any{
-		struct{}{},
-		complex(1, 2),
-		[]int{1, 2, 3},
-		map[int]any{1: "one"},
-		uint(42),
-		uint64(999),
-		float32(1.5),
-	}
-
-	gen := rapid.SampledFrom(unsupportedValues)
-
-	rapid.Check(t, func(rt *rapid.T) {
-		unsupported := gen.Draw(rt, "unsupportedValue")
-
-		_, err := UnmarshalAnyValue(unsupported)
-		if err == nil {
-			rt.Fatalf("expected error for unsupported type %T, got nil", unsupported)
-		}
-	})
-}
-
