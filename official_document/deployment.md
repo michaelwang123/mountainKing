@@ -2,7 +2,30 @@
 
 ## Docker 镜像
 
-### 构建
+### 拉取官方镜像
+
+项目通过 GitHub Actions 自动发布多架构镜像（linux/amd64 + linux/arm64）到 GHCR：
+
+```bash
+# 拉取最新稳定版
+docker pull ghcr.io/michaelwang123/mountainking:latest
+
+# 拉取指定版本
+docker pull ghcr.io/michaelwang123/mountainking:v1.2.3
+
+# 拉取开发版（main 分支最新）
+docker pull ghcr.io/michaelwang123/mountainking:dev
+```
+
+镜像标签策略：
+- `vMAJOR.MINOR.PATCH` — 精确版本（如 `v1.2.3`）
+- `vMAJOR.MINOR` — minor 版本追踪（如 `v1.2`）
+- `vMAJOR` — major 版本追踪（如 `v1`）
+- `latest` — 最新稳定版（不包含预发布版本）
+- `dev` — main 分支最新构建
+- `sha-<7char>` — 精确 commit 构建
+
+### 本地构建
 
 使用多阶段 Dockerfile，最终镜像基于 `distroless` 基础镜像：
 
@@ -18,6 +41,8 @@ docker build -f deploy/Dockerfile \
 - 基于 `gcr.io/distroless/static-debian12:nonroot`
 - 以非 root 用户运行（UID 65534）
 - 通过 `--build-arg` 注入版本号和构建时间，在 `/health` 端点响应中可见
+- 内置 HEALTHCHECK（使用 `-health` flag 探测 /health 端点）
+- 包含 SQL 模板目录 `/templates/`
 
 ### 运行
 
@@ -25,8 +50,19 @@ docker build -f deploy/Dockerfile \
 docker run -p 8080:8080 \
   -v /path/to/config.yaml:/config.yaml \
   -e GRAPHQL_STARROCKS_PASSWORD=secret \
-  graphql-api:v1.0.0
+  ghcr.io/michaelwang123/mountainking:latest
 ```
+
+### 健康检查
+
+镜像内置 HEALTHCHECK 指令，使用二进制自身的 `-health` flag 探测：
+
+```dockerfile
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=5s \
+  CMD ["/graphql-api", "-health"]
+```
+
+自定义端口时需设置环境变量 `GRAPHQL_SERVER_PORT`，否则健康检查默认探测 8080 端口。
 
 ## Docker Compose
 

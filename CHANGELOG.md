@@ -5,10 +5,22 @@
 ## [Unreleased]
 
 ### Added
+- 新增 Docker 镜像自动发布到 GitHub Container Registry (GHCR)
+  - 多架构支持（linux/amd64 + linux/arm64）
+  - 语义化版本标签（v1.2.3, v1.2, v1, latest）
+  - 预发布版本仅推送完整标签，不更新 latest
+  - 发布后自动健康检查验证镜像可用性
+- 新增 `.dockerignore` 优化构建上下文（<5MB）
+- 新增 `dev-image.yml` 工作流：main 分支自动构建 dev/sha-* 标签镜像
+- 新增 `-health` CLI flag 支持容器内 HEALTHCHECK（适配 distroless 镜像）
+- Dockerfile 新增 `HEALTHCHECK` 指令和 `templates/` 目录
+- README 新增 Docker 快速开始章节（拉取、运行、环境变量、docker-compose 示例）
 - 新增 `AnyValue` GraphQL 标量类型，支持任意 JSON 值（对象、数组、字符串、数字、布尔值、null）
 - `AnyValue` 类型支持最大 64 层嵌套深度校验，防止恶意深层嵌套载荷
 
 ### Changed
+- `ci.yml` Docker 构建步骤改为仅验证编译（不再推送），避免与 dev-image.yml 重复
+- `release.yml` 使用 metadata-action 管理标签，添加 QEMU/Buildx 多架构构建和并发控制
 - **Breaking Change**: Mutation 值字段现使用 `AnyValue` 标量类型替代 `JSON` 标量类型：
   - `ColumnValueInput.value`: `JSON!` → `AnyValue!`
   - `MutationFilterInput.value`: `JSON` → `AnyValue`
